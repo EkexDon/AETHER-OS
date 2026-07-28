@@ -2,6 +2,8 @@
 
 A local-first cognitive workspace that turns your Markdown vault into an AI-powered knowledge base. Chat with your notes, run semantic search, visualize connections, and generate AI notes — all offline, all private.
 
+![AETHER-OS Project Dashboard](assets/image.png)
+
 ## Features
 
 - **AI Agent Chat** — Stream responses from local LLMs (Ollama) with your notes as context. Select which notes to include, or use all of them automatically.
