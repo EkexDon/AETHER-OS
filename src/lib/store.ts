@@ -3,6 +3,16 @@ import type { AetherNote, Conversation, GraphData, MemoryFact, Project, SystemHe
 
 export type ViewMode = "dashboard" | "search" | "graph" | "notes" | "projects" | "memory";
 
+const EDITOR_STORAGE_KEY = "aether-preferred-editor";
+
+function loadPreferredEditor(): string {
+  try {
+    return localStorage.getItem(EDITOR_STORAGE_KEY) ?? "devin";
+  } catch {
+    return "devin";
+  }
+}
+
 interface AetherState {
   vaultPath: string | null;
   vaultNotes: VaultNote[];
@@ -23,6 +33,7 @@ interface AetherState {
   noteContent: string | null;
   indexing: boolean;
   busy: boolean;
+  preferredEditor: string;
 
   setVaultPath: (path: string | null) => void;
   setVaultNotes: (notes: VaultNote[]) => void;
@@ -45,6 +56,7 @@ interface AetherState {
   setNoteContent: (content: string | null) => void;
   setIndexing: (v: boolean) => void;
   setBusy: (v: boolean) => void;
+  setPreferredEditor: (editor: string) => void;
 }
 
 export const useAetherStore = create<AetherState>((set) => ({
@@ -67,6 +79,7 @@ export const useAetherStore = create<AetherState>((set) => ({
   noteContent: null,
   indexing: false,
   busy: false,
+  preferredEditor: loadPreferredEditor(),
 
   setVaultPath: (vaultPath) => set({ vaultPath }),
   setVaultNotes: (vaultNotes) => set({ vaultNotes }),
@@ -93,4 +106,12 @@ export const useAetherStore = create<AetherState>((set) => ({
   setNoteContent: (noteContent) => set({ noteContent }),
   setIndexing: (indexing) => set({ indexing }),
   setBusy: (busy) => set({ busy }),
+  setPreferredEditor: (preferredEditor) => {
+    try {
+      localStorage.setItem(EDITOR_STORAGE_KEY, preferredEditor);
+    } catch {
+      // ignore storage errors (e.g. private mode)
+    }
+    set({ preferredEditor });
+  },
 }));

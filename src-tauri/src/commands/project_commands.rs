@@ -162,13 +162,39 @@ pub async fn cmd_scan_projects(directories: Vec<String>) -> Result<Vec<Project>,
 
 #[tauri::command]
 pub async fn cmd_open_project(path: String, editor: Option<String>) -> Result<(), String> {
-    let editor_cmd = editor.unwrap_or_else(|| "cursor".to_owned());
-    let status = Command::new(&editor_cmd)
+    let requested = editor.unwrap_or_else(|| "devin".to_owned());
+
+    // Map common editor keys to their macOS Application bundle names, and
+    // launch via `open -a` so this works even when the editor's CLI shim
+    // (e.g. `code`, `cursor`, `windsurf`, `devin`) has not been installed into PATH.
+    let app_name = match requested.to_lowercase().as_str() {
+        "devin" => "Devin".to_owned(),
+        "windsurf" => "Windsurf".to_owned(),
+        "cursor" => "Cursor".to_owned(),
+        "code" | "vscode" | "visual studio code" => "Visual Studio Code".to_owned(),
+        _ => requested.clone(),
+    };
+
+    let open_status = Command::new("open")
+        .arg("-a")
+        .arg(&app_name)
+        .arg(&path)
+        .status();
+
+    if let Ok(status) = open_status {
+        if status.success() {
+            return Ok(());
+        }
+    }
+
+    // Fallback: try the raw CLI command directly (works if the user has
+    // installed the shell command shim for their editor).
+    let status = Command::new(&requested)
         .arg(&path)
         .status()
-        .map_err(|e| format!("Failed to launch {editor_cmd}: {e}"))?;
+        .map_err(|e| format!("Failed to launch {app_name}: {e}"))?;
     if !status.success() {
-        return Err(format!("{editor_cmd} exited with status {status}"));
+        return Err(format!("{requested} exited with status {status}"));
     }
     Ok(())
 }

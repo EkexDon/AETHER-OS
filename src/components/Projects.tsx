@@ -30,7 +30,7 @@ function timeAgo(ts: number): string {
 }
 
 export function Projects() {
-  const { projects, setProjects } = useAetherStore();
+  const { projects, setProjects, preferredEditor } = useAetherStore();
   const [dirs, setDirs] = useState<string[]>([]);
   const [scanning, setScanning] = useState(false);
   const [search, setSearch] = useState("");
@@ -96,7 +96,7 @@ export function Projects() {
 
   const handleOpen = async (project: Project) => {
     try {
-      await openProject(project.path, "cursor");
+      await openProject(project.path, preferredEditor);
     } catch {
       try {
         await openProject(project.path, "code");

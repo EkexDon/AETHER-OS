@@ -12,10 +12,14 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     setVaultStats,
     setGraph,
     setHealth,
+    preferredEditor,
+    setPreferredEditor,
   } = useAetherStore();
   const [pathInput, setPathInput] = useState(vaultPath ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [customEditor, setCustomEditor] = useState("");
+  const isKnownEditor = ["devin", "windsurf", "cursor", "code"].includes(preferredEditor);
 
   useEffect(() => {
     void getVaultPath().then((p) => {
@@ -100,9 +104,56 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-section">
+          <label className="settings-label">Default Editor</label>
+          <p className="settings-hint">
+            App used to open your projects from the Project Dashboard.
+          </p>
+          <select
+            className="settings-input"
+            value={isKnownEditor ? preferredEditor : "custom"}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "custom") {
+                setCustomEditor(preferredEditor);
+              } else {
+                setPreferredEditor(v);
+              }
+            }}
+          >
+            <option value="devin">Devin</option>
+            <option value="windsurf">Windsurf</option>
+            <option value="cursor">Cursor</option>
+            <option value="code">VS Code</option>
+            <option value="custom">Custom...</option>
+          </select>
+          {(!isKnownEditor || customEditor) && (
+            <div className="settings-path-row" style={{ marginTop: 8 }}>
+              <input
+                type="text"
+                className="settings-input"
+                placeholder="Exact macOS app name, e.g. Zed"
+                value={customEditor || (!isKnownEditor ? preferredEditor : "")}
+                onChange={(e) => setCustomEditor(e.target.value)}
+              />
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  if (customEditor.trim()) {
+                    setPreferredEditor(customEditor.trim());
+                    setCustomEditor("");
+                  }
+                }}
+              >
+                Use
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="settings-section">
           <label className="settings-label">AI Model</label>
           <p className="settings-hint">
-            AETHER uses Ollama locally. Default model: llama3.2. Install with: ollama pull llama3.2
+            AETHER uses Ollama locally. Default model: gemma2:2b. Install with: ollama pull gemma2:2b
           </p>
         </div>
       </div>
