@@ -1,0 +1,496 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{tabularx}
+\usepackage{amssymb}
+
+\hypersetup{colorlinks=true,linkcolor=blue!70!black,urlcolor=blue!70!black}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textbf{AETHER-OS}}
+\fancyhead[R]{Commercial Roadmap}
+\fancyfoot[C]{\thepage}
+
+\titleformat{\section}{\Large\bfseries\color{black!85}}{\thesection}{1em}{}
+\titleformat{\subsection}{\large\bfseries\color{black!75}}{\thesubsection}{1em}{}
+
+\title{\vspace{2cm}{\Huge\textbf{AETHER-OS}}\\[0.5cm]{\Large Commercial Product Analysis \& Execution Roadmap}\\[0.3cm]{\large\textit{From university project to commercial product}}\\[1cm]}
+\author{Ekin --- Medieninformatik, Hochschule der Medien Stuttgart}
+\date{July 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+\newpage
+\tableofcontents
+\newpage
+
+% =========================================================
+\section{Executive Summary}
+% =========================================================
+
+AETHER-OS is a local-first personal operating system built with Rust (Tauri v2) and React 19. It combines knowledge management, AI-assisted thinking, project orchestration, and persistent memory into a single desktop application that runs entirely on the user's machine.
+
+\textbf{The thesis:} The productivity software market is splitting into two camps --- cloud-locked SaaS (Notion, \$600M ARR, 100M users) and local-first sovereign tools (Obsidian, \$25M ARR, 1.5M users, zero VC). AETHER-OS targets the gap: the power user who wants local-first privacy \textbf{and} built-in AI \textbf{and} a real OS feel, without paying \$20/user/month to a cloud provider.
+
+% =========================================================
+\section{Market Analysis}
+% =========================================================
+
+\subsection{Market Size}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xrrr}
+\toprule
+\textbf{Segment} & \textbf{2025} & \textbf{2030} & \textbf{CAGR} \\
+\midrule
+PKM Software & \$1.8B & \$5.2B & 14.2\% \\
+Personal Knowledge Base AI & \$1.65B & \$6.15B & 30.0\% \\
+Knowledge Management (broader) & \$27.89B & \$61.28B & 17.1\% \\
+Personal AI Assistant & \$3.4B & \$19.6B & 42\% \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\textbf{Key insight:} AI-augmented PKM is growing at 30\% CAGR --- nearly double the base market. AETHER-OS is already in this high-growth segment.
+
+\subsection{Competitive Landscape}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{XrrXX}
+\toprule
+\textbf{Competitor} & \textbf{Users} & \textbf{Revenue} & \textbf{Strength} & \textbf{Weakness} \\
+\midrule
+Notion & 100M+ & \$600M ARR & Teams, databases, AI agents & Cloud-locked, expensive \\
+Obsidian & 1.5M & \$25M/yr & Local-first, 4,264 plugins & No built-in AI, no terminal \\
+Evernote & $\sim$225M & $\sim$\$200M & Brand recognition & Trust deficit, cloud-only \\
+Apple Notes & $\sim$1B & \$0 & Zero friction & Locked to Apple, no AI \\
+Atlas Notes & Emerging & N/A & Voice, CRM, calendar & New, unproven \\
+NeumanOS & Emerging & N/A & 60+ widgets & Browser-only (IndexedDB) \\
+Sorana & Emerging & N/A & Spatial canvas, memory & Windows-only \\
+Thoth & Emerging & N/A & 30 tools, 5 channels & Python, not desktop OS \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{AETHER-OS Position}
+
+No competitor hits all three: \textbf{Local-first AND AI-native AND OS-grade.}
+
+\subsection{Target Personas}
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Sovereign Developer (60\%):} Age 22--35, uses VS Code/Cursor/Devin, has Ollama. Values privacy. Pays \$49--99 one-time.
+  \item \textbf{Privacy Knowledge Worker (25\%):} Age 28--45, consulting/research. Wants AI without feeding OpenAI. Pays \$49 + sync.
+  \item \textbf{Student/Academic (15\%):} Age 18--25, limited budget. Free tier. Word-of-mouth growth.
+\end{itemize}
+
+% =========================================================
+\section{Pricing Strategy}
+% =========================================================
+
+\subsection{Model: Perpetual License + Optional Services}
+
+Subscription fatigue is real. Obsidian proved free + paid services = \$25M/yr. The local-first audience values ownership --- they don't want to rent their tools.
+
+\subsection{Price Tiers}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{lrX}
+\toprule
+\textbf{Tier} & \textbf{Price} & \textbf{Includes} \\
+\midrule
+Free & \$0 & Full app, local AI, core features. No sync, no plugins. \\
+Pro & \$49 one-time & + terminal, clipboard, quick launcher, auto-git, plugins, editor, backlinks, daily notes. 12mo updates. \\
+Pro+ & \$99 one-time & + web clipper, agent actions, universal search, auto-compaction, priority support. 24mo updates. \\
+Sync & \$4/mo & E2E-encrypted sync, 3 devices. \\
+Sync+ & \$8/mo & 10GB sync, 5 devices, 30-day version history. \\
+Team & \$15/user/mo & Shared vaults, RBAC, audit logs. Phase 5+. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Revenue Projections (Conservative)}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xrrrrr}
+\toprule
+\textbf{Year} & \textbf{Users} & \textbf{Paid} & \textbf{Revenue} & \textbf{Costs} & \textbf{Net} \\
+\midrule
+Y1 & 5K & 400 & \$24K & \$8K & \$16K \\
+Y2 & 25K & 2.5K & \$160K & \$30K & \$130K \\
+Y3 & 100K & 12K & \$850K & \$120K & \$730K \\
+Y4 & 300K & 42K & \$3.2M & \$400K & \$2.8M \\
+Y5 & 750K & 112K & \$8.9M & \$1.2M & \$7.7M \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Payment Processing}
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Lemon Squeezy} (5\% + \$0.50) --- one-time licenses, handles global VAT/tax
+  \item \textbf{Stripe} (2.9\% + \$0.30) --- recurring subscriptions (Sync/Team)
+  \item Both integrate with license key systems via webhooks
+\end{itemize}
+
+% =========================================================
+\section{Licensing Architecture}
+% =========================================================
+
+\subsection{System: Keylight (Rust-native, Ed25519)}
+
+\begin{itemize}[noitemsep]
+  \item Ed25519 signed offline leases --- no network call to validate
+  \item Machine-bound activation (device fingerprinting)
+  \item Offline grace period (7 days configurable)
+  \item Tauri v2 plugin with TypeScript bindings
+  \item Entitlement-based feature gating
+\end{itemize}
+
+\subsection{Flow}
+
+\begin{verbatim}
+Purchase -> Lemon Squeezy webhook -> Keylight API -> license key emailed
+-> User enters key in AETHER-OS -> Online activation -> Signed lease in keychain
+-> Local Ed25519 verify on every launch -> Offline >7d -> graceful Free tier
+\end{verbatim}
+
+\subsection{Entitlements}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xccc}
+\toprule
+\textbf{Entitlement} & \textbf{Free} & \textbf{Pro} & \textbf{Pro+} \\
+\midrule
+core.* (notes, ai, projects, search, graph, dashboard) & \checkmark & \checkmark & \checkmark \\
+pro.terminal, pro.clipboard, pro.quick\_launcher & --- & \checkmark & \checkmark \\
+pro.auto\_git, pro.plugins, pro.editor, pro.backlinks & --- & \checkmark & \checkmark \\
+pro.daily\_notes & --- & \checkmark & \checkmark \\
+proplus.web\_clipper, proplus.agent\_actions & --- & --- & \checkmark \\
+proplus.universal\_search, proplus.auto\_compaction & --- & --- & \checkmark \\
+proplus.priority\_support & --- & --- & \checkmark \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================
+\section{Current Architecture Audit}
+% =========================================================
+
+\subsection{What Exists (v0.1)}
+
+\textbf{Backend (Rust/Tauri v2):} VaultReader, VectorEngine (lancedb), LocalAiEngine (Ollama streaming), AetherNotes, MemoryStore, ProjectCommands. 27 registered Tauri commands.
+
+\textbf{Frontend (React 19):} Dashboard, AgentChat (streaming), SemanticSearch, VaultGraph (D3), AetherNotes, Projects, SettingsPanel, CommandBar (Cmd+K), Zustand store with localStorage.
+
+\subsection{Commercial Gaps}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xc}
+\toprule
+\textbf{Gap} & \textbf{Severity} \\
+\midrule
+No note editor (read-only) & Critical \\
+No tests & Critical \\
+No license system & Critical \\
+No update mechanism & High \\
+No crash reporting & High \\
+No onboarding flow & Medium \\
+No CI/CD pipeline & High \\
+JSON storage (not SQLite) & Medium \\
+No cross-platform builds & High \\
+No accessibility & Medium \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================
+\section{Feature Roadmap --- Commercial Edition}
+% =========================================================
+
+\subsection{Phase 0: Foundation (Weeks 1--3)}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xr}
+\toprule
+\textbf{Feature} & \textbf{Effort} \\
+\midrule
+0.1 CI/CD: GitHub Actions (cargo test, clippy, npm test, build, tauri build) & 2d \\
+0.2 Test Suite: Rust integration + Vitest + Playwright. 80\% BE / 70\% FE & 5d \\
+0.3 Auto-Update: Tauri updater plugin, signed updates from GitHub Releases & 1d \\
+0.4 Crash Reporting: Rust panic handler + React error boundary & 2d \\
+0.5 Onboarding: First-run wizard (vault path, Ollama check, model selection) & 2d \\
+0.6 Cross-Platform: macOS Universal, Linux AppImage+.deb, Windows NSIS & 3d \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Phase 1: Core OS Layer (Weeks 4--8)}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xr}
+\toprule
+\textbf{Feature} & \textbf{Effort} \\
+\midrule
+1.1 Terminal: PTY-backed, multi-tab, xterm.js, split panes (\texttt{portable-pty}) & 7d \\
+1.2 System Monitor: CPU/RAM/disk/network/battery, top processes (\texttt{sysinfo}) & 3d \\
+1.3 Clipboard Manager: System-wide history, searchable, pin (\texttt{arboard} + SQLite) & 4d \\
+1.4 Quick Launcher: Cmd+Space, fuzzy search across everything & 3d \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Phase 2: Knowledge Engine (Weeks 9--16)}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xr}
+\toprule
+\textbf{Feature} & \textbf{Effort} \\
+\midrule
+2.1 Note Editor: CodeMirror 6, live preview, wikilink/tag autocomplete, Vim mode & 8d \\
+2.2 Backlinks: Reverse link index, unlinked mentions, context previews & 3d \\
+2.3 Daily Notes: Auto-create daily note, Cmd+Shift+N quick capture & 2d \\
+2.4 AI Agent Actions: Structured actions with approval system and safety classifier & 6d \\
+2.5 Web Clipper: URL $\to$ fetch $\to$ extract content $\to$ Markdown note & 3d \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Phase 3: Productivity Layer (Weeks 17--22)}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xr}
+\toprule
+\textbf{Feature} & \textbf{Effort} \\
+\midrule
+3.1 Kanban Tasks: Extract \texttt{- [ ]} from notes, drag-and-drop board & 4d \\
+3.2 Calendar: Monthly view, due dates, ICS import/export, notifications & 5d \\
+3.3 Pomodoro: 25/5 timer, focus mode, time tracking on dashboard & 2d \\
+3.4 Bookmarks: Pin notes/projects/commands to sidebar, drag-to-reorder & 2d \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Phase 4: Intelligence Layer (Weeks 23--28)}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xr}
+\toprule
+\textbf{Feature} & \textbf{Effort} \\
+\midrule
+4.1 Auto-Git Versioning: Auto-commit on change, history, diff viewer, restore & 4d \\
+4.2 AI Note Suggestions: Real-time related note suggestions while writing & 3d \\
+4.3 Conversation Auto-Compaction: Summarize long conversations at token threshold & 2d \\
+4.4 Universal Search: One search across notes, projects, conversations, memory, files & 4d \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Phase 5: Extension Layer (Weeks 29--40)}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{Xr}
+\toprule
+\textbf{Feature} & \textbf{Effort} \\
+\midrule
+5.1 Plugin System: Sandboxed JS/TS modules, plugin API (\texttt{deno\_core}) & 12d \\
+5.2 Export \& Publishing: PDF, HTML, static site generation & 5d \\
+5.3 E2E Sync: AES-256-GCM encrypted sync, relay server, conflict resolution & 10d \\
+5.4 SQLite Migration: Migrate from JSON to SQLite & 3d \\
+5.5 License Integration: Keylight SDK, activation UI, entitlement gating & 3d \\
+5.6 App Store Submission: macOS notarization, code signing, DMG packaging & 3d \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================
+\section{Testing Strategy}
+% =========================================================
+
+\subsection{Test Pyramid}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{XXrX}
+\toprule
+\textbf{Layer} & \textbf{Tool} & \textbf{Coverage} & \textbf{What} \\
+\midrule
+Unit & \texttt{cargo test} / Vitest & 80\% BE / 70\% FE & Functions, parsers, indexers \\
+Integration & \texttt{cargo test} (Tauri) & 90\% commands & Each command with real vault \\
+E2E & Playwright (Tauri) & Critical paths & Onboarding, note, AI chat, search \\
+Performance & \texttt{criterion} (Rust) & Key ops & Scan $<$1s/1000 notes, search $<$100ms \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Critical Path Tests (Must pass before release)}
+
+\begin{enumerate}[noitemsep]
+  \item First-run onboarding completes successfully
+  \item Create vault $\to$ add note $\to$ edit note $\to$ save $\to$ verify on disk
+  \item AI chat with streaming $\to$ save conversation $\to$ verify in memory store
+  \item Semantic search returns relevant results after indexing
+  \item Project scan finds git repos $\to$ open in editor works
+  \item License activation (Pro) $\to$ entitlement-gated features unlock
+  \item App update $\to$ download $\to$ install $\to$ relaunch $\to$ new version
+  \item Cross-platform: all above on macOS, Linux, Windows
+\end{enumerate}
+
+% =========================================================
+\section{Go-To-Market Plan}
+% =========================================================
+
+\subsection{Launch Sequence}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{XrXX}
+\toprule
+\textbf{Stage} & \textbf{When} & \textbf{What} & \textbf{Goal} \\
+\midrule
+Teaser & Wk 8 & GitHub README + screenshot, landing page & 500 signups \\
+Beta & Wk 16 & Free beta via GitHub, PH ``coming soon'' & 2,000 users \\
+PH Launch & Wk 22 & Product Hunt, Hacker News, LinkedIn & 10,000 users \\
+Commercial & Wk 28 & v1.0 with licensing, paid Pro/Pro+ & First revenue \\
+Growth & Wk 40+ & Plugin marketplace, sync, team tier & Scale \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Channels}
+
+\begin{itemize}[noitemsep]
+  \item \textbf{GitHub:} Open-source core (Free tier), stars as social proof
+  \item \textbf{Product Hunt:} Tuesday/Wednesday launch, maker comment
+  \item \textbf{Hacker News:} Show HN with technical depth (Rust + Tauri + local AI)
+  \item \textbf{LinkedIn:} Technical posts, build-in-public
+  \item \textbf{YouTube:} 60s feature demos, 10min overview
+  \item \textbf{Reddit:} r/productivity, r/rust, r/selfhosted
+  \item \textbf{Setapp:} macOS distribution partnership
+\end{itemize}
+
+\subsection{Messaging}
+
+\textbf{Tagline:} ``Your knowledge. Your machine. Your OS.''
+
+\textbf{Elevator pitch:} ``AETHER-OS is a local-first personal operating system that combines Obsidian's knowledge management, a built-in terminal, and AI that actually knows your notes --- all running on your machine, no cloud required.''
+
+\textbf{Anti-positioning:} ``Notion owns your data. Obsidian doesn't have AI. AETHER-OS is what happens when you build both right.''
+
+% =========================================================
+\section{Risk Analysis}
+% =========================================================
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{XXX}
+\toprule
+\textbf{Risk} & \textbf{Prob/Impact} & \textbf{Mitigation} \\
+\midrule
+Ollama API breaking changes & Med / High & Pin version, abstract API layer \\
+Tauri v2 breaking changes & Low / High & Pin version, follow changelog \\
+Apple notarization issues & Med / Medium & Test early, automate in CI \\
+User can't install Ollama & High / High & Bundle installer, cloud AI fallback \\
+Obsidian adds built-in AI & Med / High & Differentiate: terminal, OS feel, actions \\
+Scope creep delays launch & High / Critical & Ship Phase 0--1 as beta, monetize at P4 \\
+Solo developer burnout & Med / Critical & AI-assisted dev, strict scope \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% =========================================================
+\section{Development Strategy with AI Assistants}
+% =========================================================
+
+\subsection{Tool Assignment}
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{XXX}
+\toprule
+\textbf{Tool} & \textbf{Role} & \textbf{Best At} \\
+\midrule
+Claude Code Max & Rust backend & Commands, engine logic, tests, CI \\
+Devin & React frontend & Components, UI, state, styling \\
+Kimi 3 & Integration + docs & Glue code, documentation, code review \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Parallelization Rules}
+
+\begin{itemize}[noitemsep]
+  \item Never have two AIs edit the same file simultaneously
+  \item Backend and frontend can be developed in parallel
+  \item Define IPC contract (command names + types) FIRST, then parallelize
+  \item Daily merge: integrate, run full test suite, fix conflicts
+\end{itemize}
+
+\subsection{Quality Gates}
+
+Every AI-generated code must:
+\begin{enumerate}[noitemsep]
+  \item Pass \texttt{cargo clippy} with zero warnings
+  \item Pass \texttt{cargo test} for affected modules
+  \item Pass \texttt{npm run build} (TypeScript strict)
+  \item Pass \texttt{npm test} for affected components
+  \item Be reviewed by human (Ekin) before merge to main
+\end{enumerate}
+
+% =========================================================
+\section{Timeline Summary}
+% =========================================================
+
+\begin{table}[h]\centering\small
+\begin{tabularx}{\textwidth}{XrXX}
+\toprule
+\textbf{Phase} & \textbf{Weeks} & \textbf{Features} & \textbf{Output} \\
+\midrule
+Phase 0 & 1--3 & CI/CD, tests, updates, crash reporting, onboarding & Testable codebase \\
+Phase 1 & 4--8 & Terminal, system monitor, clipboard, quick launcher & ``It feels like an OS'' \\
+Phase 2 & 9--16 & Editor, backlinks, daily notes, agent actions, web clipper & ``It replaces Obsidian'' \\
+Phase 3 & 17--22 & Kanban, calendar, pomodoro, bookmarks & ``It replaces my todo app'' \\
+Phase 4 & 23--28 & Auto-git, AI suggestions, compaction, universal search & ``It's smarter than me'' \\
+Phase 5 & 29--40 & Plugins, export, sync, SQLite, licensing, app store & ``It's a product'' \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\vspace{0.5cm}
+\textbf{Total: 40 weeks ($\sim$10 months) to commercial v1.0}
+
+\begin{itemize}[noitemsep]
+  \item \textbf{Beta at Week 16} (4 months) --- usable product with editor + AI + terminal
+  \item \textbf{Commercial launch at Week 28} (7 months) --- paid product with licensing
+  \item \textbf{Full v1.0 at Week 40} (10 months) --- plugins, sync, app store
+\end{itemize}
+
+% =========================================================
+\section{The North Star}
+% =========================================================
+
+AETHER-OS replaces:
+
+\begin{itemize}[noitemsep]
+  \item Activity Monitor $\rightarrow$ System Monitor
+  \item Notes app $\rightarrow$ Vault with full editor
+  \item Todo app $\rightarrow$ Kanban from notes
+  \item Calendar app $\rightarrow$ Built-in calendar
+  \item Spotlight $\rightarrow$ Quick Launcher
+  \item Clipboard manager $\rightarrow$ Built-in history
+  \item Terminal $\rightarrow$ Built-in PTY terminal
+  \item ChatGPT/Claude $\rightarrow$ Local AI with your context
+  \item Obsidian $\rightarrow$ Full knowledge management with AI
+\end{itemize}
+
+\vspace{1cm}
+\begin{center}
+\Large\textit{One app. Your data. Your machine. Your OS.}
+\end{center}
+
+\end{document}
