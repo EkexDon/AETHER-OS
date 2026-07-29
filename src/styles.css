@@ -1634,3 +1634,115 @@ body {
   color: var(--accent);
   flex-shrink: 0;
 }
+
+/* ── Terminal View ── */
+.terminal-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+.terminal-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  min-height: 34px;
+}
+
+.terminal-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.terminal-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.terminal-tab-active {
+  background: var(--bg-surface-3);
+  border-color: var(--border-light);
+  color: var(--text-primary);
+}
+
+.terminal-tab-title {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.terminal-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0;
+  transition: all 0.15s ease;
+}
+
+.terminal-tab-close:hover {
+  background: var(--danger);
+  color: #fff;
+}
+
+.terminal-tab-new {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.terminal-tab-new:hover {
+  background: var(--accent-glow);
+  color: var(--accent);
+}
+
+.terminal-container {
+  flex: 1;
+  padding: 8px;
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+.terminal-container .xterm {
+  padding: 4px;
+  height: 100%;
+}
+
+.terminal-container .xterm-viewport {
+  background-color: var(--bg-base) !important;
+}
+
+.terminal-container .xterm-screen {
+  background-color: var(--bg-base) !important;
+}

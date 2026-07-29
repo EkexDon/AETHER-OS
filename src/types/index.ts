@@ -116,3 +116,10 @@ export interface MemoryFact {
   category: string;
   created_at: number;
 }
+
+export interface TerminalSession {
+  id: string;
+  cwd: string;
+  shell: string;
+  alive: boolean;
+}

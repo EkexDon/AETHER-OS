@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use engine::{
     aether_notes::AetherNotes, local_ai::LocalAiEngine, memory_store::MemoryStore,
-    vault_reader::VaultReader, vector_db::VectorEngine,
+    terminal::TerminalManager, vault_reader::VaultReader, vector_db::VectorEngine,
 };
 use tauri::Manager;
 
@@ -15,6 +15,7 @@ pub struct AppState {
     pub ai: Arc<LocalAiEngine>,
     pub aether_notes: Arc<AetherNotes>,
     pub memory: Arc<MemoryStore>,
+    pub terminal: Arc<TerminalManager>,
 }
 
 pub fn run() {
@@ -29,12 +30,14 @@ pub fn run() {
             let ai = LocalAiEngine::new()?;
             let aether_notes = AetherNotes::new(&data_dir.join("aether"))?;
             let memory = MemoryStore::new(&data_dir.join("memory"))?;
+            let terminal = TerminalManager::new();
             app.manage(AppState {
                 vault: Arc::new(vault),
                 vectors: Arc::new(vectors),
                 ai: Arc::new(ai),
                 aether_notes: Arc::new(aether_notes),
                 memory: Arc::new(memory),
+                terminal: Arc::new(terminal),
             });
             Ok(())
         })
@@ -67,6 +70,11 @@ pub fn run() {
             commands::memory_commands::cmd_save_memory_fact,
             commands::memory_commands::cmd_get_memory_facts,
             commands::memory_commands::cmd_delete_memory_fact,
+            commands::terminal_commands::cmd_terminal_spawn,
+            commands::terminal_commands::cmd_terminal_write,
+            commands::terminal_commands::cmd_terminal_resize,
+            commands::terminal_commands::cmd_terminal_kill,
+            commands::terminal_commands::cmd_terminal_list,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run AETHER-OS");

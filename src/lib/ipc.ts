@@ -9,6 +9,7 @@ import type {
   MemoryFact,
   Project,
   SystemHealth,
+  TerminalSession,
   VaultIndex,
   VaultNote,
   VaultStats,
@@ -67,9 +68,25 @@ export const getMemoryFacts = () => call<MemoryFact[]>("cmd_get_memory_facts");
 export const deleteMemoryFact = (fact: string) =>
   call<MemoryFact[]>("cmd_delete_memory_fact", { fact });
 
+export const terminalSpawn = (cwd?: string, shell?: string, cols?: number, rows?: number) =>
+  call<TerminalSession>("cmd_terminal_spawn", { cwd, shell, cols, rows });
+export const terminalWrite = (id: string, data: string) =>
+  call<void>("cmd_terminal_write", { id, data });
+export const terminalResize = (id: string, cols: number, rows: number) =>
+  call<void>("cmd_terminal_resize", { id, cols, rows });
+export const terminalKill = (id: string) =>
+  call<void>("cmd_terminal_kill", { id });
+export const terminalList = () =>
+  call<TerminalSession[]>("cmd_terminal_list");
+
 type Option<T> = T | null;
 
 export async function onStreamChunk(handler: (chunk: string) => void): Promise<UnlistenFn> {
   if (!isDesktopRuntime()) return () => undefined;
   return listen<string>("llm-stream-chunk", event => handler(event.payload));
+}
+
+export async function onTerminalOutput(handler: (output: string) => void): Promise<UnlistenFn> {
+  if (!isDesktopRuntime()) return () => undefined;
+  return listen<string>("terminal-output", event => handler(event.payload));
 }
