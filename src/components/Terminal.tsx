@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { Plus, X, TerminalSquare } from "lucide-react";
+import { Plus, X, TerminalSquare, RotateCcw } from "lucide-react";
 import {
   terminalSpawn,
   terminalWrite,
@@ -58,6 +58,24 @@ export function Terminal() {
       setActiveTabId(session.id);
     } catch (err) {
       console.error("Failed to spawn terminal:", err);
+    }
+  }, []);
+
+  const resetTerminal = useCallback(() => {
+    if (!xtermRef.current) return;
+
+    xtermRef.current.reset();
+
+    if (fitRef.current) {
+      fitRef.current.fit();
+    }
+
+    if (
+      isDesktopRuntime() &&
+      activeSessionRef.current &&
+      !activeSessionRef.current.startsWith("local-")
+    ) {
+      void terminalResize(activeSessionRef.current, xtermRef.current.cols, xtermRef.current.rows);
     }
   }, []);
 
@@ -220,6 +238,15 @@ export function Terminal() {
         ))}
         <button className="terminal-tab-new" onClick={() => void createTab()} title="New tab">
           <Plus size={14} />
+        </button>
+        <div className="terminal-tab-bar-spacer" />
+        <button
+          className="terminal-tab-reset"
+          onClick={resetTerminal}
+          title="Reset terminal (clears screen if display gets corrupted)"
+          disabled={!activeTabId}
+        >
+          <RotateCcw size={13} />
         </button>
       </div>
       <div className="terminal-container" ref={containerRef} />

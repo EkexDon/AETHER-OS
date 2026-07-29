@@ -8,6 +8,7 @@ vi.mock("@xterm/xterm", () => ({
     writeln: vi.fn(),
     onData: vi.fn(),
     loadAddon: vi.fn(),
+    reset: vi.fn(),
     cols: 80,
     rows: 24,
   })),
@@ -65,5 +66,17 @@ describe("Terminal", () => {
       const tabElements = screen.getAllByText(/Terminal/i);
       expect(tabElements.length).toBeGreaterThanOrEqual(1);
     });
+  });
+
+  it("shows an enabled reset button once a tab is active and does not throw when clicked", async () => {
+    render(<Terminal />);
+    await vi.waitFor(() => {
+      const resetButton = screen.getByTitle(/Reset terminal/i);
+      expect(resetButton).toBeTruthy();
+      expect((resetButton as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    const resetButton = screen.getByTitle(/Reset terminal/i);
+    expect(() => fireEvent.click(resetButton)).not.toThrow();
   });
 });
