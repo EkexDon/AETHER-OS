@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   AetherNote,
+  BrowserInfo,
   ChatMessageRecord,
   Conversation,
   GraphData,
@@ -83,6 +84,13 @@ export const terminalList = () =>
 
 export const getSystemMetrics = () =>
   call<SystemMetrics>("cmd_get_system_metrics");
+
+export const getBrowserInfo = () =>
+  call<BrowserInfo>("cmd_browser_info");
+export const browserOpen = (url: string) =>
+  call<void>("cmd_browser_open", { url });
+export const browserOpenLibreWolf = (url: string) =>
+  call<void>("cmd_browser_open_librewolf", { url });
 
 type Option<T> = T | null;
 

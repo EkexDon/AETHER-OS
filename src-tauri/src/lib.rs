@@ -4,9 +4,9 @@ mod engine;
 use std::sync::Arc;
 
 use engine::{
-    aether_notes::AetherNotes, local_ai::LocalAiEngine, memory_store::MemoryStore,
-    system_monitor::SystemMonitor, terminal::TerminalManager, vault_reader::VaultReader,
-    vector_db::VectorEngine,
+    aether_notes::AetherNotes, browser::BrowserManager, local_ai::LocalAiEngine,
+    memory_store::MemoryStore, system_monitor::SystemMonitor, terminal::TerminalManager,
+    vault_reader::VaultReader, vector_db::VectorEngine,
 };
 use tauri::Manager;
 
@@ -18,6 +18,7 @@ pub struct AppState {
     pub memory: Arc<MemoryStore>,
     pub terminal: Arc<TerminalManager>,
     pub system_monitor: Arc<SystemMonitor>,
+    pub browser: Arc<BrowserManager>,
 }
 
 pub fn run() {
@@ -34,6 +35,7 @@ pub fn run() {
             let memory = MemoryStore::new(&data_dir.join("memory"))?;
             let terminal = TerminalManager::new();
             let system_monitor = SystemMonitor::new();
+            let browser = BrowserManager::new();
             app.manage(AppState {
                 vault: Arc::new(vault),
                 vectors: Arc::new(vectors),
@@ -42,6 +44,7 @@ pub fn run() {
                 memory: Arc::new(memory),
                 terminal: Arc::new(terminal),
                 system_monitor: Arc::new(system_monitor),
+                browser: Arc::new(browser),
             });
             Ok(())
         })
@@ -80,6 +83,9 @@ pub fn run() {
             commands::terminal_commands::cmd_terminal_kill,
             commands::terminal_commands::cmd_terminal_list,
             commands::system_commands::cmd_get_system_metrics,
+            commands::browser_commands::cmd_browser_info,
+            commands::browser_commands::cmd_browser_open,
+            commands::browser_commands::cmd_browser_open_librewolf,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run AETHER-OS");

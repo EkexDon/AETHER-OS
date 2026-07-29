@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { LayoutDashboard, Search, GitBranch, Notebook, Settings, Bot, Wifi, WifiOff, FolderGit2, Brain, TerminalSquare, Activity } from "lucide-react";
+import { LayoutDashboard, Search, GitBranch, Notebook, Settings, Bot, Wifi, WifiOff, FolderGit2, Brain, TerminalSquare, Activity, Globe } from "lucide-react";
 import { useAetherStore, type ViewMode } from "./lib/store";
 import { VaultSidebar } from "./components/VaultSidebar";
 import { Dashboard } from "./components/Dashboard";
@@ -13,6 +13,7 @@ import { CommandBar } from "./components/CommandBar";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { Terminal } from "./components/Terminal";
 import { SystemMonitor } from "./components/SystemMonitor";
+import { Browser } from "./components/Browser";
 import { getVaultPath, getVaultNotes, getVaultStats, getVaultGraph, getHealth } from "./lib/ipc";
 
 export function App() {
@@ -104,6 +105,7 @@ export function App() {
     { mode: "notes", icon: <Notebook size={18} />, label: "AI Notes" },
     { mode: "terminal", icon: <TerminalSquare size={18} />, label: "Terminal" },
     { mode: "monitor", icon: <Activity size={18} />, label: "Monitor" },
+    { mode: "browser", icon: <Globe size={18} />, label: "Browser" },
   ];
 
   return (
@@ -155,6 +157,7 @@ export function App() {
         {view === "notes" && <AetherNotes />}
         {view === "terminal" && <Terminal />}
         {view === "monitor" && <SystemMonitor />}
+        {view === "browser" && <Browser />}
       </main>
 
       <div className="resizer resizer-chat" onMouseDown={() => startDrag("chat")} />

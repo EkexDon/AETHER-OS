@@ -177,3 +177,9 @@ export interface SystemMetrics {
   battery: BatteryInfo | null;
   uptime: number;
 }
+
+export interface BrowserInfo {
+  librewolf_installed: boolean;
+  librewolf_path: string | null;
+  default_browser: string;
+}
