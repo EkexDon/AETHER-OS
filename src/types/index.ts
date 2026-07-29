@@ -128,3 +128,52 @@ export interface TerminalOutputEvent {
   id: string;
   data: string;
 }
+
+export interface CpuInfo {
+  name: string;
+  usage: number;
+}
+
+export interface MemoryInfo {
+  total: number;
+  used: number;
+  available: number;
+}
+
+export interface DiskInfo {
+  name: string;
+  mount_point: string;
+  total: number;
+  used: number;
+  available: number;
+}
+
+export interface NetworkInfo {
+  interface: string;
+  rx_rate: number;
+  tx_rate: number;
+}
+
+export interface ProcessInfo {
+  pid: number;
+  name: string;
+  cpu_usage: number;
+  memory: number;
+}
+
+export interface BatteryInfo {
+  charging: boolean;
+  percent: number;
+}
+
+export interface SystemMetrics {
+  timestamp: number;
+  cpus: CpuInfo[];
+  overall_cpu: number;
+  memory: MemoryInfo;
+  disks: DiskInfo[];
+  network: NetworkInfo[];
+  processes: ProcessInfo[];
+  battery: BatteryInfo | null;
+  uptime: number;
+}

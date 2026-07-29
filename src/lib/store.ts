@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { AetherNote, Conversation, GraphData, MemoryFact, Project, SystemHealth, VaultNote, VaultStats, VectorMatch } from "../types";
 
-export type ViewMode = "dashboard" | "search" | "graph" | "notes" | "projects" | "memory" | "terminal";
+export type ViewMode = "dashboard" | "search" | "graph" | "notes" | "projects" | "memory" | "terminal" | "monitor";
 
 const EDITOR_STORAGE_KEY = "aether-preferred-editor";
 

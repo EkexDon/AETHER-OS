@@ -1774,3 +1774,260 @@ body {
 .terminal-container .xterm-screen {
   background-color: var(--bg-base) !important;
 }
+
+/* ── System Monitor ── */
+
+.monitor-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.monitor-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.monitor-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.monitor-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.monitor-uptime {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.monitor-toggle {
+  font-size: 12px;
+  padding: 4px 12px;
+}
+
+.monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.monitor-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.monitor-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitor-card-icon {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+}
+
+.monitor-card-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.monitor-card-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.monitor-card-subvalue {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.monitor-sparkline {
+  margin-top: 4px;
+}
+
+.monitor-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.monitor-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.monitor-disks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.monitor-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.monitor-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.monitor-progress-bar {
+  height: 6px;
+  background: var(--bg-surface-3);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.monitor-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.monitor-network-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+.monitor-network-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.monitor-network-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.monitor-network-rate {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.monitor-empty {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.monitor-processes {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.monitor-process-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.monitor-process-table th {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.monitor-process-table td {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border);
+}
+
+.monitor-process-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.monitor-process-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.monitor-pid {
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.monitor-proc-cpu {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.monitor-proc-mem {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.monitor-error,
+.monitor-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 64px;
+  color: var(--text-tertiary);
+}
+
+.monitor-loading-icon {
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.monitor-error-banner {
+  padding: 8px 12px;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+  font-size: 12px;
+}

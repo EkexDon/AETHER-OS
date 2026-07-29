@@ -9,6 +9,7 @@ import type {
   MemoryFact,
   Project,
   SystemHealth,
+  SystemMetrics,
   TerminalOutputEvent,
   TerminalSession,
   VaultIndex,
@@ -79,6 +80,9 @@ export const terminalKill = (id: string) =>
   call<void>("cmd_terminal_kill", { id });
 export const terminalList = () =>
   call<TerminalSession[]>("cmd_terminal_list");
+
+export const getSystemMetrics = () =>
+  call<SystemMetrics>("cmd_get_system_metrics");
 
 type Option<T> = T | null;
 

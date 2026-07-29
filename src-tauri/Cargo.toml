@@ -27,6 +27,7 @@ walkdir = "2.4"
 regex = "1.10"
 tauri-plugin-dialog = "2.0.0"
 portable-pty = "0.8"
+sysinfo = "0.31"
 
 [dev-dependencies]
 tempfile = "3.8"
