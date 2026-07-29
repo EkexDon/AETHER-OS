@@ -1,7 +1,14 @@
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::engine::terminal::TerminalSession;
 use crate::AppState;
+
+#[derive(Serialize, Clone)]
+struct TerminalOutputEvent<'a> {
+    id: &'a str,
+    data: &'a str,
+}
 
 #[tauri::command]
 pub async fn cmd_terminal_spawn(
@@ -22,8 +29,8 @@ pub async fn cmd_terminal_spawn(
             shell.as_deref(),
             cols,
             rows,
-            move |output| {
-                let _ = app_handle.emit("terminal-output", &output);
+            move |id, output| {
+                let _ = app_handle.emit("terminal-output", TerminalOutputEvent { id, data: output });
             },
         )
         .map_err(|e| e.to_string())

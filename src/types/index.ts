@@ -123,3 +123,8 @@ export interface TerminalSession {
   shell: string;
   alive: boolean;
 }
+
+export interface TerminalOutputEvent {
+  id: string;
+  data: string;
+}

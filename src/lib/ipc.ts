@@ -9,6 +9,7 @@ import type {
   MemoryFact,
   Project,
   SystemHealth,
+  TerminalOutputEvent,
   TerminalSession,
   VaultIndex,
   VaultNote,
@@ -86,7 +87,7 @@ export async function onStreamChunk(handler: (chunk: string) => void): Promise<U
   return listen<string>("llm-stream-chunk", event => handler(event.payload));
 }
 
-export async function onTerminalOutput(handler: (output: string) => void): Promise<UnlistenFn> {
+export async function onTerminalOutput(handler: (event: TerminalOutputEvent) => void): Promise<UnlistenFn> {
   if (!isDesktopRuntime()) return () => undefined;
-  return listen<string>("terminal-output", event => handler(event.payload));
+  return listen<TerminalOutputEvent>("terminal-output", event => handler(event.payload));
 }
