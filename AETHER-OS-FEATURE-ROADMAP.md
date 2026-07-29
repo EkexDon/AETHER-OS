@@ -18,6 +18,8 @@
 | Command Bar (Cmd+K palette) | ✅ Shipped |
 | Configurable Default Editor | ✅ Shipped |
 | Resizable Panels | ✅ Shipped |
+| Built-in Terminal (PTY, multi-tab, xterm.js) | ✅ Shipped |
+| System Monitor (CPU, RAM, disk, network, processes) | ✅ Shipped |
 
 ---
 
