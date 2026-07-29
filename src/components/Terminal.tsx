@@ -47,7 +47,6 @@ export function Terminal() {
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
-  const unlistenRef = useRef<(() => void) | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
   const resizeTimeoutRef = useRef<number | null>(null);
   const tabsRef = useRef<Tab[]>([]);
@@ -259,9 +258,10 @@ export function Terminal() {
     if (!isDesktopRuntime()) return;
 
     let unlisten: (() => void) | null = null;
+    let cancelled = false;
 
     (async () => {
-      unlisten = await onTerminalOutput(({ id, data }) => {
+      const fn = await onTerminalOutput(({ id, data }) => {
         // Only write output into the currently-mounted xterm instance if
         // it belongs to the session that's actually active. Without this
         // check, a background tab's shell finishing a command could bleed
@@ -270,11 +270,18 @@ export function Terminal() {
           xtermRef.current.write(data);
         }
       });
+      // If cleanup ran while we were waiting for the async listener
+      // registration, immediately unlisten to avoid a dangling second
+      // listener that would duplicate every output chunk.
+      if (cancelled) {
+        fn();
+      } else {
+        unlisten = fn;
+      }
     })();
 
-    unlistenRef.current = unlisten;
-
     return () => {
+      cancelled = true;
       if (unlisten) unlisten();
     };
   }, []);
@@ -283,9 +290,6 @@ export function Terminal() {
     return () => {
       if (xtermRef.current) {
         xtermRef.current.dispose();
-      }
-      if (unlistenRef.current) {
-        unlistenRef.current();
       }
       if (resizeTimeoutRef.current !== null) {
         window.clearTimeout(resizeTimeoutRef.current);
