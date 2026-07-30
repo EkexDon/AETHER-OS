@@ -51,10 +51,9 @@ export function Browser() {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(loadBookmarks());
   const [browserInfo, setBrowserInfo] = useState<BrowserInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [iframeBlocked, setIframeBlocked] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
+  const [showHint, setShowHint] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const loadTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     saveBookmarks(bookmarks);
@@ -74,7 +73,7 @@ export function Browser() {
     setUrl(normalized);
     setCurrentUrl(normalized);
     setLoading(true);
-    setIframeBlocked(false);
+    setShowHint(false);
     setError(null);
 
     setHistory((prev) => {
@@ -93,20 +92,13 @@ export function Browser() {
       // ignore
     }
 
-    // Timeout to detect blocked iframes (X-Frame-Options / CSP)
-    if (loadTimeoutRef.current) window.clearTimeout(loadTimeoutRef.current);
-    loadTimeoutRef.current = window.setTimeout(() => {
-      setIframeBlocked(true);
-      setLoading(false);
-    }, 5000);
+    // Show a dismissible hint after 3s in case the page is blank
+    // (many sites block iframe embedding via X-Frame-Options/CSP)
+    window.setTimeout(() => setShowHint(true), 3000);
   }, [historyIndex]);
 
   const handleLoad = useCallback(() => {
     setLoading(false);
-    if (loadTimeoutRef.current) {
-      window.clearTimeout(loadTimeoutRef.current);
-      loadTimeoutRef.current = null;
-    }
   }, []);
 
   const goBack = useCallback(() => {
@@ -117,7 +109,7 @@ export function Browser() {
     setUrl(target);
     setCurrentUrl(target);
     setLoading(true);
-    setIframeBlocked(false);
+    setShowHint(false);
   }, [history, historyIndex]);
 
   const goForward = useCallback(() => {
@@ -128,7 +120,7 @@ export function Browser() {
     setUrl(target);
     setCurrentUrl(target);
     setLoading(true);
-    setIframeBlocked(false);
+    setShowHint(false);
   }, [history, historyIndex]);
 
   const reload = useCallback(() => {
@@ -137,7 +129,7 @@ export function Browser() {
     requestAnimationFrame(() => {
       setCurrentUrl(currentUrl);
       setLoading(true);
-      setIframeBlocked(false);
+      setShowHint(false);
     });
   }, [currentUrl]);
 
@@ -314,35 +306,37 @@ export function Browser() {
           </div>
         )}
 
-        {currentUrl && iframeBlocked && (
-          <div className="browser-blocked">
-            <Shield size={48} />
-            <h3>This site blocks embedded viewing</h3>
-            <p>Many sites (Google, GitHub, etc.) prevent loading in an iframe for security reasons.</p>
-            <div className="browser-blocked-actions">
-              {browserInfo?.librewolf_installed && (
-                <button className="btn btn-primary" onClick={openInLibreWolf}>
-                  <Shield size={16} />
-                  Open in LibreWolf
-                </button>
-              )}
-              <button className="btn btn-secondary" onClick={openExternal}>
-                <ExternalLink size={16} />
-                Open in {browserInfo?.default_browser ?? "external browser"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {currentUrl && !iframeBlocked && (
-          <iframe
-            ref={iframeRef}
-            src={currentUrl}
-            className="browser-iframe"
-            onLoad={handleLoad}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-            referrerPolicy="no-referrer"
-          />
+        {currentUrl && (
+          <>
+            <iframe
+              ref={iframeRef}
+              src={currentUrl}
+              className="browser-iframe"
+              onLoad={handleLoad}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+              referrerPolicy="no-referrer"
+            />
+            {showHint && (
+              <div className="browser-hint">
+                <span>Page not loading? It may block embedded viewing.</span>
+                <div className="browser-hint-actions">
+                  {browserInfo?.librewolf_installed && (
+                    <button className="btn btn-primary browser-hint-btn" onClick={openInLibreWolf}>
+                      <Shield size={14} />
+                      LibreWolf
+                    </button>
+                  )}
+                  <button className="btn btn-secondary browser-hint-btn" onClick={openExternal}>
+                    <ExternalLink size={14} />
+                    External
+                  </button>
+                  <button className="browser-hint-dismiss" onClick={() => setShowHint(false)}>
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
