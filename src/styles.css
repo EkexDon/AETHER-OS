@@ -2484,3 +2484,9 @@ body {
   gap: 8px;
   margin-top: 8px;
 }
+
+.browser-webview-placeholder {
+  width: 100%;
+  height: 100%;
+  background: var(--bg-base);
+}

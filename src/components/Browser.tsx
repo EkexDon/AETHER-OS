@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { ArrowLeft, ArrowRight, RotateCcw, ExternalLink, Star, StarOff, Globe, Shield, X, Plus } from "lucide-react";
 import {
   getBrowserInfo,
@@ -11,6 +11,10 @@ import {
   browserWebviewForward,
   browserWebviewReload,
   browserWebviewList,
+  browserWebviewSetBounds,
+  browserWebviewShow,
+  browserWebviewHide,
+  browserWebviewHideAll,
   isDesktopRuntime,
 } from "../lib/ipc";
 import type { BrowserInfo } from "../types";
@@ -74,10 +78,64 @@ export function Browser() {
   const [browserInfo, setBrowserInfo] = useState<BrowserInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showBookmarks, setShowBookmarks] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const activeLabelRef = useRef<string | null>(null);
+  const tabsRef = useRef<BrowserTab[]>([]);
+
+  // Keep refs in sync for use in effects
+  useEffect(() => { activeLabelRef.current = activeLabel; }, [activeLabel]);
+  useEffect(() => { tabsRef.current = tabs; }, [tabs]);
 
   useEffect(() => {
     saveBookmarks(bookmarks);
   }, [bookmarks]);
+
+  // Measure the browser content area and position the active child webview to overlay it
+  const updateBounds = useCallback(async (label: string) => {
+    const el = contentRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    try {
+      await browserWebviewSetBounds(label, rect.left, rect.top, rect.width, rect.height);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, []);
+
+  // Hide all webviews on unmount or when switching away from browser view
+  useEffect(() => {
+    return () => {
+      if (isDesktopRuntime()) {
+        void browserWebviewHideAll();
+      }
+    };
+  }, []);
+
+  // Update bounds when active tab changes or window resizes
+  useEffect(() => {
+    if (!isDesktopRuntime() || !activeLabel) return;
+    void updateBounds(activeLabel);
+    // Also show the active webview and hide others
+    void browserWebviewShow(activeLabel);
+    for (const tab of tabs) {
+      if (tab.label !== activeLabel) {
+        void browserWebviewHide(tab.label);
+      }
+    }
+  }, [activeLabel, tabs, updateBounds]);
+
+  // Reposition on window resize
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    const onResize = () => {
+      if (activeLabelRef.current) {
+        void updateBounds(activeLabelRef.current);
+      }
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [updateBounds]);
 
   useEffect(() => {
     if (!isDesktopRuntime()) return;
@@ -122,6 +180,16 @@ export function Browser() {
     },
     []
   );
+
+  // When a new tab is opened, position it after a tick (waiting for contentRef to be available)
+  useEffect(() => {
+    if (!isDesktopRuntime() || !activeLabel) return;
+    // Small delay to ensure the content div is rendered
+    const timer = setTimeout(() => {
+      void updateBounds(activeLabel);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [activeLabel, updateBounds]);
 
   const closeTab = useCallback(
     async (label: string) => {
@@ -349,14 +417,14 @@ export function Browser() {
         </div>
       )}
 
-      <div className="browser-content">
+      <div className="browser-content" ref={contentRef}>
         {!activeLabel && (
           <div className="browser-home">
             <Globe size={64} className="browser-home-icon" />
             <h2>AETHER-OS Browser</h2>
-            <p>Enter a URL or search query above to open a native webview window.</p>
+            <p>Enter a URL or search query above to open an embedded webview.</p>
             <p className="browser-home-hint">
-              Pages open in separate native windows — no iframe restrictions.
+              Pages render inside the app using native webviews — no iframe restrictions.
               Google, GitHub, and all other sites work.
             </p>
             {bookmarks.length > 0 && (
@@ -378,30 +446,7 @@ export function Browser() {
         )}
 
         {activeLabel && (
-          <div className="browser-webview-info">
-            <Globe size={48} className="browser-webview-info-icon" />
-            <h3>{tabs.find((t) => t.label === activeLabel)?.title ?? "Browser"}</h3>
-            <p>The page is open in a native webview window.</p>
-            <p className="browser-webview-info-url">
-              {tabs.find((t) => t.label === activeLabel)?.url}
-            </p>
-            <div className="browser-webview-info-actions">
-              <button className="btn btn-secondary" onClick={reload}>
-                <RotateCcw size={14} />
-                Reload
-              </button>
-              {browserInfo?.librewolf_installed && (
-                <button className="btn btn-primary" onClick={openInLibreWolf}>
-                  <Shield size={14} />
-                  Open in LibreWolf
-                </button>
-              )}
-              <button className="btn btn-secondary" onClick={openExternal}>
-                <ExternalLink size={14} />
-                Open externally
-              </button>
-            </div>
-          </div>
+          <div className="browser-webview-placeholder" />
         )}
       </div>
     </div>

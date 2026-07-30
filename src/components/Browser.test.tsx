@@ -12,6 +12,10 @@ vi.mock("../lib/ipc", () => ({
   browserWebviewForward: vi.fn(),
   browserWebviewReload: vi.fn(),
   browserWebviewList: vi.fn(),
+  browserWebviewSetBounds: vi.fn(),
+  browserWebviewShow: vi.fn(),
+  browserWebviewHide: vi.fn(),
+  browserWebviewHideAll: vi.fn(),
 }));
 
 import { render, screen } from "@testing-library/react";

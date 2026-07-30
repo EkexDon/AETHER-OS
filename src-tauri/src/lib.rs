@@ -96,6 +96,10 @@ pub fn run() {
             commands::browser_commands::cmd_browser_webview_forward,
             commands::browser_commands::cmd_browser_webview_reload,
             commands::browser_commands::cmd_browser_webview_list,
+            commands::browser_commands::cmd_browser_webview_set_bounds,
+            commands::browser_commands::cmd_browser_webview_show,
+            commands::browser_commands::cmd_browser_webview_hide,
+            commands::browser_commands::cmd_browser_webview_hide_all,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run AETHER-OS");
