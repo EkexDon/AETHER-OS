@@ -19,6 +19,7 @@ pub struct AppState {
     pub terminal: Arc<TerminalManager>,
     pub system_monitor: Arc<SystemMonitor>,
     pub browser: Arc<BrowserManager>,
+    pub browser_windows: Arc<commands::browser_commands::BrowserWindows>,
 }
 
 pub fn run() {
@@ -36,6 +37,7 @@ pub fn run() {
             let terminal = TerminalManager::new();
             let system_monitor = SystemMonitor::new();
             let browser = BrowserManager::new();
+            let browser_windows = commands::browser_commands::BrowserWindows::new();
             app.manage(AppState {
                 vault: Arc::new(vault),
                 vectors: Arc::new(vectors),
@@ -45,6 +47,7 @@ pub fn run() {
                 terminal: Arc::new(terminal),
                 system_monitor: Arc::new(system_monitor),
                 browser: Arc::new(browser),
+                browser_windows: Arc::new(browser_windows),
             });
             Ok(())
         })
@@ -86,6 +89,13 @@ pub fn run() {
             commands::browser_commands::cmd_browser_info,
             commands::browser_commands::cmd_browser_open,
             commands::browser_commands::cmd_browser_open_librewolf,
+            commands::browser_commands::cmd_browser_webview_open,
+            commands::browser_commands::cmd_browser_webview_close,
+            commands::browser_commands::cmd_browser_webview_navigate,
+            commands::browser_commands::cmd_browser_webview_back,
+            commands::browser_commands::cmd_browser_webview_forward,
+            commands::browser_commands::cmd_browser_webview_reload,
+            commands::browser_commands::cmd_browser_webview_list,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run AETHER-OS");

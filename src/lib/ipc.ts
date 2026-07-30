@@ -92,6 +92,21 @@ export const browserOpen = (url: string) =>
 export const browserOpenLibreWolf = (url: string) =>
   call<void>("cmd_browser_open_librewolf", { url });
 
+export const browserWebviewOpen = (url: string) =>
+  call<string>("cmd_browser_webview_open", { url });
+export const browserWebviewClose = (label: string) =>
+  call<void>("cmd_browser_webview_close", { label });
+export const browserWebviewNavigate = (label: string, url: string) =>
+  call<void>("cmd_browser_webview_navigate", { label, url });
+export const browserWebviewBack = (label: string) =>
+  call<void>("cmd_browser_webview_back", { label });
+export const browserWebviewForward = (label: string) =>
+  call<void>("cmd_browser_webview_forward", { label });
+export const browserWebviewReload = (label: string) =>
+  call<void>("cmd_browser_webview_reload", { label });
+export const browserWebviewList = () =>
+  call<[string, string][]>("cmd_browser_webview_list");
+
 type Option<T> = T | null;
 
 export async function onStreamChunk(handler: (chunk: string) => void): Promise<UnlistenFn> {
