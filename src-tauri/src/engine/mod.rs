@@ -1,5 +1,6 @@
 pub mod aether_notes;
 pub mod browser;
+pub mod browser_proxy;
 pub mod error;
 pub mod local_ai;
 pub mod memory_store;

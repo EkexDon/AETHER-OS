@@ -1,31 +1,17 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { ArrowLeft, ArrowRight, RotateCcw, ExternalLink, Star, StarOff, Globe, Shield, X, Plus } from "lucide-react";
+import { ArrowLeft, ArrowRight, RotateCcw, ExternalLink, Star, StarOff, Globe, Shield, X, Plus, Loader2 } from "lucide-react";
 import {
   getBrowserInfo,
   browserOpen,
   browserOpenLibreWolf,
-  browserWebviewOpen,
-  browserWebviewClose,
-  browserWebviewNavigate,
-  browserWebviewBack,
-  browserWebviewForward,
-  browserWebviewReload,
-  browserWebviewList,
-  browserWebviewSetBounds,
-  browserWebviewShow,
-  browserWebviewHide,
-  browserWebviewHideAll,
+  browserProxyPort,
   isDesktopRuntime,
 } from "../lib/ipc";
 import type { BrowserInfo } from "../types";
 
 const BOOKMARKS_KEY = "aether-browser-bookmarks";
-
-interface BrowserTab {
-  label: string;
-  url: string;
-  title: string;
-}
+const HISTORY_KEY = "aether-browser-history";
+const MAX_HISTORY = 50;
 
 interface Bookmark {
   title: string;
@@ -54,11 +40,9 @@ function normalizeUrl(input: string): string {
   if (!trimmed) return "";
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   if (/^about:/i.test(trimmed)) return trimmed;
-  // Check if it looks like a URL (contains a dot, no spaces)
   if (/\.[a-z]{2,}/i.test(trimmed) && !/\s/.test(trimmed)) {
     return `https://${trimmed}`;
   }
-  // Otherwise treat as a search query — use DuckDuckGo for privacy
   return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`;
 }
 
@@ -70,174 +54,142 @@ function urlToTitle(url: string): string {
     .slice(0, 40);
 }
 
+interface Tab {
+  id: number;
+  url: string;
+  title: string;
+  history: string[];
+  historyIndex: number;
+}
+
+let tabCounter = 0;
+
 export function Browser() {
   const [url, setUrl] = useState("");
-  const [tabs, setTabs] = useState<BrowserTab[]>([]);
-  const [activeLabel, setActiveLabel] = useState<string | null>(null);
+  const [tabs, setTabs] = useState<Tab[]>([]);
+  const [activeTabId, setActiveTabId] = useState<number | null>(null);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(loadBookmarks());
   const [browserInfo, setBrowserInfo] = useState<BrowserInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showBookmarks, setShowBookmarks] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const activeLabelRef = useRef<string | null>(null);
-  const tabsRef = useRef<BrowserTab[]>([]);
-
-  // Keep refs in sync for use in effects
-  useEffect(() => { activeLabelRef.current = activeLabel; }, [activeLabel]);
-  useEffect(() => { tabsRef.current = tabs; }, [tabs]);
+  const [loading, setLoading] = useState(false);
+  const [proxyPort, setProxyPort] = useState<number | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     saveBookmarks(bookmarks);
   }, [bookmarks]);
-
-  // Measure the browser content area and position the active child webview to overlay it
-  const updateBounds = useCallback(async (label: string) => {
-    const el = contentRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
-    try {
-      await browserWebviewSetBounds(label, rect.left, rect.top, rect.width, rect.height);
-    } catch (e) {
-      setError(String(e));
-    }
-  }, []);
-
-  // Hide all webviews on unmount or when switching away from browser view
-  useEffect(() => {
-    return () => {
-      if (isDesktopRuntime()) {
-        void browserWebviewHideAll();
-      }
-    };
-  }, []);
-
-  // Update bounds when active tab changes or window resizes
-  useEffect(() => {
-    if (!isDesktopRuntime() || !activeLabel) return;
-    void updateBounds(activeLabel);
-    // Also show the active webview and hide others
-    void browserWebviewShow(activeLabel);
-    for (const tab of tabs) {
-      if (tab.label !== activeLabel) {
-        void browserWebviewHide(tab.label);
-      }
-    }
-  }, [activeLabel, tabs, updateBounds]);
-
-  // Reposition on window resize
-  useEffect(() => {
-    if (!isDesktopRuntime()) return;
-    const onResize = () => {
-      if (activeLabelRef.current) {
-        void updateBounds(activeLabelRef.current);
-      }
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [updateBounds]);
 
   useEffect(() => {
     if (!isDesktopRuntime()) return;
     void getBrowserInfo()
       .then(setBrowserInfo)
       .catch((e) => setError(String(e)));
-    void browserWebviewList()
-      .then((wins) => {
-        if (wins.length > 0) {
-          setTabs(wins.map(([label, u]) => ({ label, url: u, title: urlToTitle(u) })));
-          setActiveLabel(wins[0][0]);
-        }
-      })
-      .catch(() => undefined);
+    void browserProxyPort()
+      .then(setProxyPort)
+      .catch((e) => setError(String(e)));
   }, []);
 
-  const navigate = useCallback(
-    async (rawUrl: string, existingLabel?: string) => {
-      const normalized = normalizeUrl(rawUrl);
-      if (!normalized) return;
+  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
 
-      setUrl(normalized);
-      setError(null);
+  const proxyUrl = useCallback((targetUrl: string): string => {
+    if (!proxyPort) return "";
+    return `http://127.0.0.1:${proxyPort}/proxy?url=${encodeURIComponent(targetUrl)}`;
+  }, [proxyPort]);
 
-      try {
-        if (existingLabel) {
-          await browserWebviewNavigate(existingLabel, normalized);
-          setTabs((prev) =>
-            prev.map((t) =>
-              t.label === existingLabel ? { ...t, url: normalized, title: urlToTitle(normalized) } : t
-            )
-          );
-        } else {
-          const label = await browserWebviewOpen(normalized);
-          const newTab: BrowserTab = { label, url: normalized, title: urlToTitle(normalized) };
-          setTabs((prev) => [...prev, newTab]);
-          setActiveLabel(label);
-        }
-      } catch (e) {
-        setError(String(e));
+  const navigate = useCallback((rawUrl: string, tabId?: number) => {
+    const normalized = normalizeUrl(rawUrl);
+    if (!normalized) return;
+
+    setUrl(normalized);
+    setError(null);
+    setLoading(true);
+
+    setTabs((prev) => {
+      if (tabId !== undefined) {
+        return prev.map((t) => {
+          if (t.id !== tabId) return t;
+          const newHist = [...t.history.slice(0, t.historyIndex + 1), normalized].slice(-MAX_HISTORY);
+          return {
+            ...t,
+            url: normalized,
+            title: urlToTitle(normalized),
+            history: newHist,
+            historyIndex: newHist.length - 1,
+          };
+        });
+      } else {
+        const id = ++tabCounter;
+        const newTab: Tab = {
+          id,
+          url: normalized,
+          title: urlToTitle(normalized),
+          history: [normalized],
+          historyIndex: 0,
+        };
+        setActiveTabId(id);
+        return [...prev, newTab];
       }
-    },
-    []
-  );
+    });
 
-  // When a new tab is opened, position it after a tick (waiting for contentRef to be available)
-  useEffect(() => {
-    if (!isDesktopRuntime() || !activeLabel) return;
-    // Small delay to ensure the content div is rendered
-    const timer = setTimeout(() => {
-      void updateBounds(activeLabel);
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [activeLabel, updateBounds]);
+    try {
+      const rawHist = localStorage.getItem(HISTORY_KEY);
+      const hist: string[] = rawHist ? JSON.parse(rawHist) : [];
+      hist.unshift(normalized);
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(hist.slice(0, MAX_HISTORY)));
+    } catch {
+      // ignore
+    }
+  }, [proxyPort]);
 
-  const closeTab = useCallback(
-    async (label: string) => {
-      try {
-        await browserWebviewClose(label);
-      } catch (e) {
-        setError(String(e));
+  const closeTab = useCallback((id: number) => {
+    setTabs((prev) => {
+      const filtered = prev.filter((t) => t.id !== id);
+      if (activeTabId === id) {
+        setActiveTabId(filtered.length > 0 ? filtered[filtered.length - 1].id : null);
       }
-      setTabs((prev) => {
-        const filtered = prev.filter((t) => t.label !== label);
-        if (activeLabel === label) {
-          setActiveLabel(filtered.length > 0 ? filtered[filtered.length - 1].label : null);
+      return filtered;
+    });
+  }, [activeTabId]);
+
+  const goBack = useCallback(() => {
+    if (!activeTab || activeTab.historyIndex <= 0) return;
+    const newIndex = activeTab.historyIndex - 1;
+    const target = activeTab.history[newIndex];
+    setTabs((prev) => prev.map((t) =>
+      t.id === activeTab.id ? { ...t, url: target, title: urlToTitle(target), historyIndex: newIndex } : t
+    ));
+    setUrl(target);
+    setLoading(true);
+  }, [activeTab]);
+
+  const goForward = useCallback(() => {
+    if (!activeTab || activeTab.historyIndex >= activeTab.history.length - 1) return;
+    const newIndex = activeTab.historyIndex + 1;
+    const target = activeTab.history[newIndex];
+    setTabs((prev) => prev.map((t) =>
+      t.id === activeTab.id ? { ...t, url: target, title: urlToTitle(target), historyIndex: newIndex } : t
+    ));
+    setUrl(target);
+    setLoading(true);
+  }, [activeTab]);
+
+  const reload = useCallback(() => {
+    if (!activeTab) return;
+    setLoading(true);
+    // Force iframe reload by toggling src
+    if (iframeRef.current) {
+      const src = iframeRef.current.src;
+      iframeRef.current.src = "about:blank";
+      requestAnimationFrame(() => {
+        if (iframeRef.current) {
+          iframeRef.current.src = src;
         }
-        return filtered;
       });
-    },
-    [activeLabel]
-  );
-
-  const goBack = useCallback(async () => {
-    if (!activeLabel) return;
-    try {
-      await browserWebviewBack(activeLabel);
-    } catch (e) {
-      setError(String(e));
     }
-  }, [activeLabel]);
-
-  const goForward = useCallback(async () => {
-    if (!activeLabel) return;
-    try {
-      await browserWebviewForward(activeLabel);
-    } catch (e) {
-      setError(String(e));
-    }
-  }, [activeLabel]);
-
-  const reload = useCallback(async () => {
-    if (!activeLabel) return;
-    try {
-      await browserWebviewReload(activeLabel);
-    } catch (e) {
-      setError(String(e));
-    }
-  }, [activeLabel]);
+  }, [activeTab]);
 
   const toggleBookmark = useCallback(() => {
-    const activeTab = tabs.find((t) => t.label === activeLabel);
     if (!activeTab) return;
     setBookmarks((prev) => {
       const exists = prev.find((b) => b.url === activeTab.url);
@@ -246,36 +198,38 @@ export function Browser() {
       }
       return [...prev, { title: activeTab.title, url: activeTab.url }];
     });
-  }, [activeLabel, tabs]);
+  }, [activeTab]);
 
-  const isBookmarked = tabs.some((t) => t.label === activeLabel && bookmarks.some((b) => b.url === t.url));
+  const isBookmarked = activeTab ? bookmarks.some((b) => b.url === activeTab.url) : false;
 
   const openInLibreWolf = useCallback(async () => {
-    const activeTab = tabs.find((t) => t.label === activeLabel);
     if (!activeTab) return;
     try {
       await browserOpenLibreWolf(activeTab.url);
     } catch (e) {
       setError(String(e));
     }
-  }, [activeLabel, tabs]);
+  }, [activeTab]);
 
   const openExternal = useCallback(async () => {
-    const activeTab = tabs.find((t) => t.label === activeLabel);
     if (!activeTab) return;
     try {
       await browserOpen(activeTab.url);
     } catch (e) {
       setError(String(e));
     }
-  }, [activeLabel, tabs]);
+  }, [activeTab]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      void navigate(url, activeLabel ?? undefined);
+      navigate(url, activeTabId ?? undefined);
     }
   };
+
+  const handleIframeLoad = useCallback(() => {
+    setLoading(false);
+  }, []);
 
   if (!isDesktopRuntime()) {
     return (
@@ -293,10 +247,10 @@ export function Browser() {
       <div className="browser-tab-bar">
         {tabs.map((tab) => (
           <div
-            key={tab.label}
-            className={`browser-tab${activeLabel === tab.label ? " browser-tab-active" : ""}`}
+            key={tab.id}
+            className={`browser-tab${activeTabId === tab.id ? " browser-tab-active" : ""}`}
             onClick={() => {
-              setActiveLabel(tab.label);
+              setActiveTabId(tab.id);
               setUrl(tab.url);
             }}
           >
@@ -306,7 +260,7 @@ export function Browser() {
               className="browser-tab-close"
               onClick={(e) => {
                 e.stopPropagation();
-                void closeTab(tab.label);
+                closeTab(tab.id);
               }}
             >
               <X size={12} />
@@ -316,7 +270,7 @@ export function Browser() {
         <button
           className="browser-tab-new"
           onClick={() => {
-            setActiveLabel(null);
+            setActiveTabId(null);
             setUrl("");
           }}
           title="New tab"
@@ -326,13 +280,13 @@ export function Browser() {
       </div>
 
       <div className="browser-toolbar">
-        <button className="browser-nav-btn" onClick={goBack} disabled={!activeLabel} title="Back">
+        <button className="browser-nav-btn" onClick={goBack} disabled={!activeTab || activeTab.historyIndex <= 0} title="Back">
           <ArrowLeft size={16} />
         </button>
-        <button className="browser-nav-btn" onClick={goForward} disabled={!activeLabel} title="Forward">
+        <button className="browser-nav-btn" onClick={goForward} disabled={!activeTab || activeTab.historyIndex >= activeTab.history.length - 1} title="Forward">
           <ArrowRight size={16} />
         </button>
-        <button className="browser-nav-btn" onClick={reload} disabled={!activeLabel} title="Reload">
+        <button className="browser-nav-btn" onClick={reload} disabled={!activeTab} title="Reload">
           <RotateCcw size={16} />
         </button>
 
@@ -347,12 +301,13 @@ export function Browser() {
             onKeyDown={handleKeyDown}
             spellCheck={false}
           />
+          {loading && <Loader2 size={14} className="browser-loading-spinner" />}
         </div>
 
         <button
           className="browser-nav-btn"
           onClick={toggleBookmark}
-          disabled={!activeLabel}
+          disabled={!activeTab}
           title={isBookmarked ? "Remove bookmark" : "Add bookmark"}
         >
           {isBookmarked ? <Star size={16} className="browser-bookmark-active" /> : <StarOff size={16} />}
@@ -370,7 +325,7 @@ export function Browser() {
           <button
             className="browser-nav-btn browser-librewolf-btn"
             onClick={openInLibreWolf}
-            disabled={!activeLabel}
+            disabled={!activeTab}
             title="Open in LibreWolf"
           >
             <Shield size={16} />
@@ -380,7 +335,7 @@ export function Browser() {
         <button
           className="browser-nav-btn"
           onClick={openExternal}
-          disabled={!activeLabel}
+          disabled={!activeTab}
           title="Open in external browser"
         >
           <ExternalLink size={16} />
@@ -394,7 +349,7 @@ export function Browser() {
               key={bm.url}
               className="browser-bookmark-item"
               onClick={() => {
-                void navigate(bm.url, activeLabel ?? undefined);
+                navigate(bm.url, activeTabId ?? undefined);
                 setShowBookmarks(false);
               }}
             >
@@ -417,14 +372,14 @@ export function Browser() {
         </div>
       )}
 
-      <div className="browser-content" ref={contentRef}>
-        {!activeLabel && (
+      <div className="browser-content">
+        {!activeTab && (
           <div className="browser-home">
             <Globe size={64} className="browser-home-icon" />
             <h2>AETHER-OS Browser</h2>
-            <p>Enter a URL or search query above to open an embedded webview.</p>
+            <p>Enter a URL or search query above to get started.</p>
             <p className="browser-home-hint">
-              Pages render inside the app using native webviews — no iframe restrictions.
+              Pages load through a local proxy that removes embedding restrictions.
               Google, GitHub, and all other sites work.
             </p>
             {bookmarks.length > 0 && (
@@ -434,7 +389,7 @@ export function Browser() {
                   <button
                     key={bm.url}
                     className="browser-home-bookmark"
-                    onClick={() => void navigate(bm.url)}
+                    onClick={() => navigate(bm.url)}
                   >
                     <Globe size={16} />
                     <span>{bm.title.slice(0, 40)}</span>
@@ -445,8 +400,16 @@ export function Browser() {
           </div>
         )}
 
-        {activeLabel && (
-          <div className="browser-webview-placeholder" />
+        {activeTab && proxyPort && (
+          <iframe
+            ref={iframeRef}
+            key={activeTab.id}
+            src={proxyUrl(activeTab.url)}
+            className="browser-iframe"
+            onLoad={handleIframeLoad}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
+            referrerPolicy="no-referrer"
+          />
         )}
       </div>
     </div>

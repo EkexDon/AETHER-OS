@@ -4,9 +4,9 @@ mod engine;
 use std::sync::Arc;
 
 use engine::{
-    aether_notes::AetherNotes, browser::BrowserManager, local_ai::LocalAiEngine,
-    memory_store::MemoryStore, system_monitor::SystemMonitor, terminal::TerminalManager,
-    vault_reader::VaultReader, vector_db::VectorEngine,
+    aether_notes::AetherNotes, browser::BrowserManager, browser_proxy::BrowserProxy,
+    local_ai::LocalAiEngine, memory_store::MemoryStore, system_monitor::SystemMonitor,
+    terminal::TerminalManager, vault_reader::VaultReader, vector_db::VectorEngine,
 };
 use tauri::Manager;
 
@@ -19,7 +19,7 @@ pub struct AppState {
     pub terminal: Arc<TerminalManager>,
     pub system_monitor: Arc<SystemMonitor>,
     pub browser: Arc<BrowserManager>,
-    pub browser_windows: Arc<commands::browser_commands::BrowserWindows>,
+    pub browser_proxy: Arc<BrowserProxy>,
 }
 
 pub fn run() {
@@ -37,7 +37,7 @@ pub fn run() {
             let terminal = TerminalManager::new();
             let system_monitor = SystemMonitor::new();
             let browser = BrowserManager::new();
-            let browser_windows = commands::browser_commands::BrowserWindows::new();
+            let browser_proxy = BrowserProxy::start();
             app.manage(AppState {
                 vault: Arc::new(vault),
                 vectors: Arc::new(vectors),
@@ -47,7 +47,7 @@ pub fn run() {
                 terminal: Arc::new(terminal),
                 system_monitor: Arc::new(system_monitor),
                 browser: Arc::new(browser),
-                browser_windows: Arc::new(browser_windows),
+                browser_proxy: Arc::new(browser_proxy),
             });
             Ok(())
         })
@@ -89,17 +89,7 @@ pub fn run() {
             commands::browser_commands::cmd_browser_info,
             commands::browser_commands::cmd_browser_open,
             commands::browser_commands::cmd_browser_open_librewolf,
-            commands::browser_commands::cmd_browser_webview_open,
-            commands::browser_commands::cmd_browser_webview_close,
-            commands::browser_commands::cmd_browser_webview_navigate,
-            commands::browser_commands::cmd_browser_webview_back,
-            commands::browser_commands::cmd_browser_webview_forward,
-            commands::browser_commands::cmd_browser_webview_reload,
-            commands::browser_commands::cmd_browser_webview_list,
-            commands::browser_commands::cmd_browser_webview_set_bounds,
-            commands::browser_commands::cmd_browser_webview_show,
-            commands::browser_commands::cmd_browser_webview_hide,
-            commands::browser_commands::cmd_browser_webview_hide_all,
+            commands::browser_commands::cmd_browser_proxy_port,
         ])
         .run(tauri::generate_context!())
         .expect("failed to run AETHER-OS");

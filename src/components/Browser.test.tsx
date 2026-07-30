@@ -5,17 +5,7 @@ vi.mock("../lib/ipc", () => ({
   getBrowserInfo: vi.fn(),
   browserOpen: vi.fn(),
   browserOpenLibreWolf: vi.fn(),
-  browserWebviewOpen: vi.fn(),
-  browserWebviewClose: vi.fn(),
-  browserWebviewNavigate: vi.fn(),
-  browserWebviewBack: vi.fn(),
-  browserWebviewForward: vi.fn(),
-  browserWebviewReload: vi.fn(),
-  browserWebviewList: vi.fn(),
-  browserWebviewSetBounds: vi.fn(),
-  browserWebviewShow: vi.fn(),
-  browserWebviewHide: vi.fn(),
-  browserWebviewHideAll: vi.fn(),
+  browserProxyPort: vi.fn(),
 }));
 
 import { render, screen } from "@testing-library/react";
