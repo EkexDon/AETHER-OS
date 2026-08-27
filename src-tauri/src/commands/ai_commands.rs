@@ -205,6 +205,7 @@ pub async fn cmd_agent_query_with_notes(
     prompt: String,
     note_paths: Vec<String>,
     model: String,
+    provider: Option<String>,
 ) -> Result<(), String> {
     let mut context_parts = Vec::new();
     let mut total_chars = 0usize;
@@ -255,6 +256,20 @@ pub async fn cmd_agent_query_with_notes(
         format!("{SYSTEM_PROMPT}\n\n{memory_summary}")
     };
 
+    if provider.as_deref() == Some("openrouter") {
+        let api_key = state
+            .ai_config
+            .openrouter_key()
+            .ok_or("OpenRouter API key is missing. Set it in Settings → AI Providers.")?;
+        return state
+            .cloud_ai
+            .stream_chat_response(&system_prompt, &user_prompt, &model, &api_key, move |chunk| {
+                let _ = app_handle.emit("llm-stream-chunk", chunk);
+            })
+            .await
+            .map_err(|e| e.to_string());
+    }
+
     state
         .ai
         .stream_chat_response(&system_prompt, &user_prompt, &model, move |chunk| {
@@ -265,12 +280,44 @@ pub async fn cmd_agent_query_with_notes(
 }
 
 #[tauri::command]
+pub async fn cmd_set_openrouter_key(
+    state: State<'_, AppState>,
+    key: Option<String>,
+) -> Result<bool, String> {
+    state
+        .ai_config
+        .set_openrouter_key(key.as_deref())
+        .map_err(|e| e.to_string())?;
+    Ok(state.ai_config.openrouter_key().is_some())
+}
+
+#[tauri::command]
+pub async fn cmd_list_cloud_models(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let api_key = state
+        .ai_config
+        .openrouter_key()
+        .ok_or("OpenRouter API key is missing. Set it in Settings → AI Providers.")?;
+    state
+        .cloud_ai
+        .list_models(&api_key)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn cmd_list_local_models(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    state.ai.list_models().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn cmd_get_health(state: State<'_, AppState>) -> Result<SystemHealth, String> {
     let ollama_online = state.ai.check_ollama_status().await;
+    let openrouter_configured = state.ai_config.openrouter_key().is_some();
     let vault_connected = state.vault.detect_vault_path().is_some();
 
     Ok(SystemHealth {
         ollama_online,
+        openrouter_configured,
         vault_connected,
     })
 }
@@ -278,5 +325,6 @@ pub async fn cmd_get_health(state: State<'_, AppState>) -> Result<SystemHealth, 
 #[derive(serde::Serialize)]
 pub struct SystemHealth {
     pub ollama_online: bool,
+    pub openrouter_configured: bool,
     pub vault_connected: bool,
 }

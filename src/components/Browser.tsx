@@ -4,13 +4,24 @@ import {
   getBrowserInfo,
   browserOpen,
   browserOpenLibreWolf,
-  browserProxyPort,
+  browserWebviewOpen,
+  browserWebviewClose,
+  browserWebviewNavigate,
+  browserWebviewBack,
+  browserWebviewForward,
+  browserWebviewReload,
+  browserWebviewList,
+  browserWebviewSetBounds,
+  browserWebviewShow,
+  browserWebviewHide,
+  browserWebviewHideAll,
+  onBrowserWebviewNav,
+  onBrowserWebviewTitle,
   isDesktopRuntime,
 } from "../lib/ipc";
 import type { BrowserInfo } from "../types";
 
 const BOOKMARKS_KEY = "aether-browser-bookmarks";
-const HISTORY_KEY = "aether-browser-history";
 const MAX_HISTORY = 50;
 
 interface Bookmark {
@@ -55,147 +66,256 @@ function urlToTitle(url: string): string {
 }
 
 interface Tab {
-  id: number;
-  url: string;
+  label: string;      // webview label (backend identifier)
+  url: string;        // current display URL (synced via nav events)
   title: string;
   history: string[];
   historyIndex: number;
 }
 
-let tabCounter = 0;
-
 export function Browser() {
   const [url, setUrl] = useState("");
   const [tabs, setTabs] = useState<Tab[]>([]);
-  const [activeTabId, setActiveTabId] = useState<number | null>(null);
+  const [activeLabel, setActiveLabel] = useState<string | null>(null);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>(loadBookmarks());
   const [browserInfo, setBrowserInfo] = useState<BrowserInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [proxyPort, setProxyPort] = useState<number | null>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const activeLabelRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    activeLabelRef.current = activeLabel;
+  }, [activeLabel]);
 
   useEffect(() => {
     saveBookmarks(bookmarks);
   }, [bookmarks]);
 
+  const activeTab = tabs.find((t) => t.label === activeLabel) ?? null;
+
+  // Measure the browser content area. add_child() positions are relative to
+  // the main window's content area — identical to getBoundingClientRect().
+  const measureRect = useCallback(() => {
+    const el = contentRef.current;
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return null;
+    return { x: r.left, y: r.top, width: r.width, height: r.height };
+  }, []);
+
+  const updateBounds = useCallback(async (label: string) => {
+    const rect = measureRect();
+    if (!rect) return;
+    try {
+      await browserWebviewSetBounds(label, rect);
+    } catch {
+      // webview may have been closed
+    }
+  }, [measureRect]);
+
+  // Initial setup: browser info + restore existing webviews (view remount)
   useEffect(() => {
     if (!isDesktopRuntime()) return;
     void getBrowserInfo()
       .then(setBrowserInfo)
       .catch((e) => setError(String(e)));
-    void browserProxyPort()
-      .then(setProxyPort)
-      .catch((e) => setError(String(e)));
+    void browserWebviewList()
+      .then((wins) => {
+        if (wins.length > 0) {
+          setTabs(
+            wins.map(([label, u]) => ({
+              label,
+              url: u,
+              title: urlToTitle(u),
+              history: [u],
+              historyIndex: 0,
+            }))
+          );
+          setActiveLabel(wins[0][0]);
+          setUrl(wins[0][1]);
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
-  const activeTab = tabs.find((t) => t.id === activeTabId) ?? null;
+  // Subscribe to navigation/title events from the native webviews
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    let unlistenNav: (() => void) | undefined;
+    let unlistenTitle: (() => void) | undefined;
 
-  const proxyUrl = useCallback((targetUrl: string): string => {
-    if (!proxyPort) return "";
-    return `http://127.0.0.1:${proxyPort}/proxy?url=${encodeURIComponent(targetUrl)}`;
-  }, [proxyPort]);
+    void onBrowserWebviewNav((e) => {
+      setLoading(false);
+      setTabs((prev) =>
+        prev.map((t) => {
+          if (t.label !== e.label) return t;
+          const u = e.url;
+          if (t.history[t.historyIndex] === u) return { ...t, url: u };
+          // Back/forward reconciliation
+          if (t.historyIndex > 0 && t.history[t.historyIndex - 1] === u) {
+            return { ...t, url: u, historyIndex: t.historyIndex - 1 };
+          }
+          if (
+            t.historyIndex < t.history.length - 1 &&
+            t.history[t.historyIndex + 1] === u
+          ) {
+            return { ...t, url: u, historyIndex: t.historyIndex + 1 };
+          }
+          const hist = [...t.history.slice(0, t.historyIndex + 1), u].slice(-MAX_HISTORY);
+          return { ...t, url: u, history: hist, historyIndex: hist.length - 1 };
+        })
+      );
+      if (activeLabelRef.current === e.label) {
+        setUrl(e.url);
+      }
+    }).then((fn) => (unlistenNav = fn));
 
-  const navigate = useCallback((rawUrl: string, tabId?: number) => {
-    const normalized = normalizeUrl(rawUrl);
-    if (!normalized) return;
+    void onBrowserWebviewTitle((e) => {
+      if (!e.title) return;
+      setTabs((prev) =>
+        prev.map((t) => (t.label === e.label ? { ...t, title: e.title.slice(0, 60) } : t))
+      );
+    }).then((fn) => (unlistenTitle = fn));
 
-    setUrl(normalized);
-    setError(null);
-    setLoading(true);
+    return () => {
+      unlistenNav?.();
+      unlistenTitle?.();
+    };
+  }, []);
 
-    setTabs((prev) => {
-      if (tabId !== undefined) {
-        return prev.map((t) => {
-          if (t.id !== tabId) return t;
-          const newHist = [...t.history.slice(0, t.historyIndex + 1), normalized].slice(-MAX_HISTORY);
-          return {
-            ...t,
+  // Show active webview / hide others; position it over the content area
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    for (const tab of tabs) {
+      if (tab.label === activeLabel) {
+        void updateBounds(tab.label).then(() => browserWebviewShow(tab.label));
+      } else {
+        void browserWebviewHide(tab.label);
+      }
+    }
+    if (!activeLabel) {
+      void browserWebviewHideAll();
+    }
+  }, [activeLabel, tabs, updateBounds]);
+
+  // Reposition when the content area resizes (window resize, layout changes)
+  useEffect(() => {
+    if (!isDesktopRuntime()) return;
+    const el = contentRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver(() => {
+      if (activeLabelRef.current) {
+        void updateBounds(activeLabelRef.current);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [updateBounds]);
+
+  // Hide all webviews when leaving the browser view (unmount)
+  useEffect(() => {
+    return () => {
+      if (isDesktopRuntime()) {
+        void browserWebviewHideAll();
+      }
+    };
+  }, []);
+
+  const navigate = useCallback(
+    async (rawUrl: string, existingLabel?: string | null) => {
+      const normalized = normalizeUrl(rawUrl);
+      if (!normalized) return;
+      setError(null);
+      setLoading(true);
+
+      try {
+        if (existingLabel) {
+          await browserWebviewNavigate(existingLabel, normalized);
+          setTabs((prev) =>
+            prev.map((t) => {
+              if (t.label !== existingLabel) return t;
+              const hist = [...t.history.slice(0, t.historyIndex + 1), normalized].slice(-MAX_HISTORY);
+              return { ...t, url: normalized, history: hist, historyIndex: hist.length - 1 };
+            })
+          );
+        } else {
+          const rect = measureRect() ?? { x: 0, y: 0, width: 800, height: 600 };
+          const label = await browserWebviewOpen(normalized, rect);
+          const newTab: Tab = {
+            label,
             url: normalized,
             title: urlToTitle(normalized),
-            history: newHist,
-            historyIndex: newHist.length - 1,
+            history: [normalized],
+            historyIndex: 0,
           };
-        });
-      } else {
-        const id = ++tabCounter;
-        const newTab: Tab = {
-          id,
-          url: normalized,
-          title: urlToTitle(normalized),
-          history: [normalized],
-          historyIndex: 0,
-        };
-        setActiveTabId(id);
-        return [...prev, newTab];
-      }
-    });
-
-    try {
-      const rawHist = localStorage.getItem(HISTORY_KEY);
-      const hist: string[] = rawHist ? JSON.parse(rawHist) : [];
-      hist.unshift(normalized);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(hist.slice(0, MAX_HISTORY)));
-    } catch {
-      // ignore
-    }
-  }, [proxyPort]);
-
-  const closeTab = useCallback((id: number) => {
-    setTabs((prev) => {
-      const filtered = prev.filter((t) => t.id !== id);
-      if (activeTabId === id) {
-        setActiveTabId(filtered.length > 0 ? filtered[filtered.length - 1].id : null);
-      }
-      return filtered;
-    });
-  }, [activeTabId]);
-
-  const goBack = useCallback(() => {
-    if (!activeTab || activeTab.historyIndex <= 0) return;
-    const newIndex = activeTab.historyIndex - 1;
-    const target = activeTab.history[newIndex];
-    setTabs((prev) => prev.map((t) =>
-      t.id === activeTab.id ? { ...t, url: target, title: urlToTitle(target), historyIndex: newIndex } : t
-    ));
-    setUrl(target);
-    setLoading(true);
-  }, [activeTab]);
-
-  const goForward = useCallback(() => {
-    if (!activeTab || activeTab.historyIndex >= activeTab.history.length - 1) return;
-    const newIndex = activeTab.historyIndex + 1;
-    const target = activeTab.history[newIndex];
-    setTabs((prev) => prev.map((t) =>
-      t.id === activeTab.id ? { ...t, url: target, title: urlToTitle(target), historyIndex: newIndex } : t
-    ));
-    setUrl(target);
-    setLoading(true);
-  }, [activeTab]);
-
-  const reload = useCallback(() => {
-    if (!activeTab) return;
-    setLoading(true);
-    // Force iframe reload by toggling src
-    if (iframeRef.current) {
-      const src = iframeRef.current.src;
-      iframeRef.current.src = "about:blank";
-      requestAnimationFrame(() => {
-        if (iframeRef.current) {
-          iframeRef.current.src = src;
+          setTabs((prev) => [...prev, newTab]);
+          setActiveLabel(label);
         }
+        setUrl(normalized);
+      } catch (e) {
+        setError(String(e));
+        setLoading(false);
+      }
+    },
+    [measureRect]
+  );
+
+  const closeTab = useCallback(
+    async (label: string) => {
+      try {
+        await browserWebviewClose(label);
+      } catch {
+        // already gone
+      }
+      setTabs((prev) => {
+        const filtered = prev.filter((t) => t.label !== label);
+        if (activeLabel === label) {
+          const next = filtered.length > 0 ? filtered[filtered.length - 1] : null;
+          setActiveLabel(next ? next.label : null);
+          setUrl(next ? next.url : "");
+        }
+        return filtered;
       });
+    },
+    [activeLabel]
+  );
+
+  const goBack = useCallback(async () => {
+    if (!activeLabel) return;
+    try {
+      await browserWebviewBack(activeLabel);
+    } catch (e) {
+      setError(String(e));
     }
-  }, [activeTab]);
+  }, [activeLabel]);
+
+  const goForward = useCallback(async () => {
+    if (!activeLabel) return;
+    try {
+      await browserWebviewForward(activeLabel);
+    } catch (e) {
+      setError(String(e));
+    }
+  }, [activeLabel]);
+
+  const reload = useCallback(async () => {
+    if (!activeLabel) return;
+    setLoading(true);
+    try {
+      await browserWebviewReload(activeLabel);
+    } catch (e) {
+      setError(String(e));
+      setLoading(false);
+    }
+  }, [activeLabel]);
 
   const toggleBookmark = useCallback(() => {
     if (!activeTab) return;
     setBookmarks((prev) => {
       const exists = prev.find((b) => b.url === activeTab.url);
-      if (exists) {
-        return prev.filter((b) => b.url !== activeTab.url);
-      }
+      if (exists) return prev.filter((b) => b.url !== activeTab.url);
       return [...prev, { title: activeTab.title, url: activeTab.url }];
     });
   }, [activeTab]);
@@ -223,13 +343,9 @@ export function Browser() {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      navigate(url, activeTabId ?? undefined);
+      void navigate(url, activeLabel);
     }
   };
-
-  const handleIframeLoad = useCallback(() => {
-    setLoading(false);
-  }, []);
 
   if (!isDesktopRuntime()) {
     return (
@@ -247,10 +363,10 @@ export function Browser() {
       <div className="browser-tab-bar">
         {tabs.map((tab) => (
           <div
-            key={tab.id}
-            className={`browser-tab${activeTabId === tab.id ? " browser-tab-active" : ""}`}
+            key={tab.label}
+            className={`browser-tab${activeLabel === tab.label ? " browser-tab-active" : ""}`}
             onClick={() => {
-              setActiveTabId(tab.id);
+              setActiveLabel(tab.label);
               setUrl(tab.url);
             }}
           >
@@ -260,7 +376,7 @@ export function Browser() {
               className="browser-tab-close"
               onClick={(e) => {
                 e.stopPropagation();
-                closeTab(tab.id);
+                void closeTab(tab.label);
               }}
             >
               <X size={12} />
@@ -270,7 +386,7 @@ export function Browser() {
         <button
           className="browser-tab-new"
           onClick={() => {
-            setActiveTabId(null);
+            setActiveLabel(null);
             setUrl("");
           }}
           title="New tab"
@@ -280,10 +396,20 @@ export function Browser() {
       </div>
 
       <div className="browser-toolbar">
-        <button className="browser-nav-btn" onClick={goBack} disabled={!activeTab || activeTab.historyIndex <= 0} title="Back">
+        <button
+          className="browser-nav-btn"
+          onClick={goBack}
+          disabled={!activeTab || activeTab.historyIndex <= 0}
+          title="Back"
+        >
           <ArrowLeft size={16} />
         </button>
-        <button className="browser-nav-btn" onClick={goForward} disabled={!activeTab || activeTab.historyIndex >= activeTab.history.length - 1} title="Forward">
+        <button
+          className="browser-nav-btn"
+          onClick={goForward}
+          disabled={!activeTab || activeTab.historyIndex >= activeTab.history.length - 1}
+          title="Forward"
+        >
           <ArrowRight size={16} />
         </button>
         <button className="browser-nav-btn" onClick={reload} disabled={!activeTab} title="Reload">
@@ -349,7 +475,7 @@ export function Browser() {
               key={bm.url}
               className="browser-bookmark-item"
               onClick={() => {
-                navigate(bm.url, activeTabId ?? undefined);
+                void navigate(bm.url, activeLabel);
                 setShowBookmarks(false);
               }}
             >
@@ -365,22 +491,22 @@ export function Browser() {
       {browserInfo && (
         <div className="browser-status-bar">
           <Shield size={11} />
-          <span>Powered by {browserInfo.default_browser}</span>
+          <span>Embedded native browser — {browserInfo.default_browser} engine</span>
           {browserInfo.librewolf_installed && (
             <span className="browser-librewolf-badge">LibreWolf detected</span>
           )}
         </div>
       )}
 
-      <div className="browser-content">
-        {!activeTab && (
+      <div className="browser-content" ref={contentRef}>
+        {!activeLabel && (
           <div className="browser-home">
             <Globe size={64} className="browser-home-icon" />
             <h2>AETHER-OS Browser</h2>
             <p>Enter a URL or search query above to get started.</p>
             <p className="browser-home-hint">
-              Pages load through a local proxy that removes embedding restrictions.
-              Google, GitHub, and all other sites work.
+              Pages render in a real browser engine embedded in this window —
+              Google, YouTube, GitHub and all other sites work natively.
             </p>
             {bookmarks.length > 0 && (
               <div className="browser-home-bookmarks">
@@ -389,7 +515,7 @@ export function Browser() {
                   <button
                     key={bm.url}
                     className="browser-home-bookmark"
-                    onClick={() => navigate(bm.url)}
+                    onClick={() => void navigate(bm.url)}
                   >
                     <Globe size={16} />
                     <span>{bm.title.slice(0, 40)}</span>
@@ -398,18 +524,6 @@ export function Browser() {
               </div>
             )}
           </div>
-        )}
-
-        {activeTab && proxyPort && (
-          <iframe
-            ref={iframeRef}
-            key={activeTab.id}
-            src={proxyUrl(activeTab.url)}
-            className="browser-iframe"
-            onLoad={handleIframeLoad}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"
-            referrerPolicy="no-referrer"
-          />
         )}
       </div>
     </div>

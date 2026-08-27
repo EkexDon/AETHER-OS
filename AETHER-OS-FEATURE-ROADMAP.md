@@ -20,6 +20,10 @@
 | Resizable Panels | ✅ Shipped |
 | Built-in Terminal (PTY, multi-tab, xterm.js) | ✅ Shipped |
 | System Monitor (CPU, RAM, disk, network, processes) | ✅ Shipped |
+| Embedded Browser (native webview subviews, tabs, bookmarks, history) | ✅ Shipped |
+| Embedded IDE (Monaco editor, file tree, tabs, PTY terminal) | ✅ Shipped |
+| Git Source Control in the IDE (status, staging, commit, branches, diffs, log) | ✅ Shipped |
+| Project-wide IntelliSense in the IDE (LSP sidecars: hover, completions, go-to-definition, diagnostics) | ✅ Shipped |
 
 ---
 

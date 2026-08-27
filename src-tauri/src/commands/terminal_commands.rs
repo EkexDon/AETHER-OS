@@ -1,13 +1,18 @@
+use base64::Engine as _;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::engine::terminal::TerminalSession;
 use crate::AppState;
 
+/// PTY bytes travel base64-encoded so the webview gets them byte-exact.
+/// A lossy UTF-8 round-trip would corrupt escape sequences at chunk
+/// boundaries and turn binary output into rows of replacement glyphs.
 #[derive(Serialize, Clone)]
 struct TerminalOutputEvent<'a> {
     id: &'a str,
-    data: &'a str,
+    #[serde(rename = "dataBase64")]
+    data_base64: &'a str,
 }
 
 #[tauri::command]
@@ -24,15 +29,15 @@ pub async fn cmd_terminal_spawn(
 
     state
         .terminal
-        .spawn(
-            cwd.as_deref(),
-            shell.as_deref(),
-            cols,
-            rows,
-            move |id, output| {
-                let _ = app_handle.emit("terminal-output", TerminalOutputEvent { id, data: output });
-            },
-        )
+        .spawn(cwd.as_deref(), shell.as_deref(), cols, rows, move |id, output: &[u8]| {
+            let _ = app_handle.emit(
+                "terminal-output",
+                TerminalOutputEvent {
+                    id,
+                    data_base64: &base64::engine::general_purpose::STANDARD.encode(output),
+                },
+            );
+        })
         .map_err(|e| e.to_string())
 }
 

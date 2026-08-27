@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Settings, FolderOpen, Check, AlertCircle } from "lucide-react";
+import { Settings, FolderOpen, Check, AlertCircle, Cloud, Loader2 } from "lucide-react";
 import { useAetherStore } from "../lib/store";
-import { getVaultPath, setVaultPath, getVaultNotes, getVaultStats, getVaultGraph, getHealth } from "../lib/ipc";
+import { getVaultPath, setVaultPath, getVaultNotes, getVaultStats, getVaultGraph, getHealth, setOpenRouterKey, listCloudModels } from "../lib/ipc";
 import { open } from "@tauri-apps/plugin-dialog";
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
@@ -14,11 +14,15 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     setHealth,
     preferredEditor,
     setPreferredEditor,
+    health,
   } = useAetherStore();
   const [pathInput, setPathInput] = useState(vaultPath ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [customEditor, setCustomEditor] = useState("");
+  const [apiKeyInput, setApiKeyInput] = useState("");
+  const [keyStatus, setKeyStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [keyMessage, setKeyMessage] = useState<string | null>(null);
   const isKnownEditor = ["devin", "windsurf", "cursor", "code"].includes(preferredEditor);
 
   useEffect(() => {
@@ -66,6 +70,38 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleSaveKey = async () => {
+    if (!apiKeyInput.trim()) return;
+    setKeyStatus("saving");
+    setKeyMessage(null);
+    try {
+      await setOpenRouterKey(apiKeyInput.trim());
+      setApiKeyInput("");
+      const h = await getHealth();
+      setHealth(h);
+      setKeyStatus("saved");
+      setKeyMessage("Key saved.");
+      setTimeout(() => setKeyStatus("idle"), 2000);
+    } catch (e) {
+      setKeyMessage(e instanceof Error ? e.message : String(e));
+      setKeyStatus("error");
+    }
+  };
+
+  const handleTestKey = async () => {
+    setKeyStatus("saving");
+    setKeyMessage(null);
+    try {
+      const models = await listCloudModels();
+      setKeyStatus("saved");
+      setKeyMessage(`Connected — ${models.length} models available.`);
+      setTimeout(() => setKeyStatus("idle"), 3000);
+    } catch (e) {
+      setKeyMessage(e instanceof Error ? e.message : String(e));
+      setKeyStatus("error");
+    }
+  };
+
   return (
     <div className="settings-overlay" onClick={onClose}>
       <div className="settings-modal" onClick={(e) => e.stopPropagation()}>
@@ -99,6 +135,47 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             <div className="settings-error">
               <AlertCircle size={14} />
               {error}
+            </div>
+          )}
+        </div>
+
+        <div className="settings-section">
+          <label className="settings-label">AI Providers</label>
+          <p className="settings-hint">
+            AETHER chats through local Ollama by default, or cloud models via OpenRouter
+            (claude, gpt, gemini and more). Your key is stored in the app's private data
+            directory — never in the browser or your vault.
+          </p>
+          <div className="settings-provider-status">
+            <span className={`engine-badge ${health?.ollama_online ? "engine-online" : "engine-offline"}`}>
+              Ollama {health?.ollama_online ? "connected" : "offline"}
+            </span>
+            <span className={`engine-badge ${health?.openrouter_configured ? "engine-online" : "engine-offline"}`}>
+              OpenRouter {health?.openrouter_configured ? "connected" : "no key"}
+            </span>
+          </div>
+          <label className="settings-label settings-label-sub">OpenRouter API Key</label>
+          <div className="settings-path-row">
+            <input
+              type="password"
+              value={apiKeyInput}
+              onChange={(e) => setApiKeyInput(e.target.value)}
+              placeholder={health?.openrouter_configured ? "•••••••• (saved)" : "sk-or-v1-..."}
+              className="settings-input"
+              autoComplete="off"
+            />
+            <button className="btn btn-secondary" onClick={() => void handleTestKey()} disabled={keyStatus === "saving"}>
+              {keyStatus === "saving" ? <Loader2 size={16} className="spin" /> : <Cloud size={16} />}
+              Test
+            </button>
+            <button className="btn btn-primary" onClick={() => void handleSaveKey()} disabled={keyStatus === "saving" || !apiKeyInput.trim()}>
+              {keyStatus === "saved" ? <><Check size={16} /> Saved</> : "Save Key"}
+            </button>
+          </div>
+          {keyMessage && (
+            <div className={keyStatus === "error" ? "settings-error" : "settings-hint"}>
+              {keyStatus === "error" && <AlertCircle size={14} />}
+              {keyMessage}
             </div>
           )}
         </div>
@@ -151,9 +228,10 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="settings-section">
-          <label className="settings-label">AI Model</label>
+          <label className="settings-label">Local Model</label>
           <p className="settings-hint">
-            AETHER uses Ollama locally. Default model: gemma2:2b. Install with: ollama pull gemma2:2b
+            Ollama default model: gemma2:2b. Install with: ollama pull gemma2:2b — or pick any
+            installed model from the chat header.
           </p>
         </div>
       </div>

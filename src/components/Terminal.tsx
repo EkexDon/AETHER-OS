@@ -11,6 +11,7 @@ import {
   onTerminalOutput,
   isDesktopRuntime,
 } from "../lib/ipc";
+import { base64ToBytes } from "../lib/bytes";
 import type { TerminalSession } from "../types";
 
 const RESIZE_DEBOUNCE_MS = 120;
@@ -41,7 +42,12 @@ function makeClientId(): string {
     : `client-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-export function Terminal() {
+interface TerminalProps {
+  /** Directory new shells start in. Defaults to the backend's choice. */
+  defaultCwd?: string;
+}
+
+export function Terminal({ defaultCwd }: TerminalProps = {}) {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -50,10 +56,19 @@ export function Terminal() {
   const activeSessionIdRef = useRef<string | null>(null);
   const resizeTimeoutRef = useRef<number | null>(null);
   const tabsRef = useRef<Tab[]>([]);
+  // Last size sent to the PTY, so we skip redundant resize (SIGWINCH) calls.
+  const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
+  // Held in a ref so changing the working directory never re-runs the mount
+  // effect, which would tear down and respawn the live shell.
+  const cwdRef = useRef(defaultCwd);
 
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
+
+  useEffect(() => {
+    cwdRef.current = defaultCwd;
+  }, [defaultCwd]);
 
   const createTab = useCallback(() => {
     const clientId = makeClientId();
@@ -201,14 +216,19 @@ export function Terminal() {
       });
     };
 
-    if (currentTab && !currentTab.pending && currentTab.sessionId) {
-      bindSession(currentTab.sessionId);
-    } else {
-      // Spawn the PTY using the size we just measured from the real,
-      // mounted container — not a hardcoded guess. This eliminates the
-      // startup race where a program (e.g. a build tool's progress bar)
-      // queries terminal size before our first resize call lands.
-      void terminalSpawn(undefined, undefined, term.cols, term.rows)
+    // The PTY must never be created before the container has its real,
+    // settled layout. A shell spawned at a transitional size (e.g. a panel
+    // that is still expanding) prints its prompt wrapped for the wrong
+    // width, and that garbage stays in the scrollback forever.
+    let spawnStarted = false;
+    const trySpawn = () => {
+      if (spawnStarted || cancelled) return;
+      const container = containerRef.current;
+      if (!container) return;
+      if (container.clientWidth < 120 || container.clientHeight < 80) return;
+      if (term.cols < 10 || term.rows < 4) return;
+      spawnStarted = true;
+      void terminalSpawn(cwdRef.current, undefined, term.cols, term.rows)
         .then((session: TerminalSession) => {
           if (cancelled) {
             void terminalKill(session.id).catch(() => undefined);
@@ -223,10 +243,18 @@ export function Terminal() {
             )
           );
           bindSession(session.id);
+          lastSizeRef.current = { cols: term.cols, rows: term.rows };
         })
         .catch((err) => {
           console.error("Failed to spawn terminal:", err);
         });
+    };
+
+    if (currentTab && !currentTab.pending && currentTab.sessionId) {
+      bindSession(currentTab.sessionId);
+      lastSizeRef.current = { cols: term.cols, rows: term.rows };
+    } else {
+      trySpawn();
     }
 
     const resizeObserver = new ResizeObserver(() => {
@@ -235,10 +263,29 @@ export function Terminal() {
       }
       resizeTimeoutRef.current = window.setTimeout(() => {
         resizeTimeoutRef.current = null;
-        if (!fitRef.current || !xtermRef.current) return;
+        const container = containerRef.current;
+        if (!fitRef.current || !xtermRef.current || !container) return;
+        // While the keep-alive wrapper is hidden (display:none) the container
+        // has no size — fitting now would compute degenerate dimensions and
+        // push a bogus resize to the PTY. Wait until it is visible again.
+        if (container.clientWidth < 10 || container.clientHeight < 10) return;
         fitRef.current.fit();
         if (isDesktopRuntime() && activeSessionIdRef.current) {
-          void terminalResize(activeSessionIdRef.current, xtermRef.current.cols, xtermRef.current.rows);
+          // Only resize the PTY when the size actually changed — redundant
+          // SIGWINCHes make programs redraw mid-render.
+          const size = { cols: xtermRef.current.cols, rows: xtermRef.current.rows };
+          if (
+            lastSizeRef.current &&
+            lastSizeRef.current.cols === size.cols &&
+            lastSizeRef.current.rows === size.rows
+          ) {
+            return;
+          }
+          lastSizeRef.current = size;
+          void terminalResize(activeSessionIdRef.current, size.cols, size.rows);
+        } else {
+          // No session yet: the panel just reached a real size — spawn now.
+          trySpawn();
         }
       }, RESIZE_DEBOUNCE_MS);
     });
@@ -261,13 +308,17 @@ export function Terminal() {
     let cancelled = false;
 
     (async () => {
-      const fn = await onTerminalOutput(({ id, data }) => {
+      const fn = await onTerminalOutput(({ id, dataBase64 }) => {
         // Only write output into the currently-mounted xterm instance if
         // it belongs to the session that's actually active. Without this
         // check, a background tab's shell finishing a command could bleed
         // its output into whatever terminal happens to be visible.
+        //
+        // The PTY bytes are written as a Uint8Array so they stay byte-exact:
+        // no UTF-8 re-decode can mangle escape sequences split across chunks
+        // or turn binary output into rows of replacement glyphs.
         if (xtermRef.current && activeSessionIdRef.current === id) {
-          xtermRef.current.write(data);
+          xtermRef.current.write(base64ToBytes(dataBase64));
         }
       });
       // If cleanup ran while we were waiting for the async listener

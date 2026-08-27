@@ -1,7 +1,11 @@
 pub mod aether_note_commands;
 pub mod ai_commands;
 pub mod browser_commands;
+pub mod git_commands;
+pub mod ide_commands;
+pub mod lsp_commands;
 pub mod memory_commands;
+pub mod note_commands;
 pub mod project_commands;
 pub mod system_commands;
 pub mod terminal_commands;

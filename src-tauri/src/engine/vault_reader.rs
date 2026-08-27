@@ -197,6 +197,126 @@ impl VaultReader {
         })
     }
 
+    /// Write note content. The path must resolve inside the vault root —
+    /// anything else is rejected to keep writes scoped to the vault.
+    pub fn write_note(&self, note_path: &str, content: &str) -> Result<(), AetherError> {
+        let vault_path = self
+            .detect_vault_path()
+            .ok_or_else(|| AetherError::Vault("no vault path configured".into()))?;
+        let root = std::fs::canonicalize(&vault_path)
+            .map_err(|e| AetherError::Vault(format!("vault canonicalize: {e}")))?;
+        let path = Path::new(note_path);
+        let canonical = if path.exists() {
+            std::fs::canonicalize(path)
+                .map_err(|e| AetherError::Vault(format!("note canonicalize: {e}")))?
+        } else {
+            // New file: canonicalize the parent and join the file name.
+            let parent = path
+                .parent()
+                .ok_or_else(|| AetherError::Vault("note path has no parent".into()))?;
+            let parent = std::fs::canonicalize(parent)
+                .map_err(|e| AetherError::Vault(format!("parent canonicalize: {e}")))?;
+            parent.join(path.file_name().ok_or_else(|| {
+                AetherError::Vault("note path has no file name".into())
+            })?)
+        };
+        if !canonical.starts_with(&root) {
+            return Err(AetherError::Vault(format!(
+                "refusing to write outside vault: {note_path}"
+            )));
+        }
+        std::fs::write(&canonical, content)?;
+        Ok(())
+    }
+
+    /// Create a new note inside the vault. `rel_path` is relative to the
+    /// vault root (e.g. "clips/My Article.md"). Parent dirs are created.
+    pub fn create_note(&self, rel_path: &str, content: &str) -> Result<String, AetherError> {
+        let vault_path = self
+            .detect_vault_path()
+            .ok_or_else(|| AetherError::Vault("no vault path configured".into()))?;
+        let rel = sanitize_rel_path(rel_path)?;
+        let abs = Path::new(&vault_path).join(&rel);
+        if let Some(parent) = abs.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        // Avoid clobbering an existing note — append a counter if needed.
+        let abs = unique_path(&abs);
+        std::fs::write(&abs, content)?;
+        Ok(abs.to_string_lossy().to_string())
+    }
+
+    /// Append a line (plus trailing newline) to an existing note.
+    pub fn append_note(&self, note_path: &str, content: &str) -> Result<(), AetherError> {
+        let existing = self.read_note(note_path)?;
+        let mut new_content = existing;
+        if !new_content.ends_with('\n') && !new_content.is_empty() {
+            new_content.push('\n');
+        }
+        new_content.push_str(content);
+        if !content.ends_with('\n') {
+            new_content.push('\n');
+        }
+        self.write_note(note_path, &new_content)
+    }
+
+    /// Find every note that links to `note_name` via [[wikilinks]].
+    /// Scans live note contents so results are always up to date.
+    pub fn get_backlinks(
+        &self,
+        vault_path: &str,
+        note_name: &str,
+    ) -> Result<Vec<Backlink>, AetherError> {
+        let notes = self.scan_vault(vault_path)?;
+        let target = note_name.trim().to_lowercase();
+        if target.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut backlinks = Vec::new();
+        for note in notes {
+            let content = match std::fs::read_to_string(&note.path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            for (idx, line) in content.lines().enumerate() {
+                if line_matches_wikilink(line, &target) {
+                    backlinks.push(Backlink {
+                        note_path: note.path.clone(),
+                        note_name: note.name.clone(),
+                        line: idx + 1,
+                        context: line.trim().chars().take(200).collect(),
+                    });
+                }
+            }
+        }
+        Ok(backlinks)
+    }
+
+    /// Path of today's daily note inside the vault: `daily/YYYY-MM-DD.md`.
+    /// Creates the file (with a heading) and its folder if missing.
+    pub fn get_or_create_daily_note(&self, date: &str) -> Result<String, AetherError> {
+        let vault_path = self
+            .detect_vault_path()
+            .ok_or_else(|| AetherError::Vault("no vault path configured".into()))?;
+        let rel = format!("daily/{date}.md");
+        let abs = Path::new(&vault_path).join(&rel);
+        if !abs.exists() {
+            self.create_note(&rel, &format!("# {date}\n\n"))?;
+        }
+        Ok(abs.to_string_lossy().to_string())
+    }
+
+    /// Append a timestamped bullet to today's daily note.
+    pub fn append_daily_note(&self, text: &str) -> Result<String, AetherError> {
+        let now = chrono::Local::now();
+        let date = now.format("%Y-%m-%d").to_string();
+        let time = now.format("%H:%M").to_string();
+        let path = self.get_or_create_daily_note(&date)?;
+        let line = format!("- **{time}** — {}", text.trim());
+        self.append_note(&path, &line)?;
+        Ok(path)
+    }
+
     pub fn load_vault_index(&self, vault_path: &str) -> Result<Option<VaultIndex>, AetherError> {
         let index_path = Path::new(vault_path).join(INDEX_FILE);
         if !index_path.exists() {
@@ -314,6 +434,76 @@ pub struct VaultStats {
     pub total_links: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Backlink {
+    pub note_path: String,
+    pub note_name: String,
+    pub line: usize,
+    pub context: String,
+}
+
+/// Validate a vault-relative path: no traversal, no absolute components,
+/// always ends in .md.
+fn sanitize_rel_path(rel: &str) -> Result<String, AetherError> {
+    let rel = rel.trim().replace('\\', "/");
+    if rel.is_empty() {
+        return Err(AetherError::Vault("empty note path".into()));
+    }
+    let parts: Vec<&str> = rel.split('/').filter(|p| !p.is_empty()).collect();
+    if parts.is_empty()
+        || parts.iter().any(|p| *p == ".." || p.starts_with('.'))
+        || rel.starts_with('/')
+        || rel.contains(':')
+    {
+        return Err(AetherError::Vault(format!("invalid note path: {rel}")));
+    }
+    let joined = parts.join("/");
+    if joined.to_lowercase().ends_with(".md") {
+        Ok(joined)
+    } else {
+        Ok(format!("{joined}.md"))
+    }
+}
+
+/// If `path` already exists, append " 2", " 3", … before the extension.
+fn unique_path(path: &Path) -> PathBuf {
+    if !path.exists() {
+        return path.to_path_buf();
+    }
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let parent = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+    for i in 2..1000 {
+        let candidate = parent.join(format!("{stem} {i}.{ext}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    path.to_path_buf()
+}
+
+/// Check whether a line contains a [[wikilink]] pointing at `target`
+/// (case-insensitive, alias-aware: [[Target|alias]] also matches).
+fn line_matches_wikilink(line: &str, target: &str) -> bool {
+    let mut rest = line;
+    while let Some(start) = rest.find("[[") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("]]") else { break };
+        let inner = &after[..end];
+        let name = inner.split('|').next().unwrap_or(inner).trim().to_lowercase();
+        if name == target {
+            return true;
+        }
+        rest = &after[end + 2..];
+    }
+    false
+}
 fn resolve_wikilink(link: &str, notes: &[VaultNote]) -> Option<String> {
     let lower = link.to_lowercase();
     notes
@@ -444,5 +634,135 @@ mod tests {
             .set_vault_path("/tmp/my-vault")
             .expect("set");
         assert_eq!(reader.get_config().vault_path, Some("/tmp/my-vault".to_owned()));
+    }
+
+    fn reader_with_vault() -> (tempfile::TempDir, tempfile::TempDir, VaultReader) {
+        let vault = tempdir().expect("vault dir");
+        let config = tempdir().expect("config dir");
+        let reader = VaultReader::new(config.path()).expect("reader");
+        reader
+            .set_vault_path(vault.path().to_str().unwrap())
+            .expect("set vault");
+        (vault, config, reader)
+    }
+
+    #[test]
+    fn sanitize_rel_path_rejects_traversal() {
+        assert!(sanitize_rel_path("../evil.md").is_err());
+        assert!(sanitize_rel_path("/abs.md").is_err());
+        assert!(sanitize_rel_path("a/../../b.md").is_err());
+        assert!(sanitize_rel_path(".hidden.md").is_err());
+        assert!(sanitize_rel_path("C:/win.md").is_err());
+        assert_eq!(sanitize_rel_path("clips/My Note").unwrap(), "clips/My Note.md");
+        assert_eq!(sanitize_rel_path("plain.md").unwrap(), "plain.md");
+    }
+
+    #[test]
+    fn unique_path_appends_counter() {
+        let dir = tempdir().expect("temp dir");
+        let p = dir.path().join("note.md");
+        assert_eq!(unique_path(&p), p);
+        fs::write(&p, "x").expect("write");
+        let p2 = unique_path(&p);
+        assert_eq!(p2, dir.path().join("note 2.md"));
+        fs::write(&p2, "x").expect("write");
+        assert_eq!(unique_path(&p), dir.path().join("note 3.md"));
+    }
+
+    #[test]
+    fn wikilink_matching_is_case_and_alias_aware() {
+        assert!(line_matches_wikilink("see [[My Note]]", "my note"));
+        assert!(line_matches_wikilink("see [[My Note|alias text]]", "my note"));
+        assert!(line_matches_wikilink("[[a]] and [[My Note]]", "my note"));
+        assert!(!line_matches_wikilink("see [[Other]]", "my note"));
+        assert!(!line_matches_wikilink("no link here", "my note"));
+    }
+
+    #[test]
+    fn write_note_round_trip_and_vault_boundary() {
+        let (vault, _config, reader) = reader_with_vault();
+        let note = vault.path().join("edit.md");
+        fs::write(&note, "old").expect("write");
+        let path_str = note.to_str().unwrap().to_string();
+
+        reader.write_note(&path_str, "new content").expect("write");
+        assert_eq!(reader.read_note(&path_str).expect("read"), "new content");
+
+        // Outside the vault must be rejected
+        let outside = tempdir().expect("outside");
+        let evil = outside.path().join("evil.md");
+        fs::write(&evil, "x").expect("write");
+        assert!(reader.write_note(evil.to_str().unwrap(), "nope").is_err());
+    }
+
+    #[test]
+    fn create_note_creates_dirs_and_avoids_clobber() {
+        let (_vault, _config, reader) = reader_with_vault();
+        let p1 = reader
+            .create_note("clips/Article", "# Content")
+            .expect("create");
+        assert!(p1.ends_with("clips/Article.md"));
+        assert_eq!(fs::read_to_string(&p1).expect("read"), "# Content");
+
+        let p2 = reader
+            .create_note("clips/Article", "# Other")
+            .expect("create again");
+        assert!(p2.ends_with("clips/Article 2.md"));
+    }
+
+    #[test]
+    fn append_note_adds_line_with_newline() {
+        let (vault, _config, reader) = reader_with_vault();
+        let note = vault.path().join("log.md");
+        fs::write(&note, "# Log\n").expect("write");
+        let path_str = note.to_str().unwrap().to_string();
+        reader.append_note(&path_str, "- entry").expect("append");
+        assert_eq!(reader.read_note(&path_str).expect("read"), "# Log\n- entry\n");
+    }
+
+    #[test]
+    fn backlinks_finds_wikilinks_with_context() {
+        let (vault, _config, reader) = reader_with_vault();
+        fs::write(vault.path().join("target.md"), "# Target").expect("write");
+        fs::write(
+            vault.path().join("source.md"),
+            "# Source\n\nSee [[Target]] for details.\nAlso [[target|the alias]].\n",
+        )
+        .expect("write");
+        fs::write(vault.path().join("unrelated.md"), "# Nothing here").expect("write");
+
+        let links = reader
+            .get_backlinks(vault.path().to_str().unwrap(), "Target")
+            .expect("backlinks");
+        assert_eq!(links.len(), 2);
+        assert!(links.iter().all(|l| l.note_name == "source"));
+        assert!(links.iter().any(|l| l.context.contains("[[Target]]")));
+        assert!(links.iter().any(|l| l.line == 4));
+    }
+
+    #[test]
+    fn daily_note_created_and_appended() {
+        let (_vault, _config, reader) = reader_with_vault();
+        let path = reader
+            .get_or_create_daily_note("2026-08-05")
+            .expect("daily");
+        assert!(path.ends_with("daily/2026-08-05.md"));
+        let content = fs::read_to_string(&path).expect("read");
+        assert!(content.starts_with("# 2026-08-05"));
+
+        // Second call must not recreate/overwrite
+        fs::write(&path, "# 2026-08-05\n\ncustom\n").expect("overwrite");
+        let path2 = reader
+            .get_or_create_daily_note("2026-08-05")
+            .expect("daily2");
+        assert_eq!(path, path2);
+        assert!(fs::read_to_string(&path2).expect("read").contains("custom"));
+
+        let appended = reader.append_daily_note("hello world").expect("append");
+        let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+        assert!(appended.ends_with(&format!("daily/{today}.md")));
+        let daily = fs::read_to_string(&appended).expect("read daily");
+        assert!(daily.contains("hello world"));
+        assert!(daily.contains("- **"));
     }
 }

@@ -18,7 +18,7 @@ export function VaultSidebar({ width = 240 }: { width?: number }) {
 
   const handleSelect = async (path: string) => {
     selectNote(path);
-    setView("dashboard");
+    setView("editor");
     try {
       const content = await getNoteContent(path);
       setNoteContent(content);

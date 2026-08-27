@@ -50,7 +50,7 @@ impl TerminalManager {
         shell: Option<&str>,
         cols: u16,
         rows: u16,
-        on_output: impl Fn(&str, &str) + Send + 'static,
+        on_output: impl Fn(&str, &[u8]) + Send + 'static,
     ) -> Result<TerminalSession, AetherError> {
         let id = Uuid::new_v4().to_string();
         let shell = shell.map(|s| s.to_string()).unwrap_or_else(Self::default_shell);
@@ -100,37 +100,27 @@ impl TerminalManager {
         let thread_id = id.clone();
 
         thread::spawn(move || {
-            let mut buf = [0u8; 4096];
-            let mut pending: Vec<u8> = Vec::new();
+            let mut buf = [0u8; 8192];
+            let mut warned_binary = false;
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
-                        pending.extend_from_slice(&buf[..n]);
-                        match std::str::from_utf8(&pending) {
-                            Ok(valid) => {
-                                on_output(&thread_id, valid);
-                                pending.clear();
-                            }
-                            Err(e) => {
-                                let valid_up_to = e.valid_up_to();
-                                if valid_up_to > 0 {
-                                    let valid =
-                                        unsafe { std::str::from_utf8_unchecked(&pending[..valid_up_to]) };
-                                    on_output(&thread_id, valid);
-                                }
-                                let remainder = pending.split_off(valid_up_to);
-                                match e.error_len() {
-                                    None if remainder.len() < 8 => {
-                                        pending = remainder;
-                                    }
-                                    _ => {
-                                        on_output(&thread_id, &String::from_utf8_lossy(&remainder));
-                                        pending.clear();
-                                    }
-                                }
-                            }
+                        let chunk = &buf[..n];
+                        // Diagnostics: programs occasionally emit binary that
+                        // no terminal can render (the source of "tofu" glyph
+                        // rows). Log the first occurrence per session so the
+                        // culprit shows up in the app log instead of staying
+                        // invisible. The transport itself stays byte-exact.
+                        if !warned_binary && chunk.iter().any(|&b| b == 0 || (0x80..=0x8F).contains(&b) || b == 0xFF) {
+                            warned_binary = true;
+                            eprintln!(
+                                "[terminal] session {thread_id}: first non-text chunk ({} bytes): {:?}",
+                                chunk.len(),
+                                &chunk[..chunk.len().min(64)]
+                            );
                         }
+                        on_output(&thread_id, chunk);
                     }
                     Err(_) => break,
                 }
@@ -269,11 +259,11 @@ mod tests {
     #[test]
     fn spawn_and_write_echo() {
         let manager = TerminalManager::new();
-        let (tx, rx) = mpsc::channel::<String>();
+        let (tx, rx) = mpsc::channel::<Vec<u8>>();
 
         let session = manager
             .spawn(None, None, 80, 24, move |_id, output| {
-                let _ = tx.send(output.to_string());
+                let _ = tx.send(output.to_vec());
             })
             .expect("spawn should succeed");
 
@@ -284,12 +274,12 @@ mod tests {
             .write(&session.id, "echo aether_test_42\n")
             .expect("write should succeed");
 
-        let mut combined = String::new();
+        let mut combined = Vec::new();
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while std::time::Instant::now() < deadline {
             if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(500)) {
-                combined.push_str(&chunk);
-                if combined.contains("aether_test_42") {
+                combined.extend_from_slice(&chunk);
+                if combined.windows(14).any(|w| w == b"aether_test_42") {
                     break;
                 }
             } else {
@@ -298,8 +288,55 @@ mod tests {
         }
 
         assert!(
-            combined.contains("aether_test_42"),
-            "expected output to contain 'aether_test_42', got: {combined}"
+            combined.windows(14).any(|w| w == b"aether_test_42"),
+            "expected output to contain 'aether_test_42', got: {}",
+            String::from_utf8_lossy(&combined)
+        );
+
+        manager.kill(&session.id).expect("kill should succeed");
+    }
+
+    /// The transport must be byte-exact: binary output (which no terminal
+    /// can render as text) arrives unmodified instead of being mangled into
+    /// replacement characters. This is what used to produce rows of "tofu"
+    /// glyphs for the user.
+    #[test]
+    fn output_is_byte_exact_for_binary() {
+        let manager = TerminalManager::new();
+        let (tx, rx) = mpsc::channel::<Vec<u8>>();
+
+        let session = manager
+            .spawn(None, None, 80, 24, move |_id, output| {
+                let _ = tx.send(output.to_vec());
+            })
+            .expect("spawn should succeed");
+
+        // 0xFF and a 4-byte UTF-8 emoji split across the boundary are the
+        // classic corruption cases.
+        manager
+            .write(&session.id, "printf '\\xff\\xfe\\xf0\\x9f\\x91\\x80'\n")
+            .expect("write should succeed");
+
+        let mut combined = Vec::new();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while std::time::Instant::now() < deadline {
+            if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(500)) {
+                combined.extend_from_slice(&chunk);
+                if combined.contains(&0xFF) && combined.windows(4).any(|w| w == [0xF0, 0x9F, 0x91, 0x80]) {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+
+        assert!(
+            combined.contains(&0xFF),
+            "raw 0xFF byte must survive the transport untouched"
+        );
+        assert!(
+            combined.windows(4).any(|w| w == [0xF0, 0x9F, 0x91, 0x80]),
+            "multi-byte UTF-8 must arrive unsplit/unmangled"
         );
 
         manager.kill(&session.id).expect("kill should succeed");
@@ -308,11 +345,11 @@ mod tests {
     #[test]
     fn resize_does_not_error() {
         let manager = TerminalManager::new();
-        let (tx, _rx) = mpsc::channel::<String>();
+        let (tx, _rx) = mpsc::channel::<Vec<u8>>();
 
         let session = manager
             .spawn(None, None, 80, 24, move |_id, output| {
-                let _ = tx.send(output.to_string());
+                let _ = tx.send(output.to_vec());
             })
             .expect("spawn should succeed");
 
@@ -326,11 +363,11 @@ mod tests {
     #[test]
     fn list_returns_active_sessions() {
         let manager = TerminalManager::new();
-        let (tx, _rx) = mpsc::channel::<String>();
+        let (tx, _rx) = mpsc::channel::<Vec<u8>>();
 
         let session = manager
             .spawn(None, None, 80, 24, move |_id, output| {
-                let _ = tx.send(output.to_string());
+                let _ = tx.send(output.to_vec());
             })
             .expect("spawn should succeed");
 
@@ -346,11 +383,11 @@ mod tests {
     #[test]
     fn preserves_multibyte_utf8_output_intact() {
         let manager = TerminalManager::new();
-        let (tx, rx) = mpsc::channel::<String>();
+        let (tx, rx) = mpsc::channel::<Vec<u8>>();
 
         let session = manager
             .spawn(None, None, 80, 24, move |_id, output| {
-                let _ = tx.send(output.to_string());
+                let _ = tx.send(output.to_vec());
             })
             .expect("spawn should succeed");
 
@@ -365,26 +402,27 @@ mod tests {
             .expect("write should succeed");
 
         let expected = "MARKER_START\u{2714}\u{2192}\u{1F680}MARKER_END";
-        let mut combined = String::new();
+        let mut combined: Vec<u8> = Vec::new();
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while std::time::Instant::now() < deadline {
-            if combined.contains(expected) {
+            if combined.windows(expected.len()).any(|w| w == expected.as_bytes()) {
                 break;
             }
             if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(500)) {
-                combined.push_str(&chunk);
+                combined.extend_from_slice(&chunk);
             } else {
                 break;
             }
         }
 
+        let combined_str = String::from_utf8_lossy(&combined);
         assert!(
-            combined.contains(expected),
-            "expected intact multi-byte UTF-8 sequence, got: {combined:?}"
+            combined_str.contains(expected),
+            "expected intact multi-byte UTF-8 sequence, got: {combined_str:?}"
         );
         assert!(
-            !combined.contains('\u{FFFD}'),
-            "output should not contain UTF-8 replacement characters, got: {combined:?}"
+            !combined.contains(&0xEF) || !combined.windows(3).any(|w| w == [0xEF, 0xBF, 0xBD]),
+            "output should not contain UTF-8 replacement characters, got: {combined_str:?}"
         );
 
         manager.kill(&session.id).expect("kill should succeed");
@@ -393,19 +431,19 @@ mod tests {
     #[test]
     fn tags_output_with_the_correct_session_id_across_concurrent_sessions() {
         let manager = TerminalManager::new();
-        let (tx, rx) = mpsc::channel::<(String, String)>();
+        let (tx, rx) = mpsc::channel::<(String, Vec<u8>)>();
 
         let tx_a = tx.clone();
         let session_a = manager
             .spawn(None, None, 80, 24, move |id, output| {
-                let _ = tx_a.send((id.to_string(), output.to_string()));
+                let _ = tx_a.send((id.to_string(), output.to_vec()));
             })
             .expect("spawn a should succeed");
 
         let tx_b = tx.clone();
         let session_b = manager
             .spawn(None, None, 80, 24, move |id, output| {
-                let _ = tx_b.send((id.to_string(), output.to_string()));
+                let _ = tx_b.send((id.to_string(), output.to_vec()));
             })
             .expect("spawn b should succeed");
 
@@ -416,39 +454,43 @@ mod tests {
             .write(&session_b.id, "echo BBB_MARKER\n")
             .expect("write b should succeed");
 
-        let mut combined_a = String::new();
-        let mut combined_b = String::new();
+        let mut combined_a: Vec<u8> = Vec::new();
+        let mut combined_b: Vec<u8> = Vec::new();
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while std::time::Instant::now() < deadline {
-            if combined_a.contains("AAA_MARKER") && combined_b.contains("BBB_MARKER") {
+            if combined_a.windows(10).any(|w| w == b"AAA_MARKER")
+                && combined_b.windows(10).any(|w| w == b"BBB_MARKER")
+            {
                 break;
             }
             if let Ok((id, chunk)) = rx.recv_timeout(Duration::from_millis(500)) {
                 if id == session_a.id {
-                    combined_a.push_str(&chunk);
+                    combined_a.extend_from_slice(&chunk);
                 } else if id == session_b.id {
-                    combined_b.push_str(&chunk);
+                    combined_b.extend_from_slice(&chunk);
                 }
             } else {
                 break;
             }
         }
 
+        let out_a = String::from_utf8_lossy(&combined_a);
+        let out_b = String::from_utf8_lossy(&combined_b);
         assert!(
-            combined_a.contains("AAA_MARKER"),
-            "session A should receive its own output, got: {combined_a:?}"
+            out_a.contains("AAA_MARKER"),
+            "session A should receive its own output, got: {out_a:?}"
         );
         assert!(
-            !combined_a.contains("BBB_MARKER"),
-            "session A must never receive session B's output, got: {combined_a:?}"
+            !out_a.contains("BBB_MARKER"),
+            "session A must never receive session B's output, got: {out_a:?}"
         );
         assert!(
-            combined_b.contains("BBB_MARKER"),
-            "session B should receive its own output, got: {combined_b:?}"
+            out_b.contains("BBB_MARKER"),
+            "session B should receive its own output, got: {out_b:?}"
         );
         assert!(
-            !combined_b.contains("AAA_MARKER"),
-            "session B must never receive session A's output, got: {combined_b:?}"
+            !out_b.contains("AAA_MARKER"),
+            "session B must never receive session A's output, got: {out_b:?}"
         );
 
         manager.kill(&session_a.id).expect("kill a should succeed");

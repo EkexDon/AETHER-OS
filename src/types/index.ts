@@ -70,6 +70,7 @@ export interface VectorMatch {
 
 export interface SystemHealth {
   ollama_online: boolean;
+  openrouter_configured: boolean;
   vault_connected: boolean;
 }
 
@@ -126,7 +127,8 @@ export interface TerminalSession {
 
 export interface TerminalOutputEvent {
   id: string;
-  data: string;
+  /** PTY bytes, base64-encoded so they arrive byte-exact (never lossy UTF-8). */
+  dataBase64: string;
 }
 
 export interface CpuInfo {
@@ -182,4 +184,67 @@ export interface BrowserInfo {
   librewolf_installed: boolean;
   librewolf_path: string | null;
   default_browser: string;
+}
+
+export interface Backlink {
+  note_path: string;
+  note_name: string;
+  line: number;
+  context: string;
+}
+
+export interface FsEntry {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  size: number;
+}
+
+export interface ClippedPage {
+  url: string;
+  title: string;
+  content_html: string;
+  excerpt: string;
+}
+
+export type AgentAction =
+  | { action: "create_note"; title: string; content: string }
+  | { action: "append_note"; path: string; content: string }
+  | { action: "append_daily"; content: string }
+  | { action: "open_url"; url: string }
+  | { action: "clip_url"; url: string };
+
+export type GitChangeKind = "added" | "modified" | "deleted" | "renamed" | "typechange";
+
+export interface GitStatusEntry {
+  path: string;
+  staged: GitChangeKind | null;
+  unstaged: GitChangeKind | null;
+}
+
+export interface RepoStatus {
+  branch: string;
+  ahead: number;
+  behind: number;
+  unborn: boolean;
+  entries: GitStatusEntry[];
+}
+
+export interface BranchInfo {
+  name: string;
+  is_current: boolean;
+}
+
+export interface CommitInfo {
+  id: string;
+  summary: string;
+  author: string;
+  time: number;
+}
+
+export interface FileDiff {
+  path: string;
+  old_content: string | null;
+  new_content: string | null;
+  is_binary: boolean;
 }

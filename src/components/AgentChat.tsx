@@ -1,14 +1,31 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { Send, Bot, Loader, FileText, Sparkles, Save, User, X, Check, Layers, History, Plus } from "lucide-react";
-import { useAetherStore } from "../lib/store";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { Send, Bot, Loader, FileText, Save, User, X, Check, Layers, History, Plus, Zap, Cloud, HardDrive } from "lucide-react";
+import { useAetherStore, type AiProvider } from "../lib/store";
 import {
-  agentQuery, agentQueryWithNotes, onStreamChunk, createAetherNote, getAetherNotes,
+  agentQueryWithNotes, onStreamChunk, createAetherNote, getAetherNotes,
   saveConversation, getRecentConversations, deleteConversation,
+  executeAgentAction, getVaultNotes, listLocalModels, listCloudModels,
 } from "../lib/ipc";
-
-const DEFAULT_MODEL = "gemma2:2b";
+import { parseAgentActions, describeAction } from "../lib/clipper";
+import { filterModels, parseSlashInput } from "../lib/slash";
+import type { AgentAction } from "../types";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
+
+/** Memoized so streaming updates never re-render the whole history. */
+const ChatMessageRow = React.memo(function ChatMessageRow({
+  role,
+  content,
+}: ChatMessage) {
+  return (
+    <div className={`chat-msg chat-msg-${role}`}>
+      <div className="chat-msg-icon">
+        {role === "user" ? <User size={14} /> : <Bot size={14} />}
+      </div>
+      <div className="chat-msg-content">{content}</div>
+    </div>
+  );
+});
 
 export function AgentChat({ width = 340 }: { width?: number }) {
   const {
@@ -28,6 +45,12 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     resetContextToAll,
     conversations,
     setConversations,
+    provider,
+    setProvider,
+    modelByProvider,
+    setModelForProvider,
+    health,
+    setChatOpen,
   } = useAetherStore();
 
   const [input, setInput] = useState("");
@@ -38,10 +61,59 @@ export function AgentChat({ width = 340 }: { width?: number }) {
   const [showContextPicker, setShowContextPicker] = useState(false);
   const [contextSearch, setContextSearch] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [pendingActions, setPendingActions] = useState<AgentAction[]>([]);
+  const [actionResults, setActionResults] = useState<Record<number, string>>({});
+  const [actionExecuting, setActionExecuting] = useState<number | null>(null);
+  const [localModels, setLocalModels] = useState<string[]>([]);
+  const [cloudModels, setCloudModels] = useState<string[]>([]);
+  const [slashIndex, setSlashIndex] = useState(0);
+
+  const currentModel = modelByProvider[provider];
+
+  const providerModels = useMemo(
+    () =>
+      provider === "ollama"
+        ? (localModels.length > 0 ? localModels : [currentModel])
+        : (cloudModels.length > 0 ? cloudModels : [currentModel]),
+    [provider, localModels, cloudModels, currentModel]
+  );
+
+  const slash = parseSlashInput(input);
+  const slashMatches = useMemo(
+    () => (slash ? filterModels(providerModels, slash.query) : []),
+    [slash, providerModels]
+  );
+
+  useEffect(() => {
+    setSlashIndex(0);
+  }, [slash?.query, provider]);
 
   useEffect(() => {
     void getRecentConversations(20).then(setConversations).catch(() => {});
   }, [setConversations]);
+
+  useEffect(() => {
+    if (provider !== "ollama" || localModels.length > 0) return;
+    void listLocalModels().then(setLocalModels).catch(() => {});
+  }, [provider, localModels.length]);
+
+  useEffect(() => {
+    if (provider !== "openrouter" || cloudModels.length > 0 || !health?.openrouter_configured) return;
+    void listCloudModels().then(setCloudModels).catch(() => {});
+  }, [provider, cloudModels.length, health?.openrouter_configured]);
+
+  const handleModelChange = useCallback(
+    (model: string) => setModelForProvider(provider, model),
+    [provider, setModelForProvider]
+  );
+
+  const applySlashModel = useCallback(
+    (model: string) => {
+      handleModelChange(model);
+      setInput("");
+    },
+    [handleModelChange]
+  );
 
   const activeContextPaths = useMemo(() => {
     if (allNotesInContext) return vaultNotes.map((n) => n.path);
@@ -85,6 +157,11 @@ export function AgentChat({ width = 340 }: { width?: number }) {
       const userMsg = pendingUserMsg.current;
       const aiMsg = agentOutput;
       setMessages((prev) => [...prev, { role: "user", content: userMsg }, { role: "assistant", content: aiMsg }]);
+      // Parse agent actions from the AI output
+      const actions = parseAgentActions(aiMsg);
+      if (actions.length > 0) {
+        setPendingActions((prev) => [...prev, ...actions]);
+      }
       pendingUserMsg.current = null;
       clearAgentOutput();
       void saveConversation(
@@ -133,7 +210,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     try {
       const notePaths = activeContextPaths.length > 0 ? activeContextPaths : vaultNotes.map((n) => n.path);
       setAgentContext(notePaths);
-      await agentQueryWithNotes(prompt, notePaths, DEFAULT_MODEL);
+      await agentQueryWithNotes(prompt, notePaths, currentModel, provider);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -160,6 +237,28 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     }
   };
 
+  const handleExecuteAction = async (index: number) => {
+    const action = pendingActions[index];
+    if (!action) return;
+    setActionExecuting(index);
+    try {
+      const result = await executeAgentAction(action);
+      setActionResults((prev) => ({ ...prev, [index]: result }));
+      if (action.action === "create_note" || action.action === "append_note" || action.action === "append_daily") {
+        const notes = await getVaultNotes();
+        useAetherStore.getState().setVaultNotes(notes);
+      }
+    } catch (e) {
+      setActionResults((prev) => ({ ...prev, [index]: `Error: ${e}` }));
+    } finally {
+      setActionExecuting(null);
+    }
+  };
+
+  const handleDismissAction = (index: number) => {
+    setPendingActions((prev) => prev.filter((_, i) => i !== index));
+  };
+
   return (
     <div className="agent-chat" style={{ width, minWidth: width }}>
       <div className="agent-header">
@@ -182,6 +281,59 @@ export function AgentChat({ width = 340 }: { width?: number }) {
         >
           <Plus size={14} />
         </button>
+        <button
+          className="btn btn-icon agent-header-btn"
+          onClick={() => setChatOpen(false)}
+          title="Close panel"
+        >
+          <X size={14} />
+        </button>
+      </div>
+
+      <div className="agent-engine-bar">
+        <select
+          className="agent-provider-select"
+          value={provider}
+          onChange={(e) => setProvider(e.target.value as AiProvider)}
+          title="AI provider"
+        >
+          <option value="ollama">Ollama · Local</option>
+          <option value="openrouter">OpenRouter · Cloud</option>
+        </select>
+        <select
+          className="agent-model-select"
+          value={currentModel}
+          onChange={(e) => handleModelChange(e.target.value)}
+          title="Model"
+        >
+          {(provider === "ollama"
+            ? (localModels.length > 0 ? localModels : [currentModel])
+            : (cloudModels.length > 0 ? cloudModels : [currentModel])
+          ).map((model) => (
+            <option key={model} value={model}>{model}</option>
+          ))}
+        </select>
+        {provider === "ollama" ? (
+          <span
+            className={`engine-badge ${health?.ollama_online ? "engine-online" : "engine-offline"}`}
+            title={health?.ollama_online ? "Ollama is running locally" : "Ollama is offline"}
+          >
+            {health?.ollama_online ? <HardDrive size={11} /> : <HardDrive size={11} />}
+            {health?.ollama_online ? "connected" : "offline"}
+          </span>
+        ) : (
+          <span
+            className={`engine-badge ${health?.openrouter_configured ? "engine-online" : "engine-offline"}`}
+            title={
+              health?.openrouter_configured
+                ? "OpenRouter API key configured"
+                : "Add your OpenRouter key in Settings"
+            }
+          >
+            <Cloud size={11} />
+            {health?.openrouter_configured ? "connected" : "no key"}
+          </span>
+        )}
       </div>
 
       {showHistory && (
@@ -285,36 +437,121 @@ export function AgentChat({ width = 340 }: { width?: number }) {
           </div>
         )}
         {messages.map((msg, i) => (
-          <div key={i} className={`chat-msg chat-msg-${msg.role}`}>
-            <div className="chat-msg-icon">
-              {msg.role === "user" ? <User size={14} /> : <Bot size={14} />}
-            </div>
-            <div className="chat-msg-content">{msg.content}</div>
-          </div>
+          <ChatMessageRow key={i} role={msg.role} content={msg.content} />
         ))}
         {busy && (
           <div className="chat-msg chat-msg-assistant">
             <div className="chat-msg-icon"><Bot size={14} /></div>
             <div className="chat-msg-content">
               {agentOutput ? (
-                <pre className="agent-output-text">{agentOutput}</pre>
+                <span className="agent-stream">
+                  {agentOutput}
+                  <span className="stream-cursor" />
+                </span>
               ) : (
-                <span className="chat-typing">Thinking...</span>
+                <span className="chat-typing" aria-label="Assistant is typing">
+                  <span /><span /><span />
+                </span>
               )}
             </div>
           </div>
         )}
       </div>
 
+      {pendingActions.length > 0 && (
+        <div className="agent-actions-panel">
+          <div className="agent-actions-header">
+            <Zap size={14} />
+            <span>Proposed Actions ({pendingActions.length})</span>
+          </div>
+          {pendingActions.map((action, idx) => (
+            <div key={idx} className="agent-action-card">
+              <div className="agent-action-desc">{describeAction(action)}</div>
+              {actionResults[idx] ? (
+                <div className="agent-action-result">{actionResults[idx]}</div>
+              ) : (
+                <div className="agent-action-buttons">
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => void handleExecuteAction(idx)}
+                    disabled={actionExecuting !== null}
+                  >
+                    {actionExecuting === idx ? <Loader size={12} className="spin" /> : "Approve"}
+                  </button>
+                  <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => handleDismissAction(idx)}
+                    disabled={actionExecuting !== null}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {error && <div className="agent-error">{error}</div>}
+
+      {slash && (
+        <div className="slash-menu" role="listbox" aria-label="Model picker">
+          <div className="slash-menu-header">
+            Models · {provider === "ollama" ? "Ollama" : "OpenRouter"}
+            {health?.openrouter_configured === false && provider === "openrouter" && " (no key)"}
+          </div>
+          <div className="slash-menu-list">
+            {slashMatches.length === 0 && (
+              <div className="slash-menu-empty">No matching models</div>
+            )}
+            {slashMatches.map((model, i) => (
+              <div
+                key={model}
+                role="option"
+                aria-selected={i === slashIndex}
+                className={`slash-menu-item${i === slashIndex ? " slash-menu-active" : ""}${
+                  model === currentModel ? " slash-menu-current" : ""
+                }`}
+                onMouseEnter={() => setSlashIndex(i)}
+                onClick={() => applySlashModel(model)}
+              >
+                {model}
+                {model === currentModel && <span className="slash-menu-check">current</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="agent-input-row">
         <textarea
           className="agent-input"
-          placeholder="Ask about your notes..."
+          placeholder="Ask about your notes... (/model to switch)"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
+            if (slash && slashMatches.length > 0) {
+              if (e.key === "ArrowDown") {
+                e.preventDefault();
+                setSlashIndex((i) => (i + 1) % slashMatches.length);
+                return;
+              }
+              if (e.key === "ArrowUp") {
+                e.preventDefault();
+                setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+                return;
+              }
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                applySlashModel(slashMatches[slashIndex] ?? currentModel);
+                return;
+              }
+              if (e.key === "Escape") {
+                e.preventDefault();
+                setInput("");
+                return;
+              }
+            }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               handleSubmit();
