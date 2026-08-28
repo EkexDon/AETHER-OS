@@ -480,6 +480,13 @@ body {
   background: var(--bg-surface-2);
 }
 
+.engine-warn {
+  color: var(--warning, #f5a623);
+  background: color-mix(in srgb, var(--warning, #f5a623) 12%, transparent);
+  margin-left: 6px;
+  max-width: none;
+}
+
 /* ── Context Bar ── */
 .agent-context-bar {
   display: flex;

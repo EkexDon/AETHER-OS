@@ -212,7 +212,9 @@ export type AgentAction =
   | { action: "append_note"; path: string; content: string }
   | { action: "append_daily"; content: string }
   | { action: "open_url"; url: string }
-  | { action: "clip_url"; url: string };
+  | { action: "clip_url"; url: string }
+  | { action: "add_memory_fact"; fact: string; category: string }
+  | { action: "save_aether_note"; title: string; content: string };
 
 export type GitChangeKind = "added" | "modified" | "deleted" | "renamed" | "typechange";
 

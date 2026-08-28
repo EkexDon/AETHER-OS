@@ -44,6 +44,33 @@ React UI → Typed IPC → Tauri Commands → Rust AppState
 | `cmd_create_aether_note` | title, content, source_query, related_notes | `AetherNote` |
 | `cmd_get_aether_notes` | none | `AetherNote[]` |
 | `cmd_delete_aether_note` | id | none |
+| `cmd_execute_agent_action` | `AgentAction` | `String` (status) |
+| `cmd_agent_open_url` | url | `AgentActionResult` |
+| `cmd_agent_clip_url` | url | `AgentActionResult` |
+| `cmd_agent_add_memory_fact` | fact, category | `AgentActionResult` |
+| `cmd_agent_save_aether_note` | title, content | `AgentActionResult` |
+
+## AI Agent Actions
+
+The agent can take seven kinds of actions on the vault, emitted as
+```action JSON blocks in the AI's reply. The system prompt (`commands/ai_commands.rs:8`) teaches the format; the frontend parser (`lib/agentActions.ts`) extracts them on every response.
+
+- **Safe actions (auto-executed, v1):** `create_note`, `append_note`, `append_daily`, `add_memory_fact`, `save_aether_note`, `open_url`, `clip_url`.
+- **Action routing.** Pure-vault actions are handled by the existing `cmd_execute_agent_action` (synchronous). The four variants that need a different engine (`add_memory_fact` → memory store, `save_aether_note` → AETHER notes, `open_url` → system browser, `clip_url` → fetcher) are routed through dedicated commands in `commands/agent_action_commands.rs` that return a tagged `AgentActionResult` enum so the frontend can switch on the response shape.
+- **Frontend orchestration.** `clip_url` is intentionally two-step: the backend fetches HTML and returns the raw `ClippedPage`; the frontend runs the existing `turndown` pipeline (`lib/clipper.ts:htmlToMarkdown`), composes the note body, and calls `cmd_create_note`. This keeps `turndown` (a JS dep) on the frontend where it belongs, and lets the note path use the existing vault filename sanitization.
+- **Model capability detection.** `lib/agentModelSupport.ts` is a small family-prefix registry (`llama3.1+`, `qwen2.5+`, `claude-3+`, `gpt-4o+`, `gemini-2+` are known-good; `tinyllama`, `qwen:0.5b`, `stablelm` are known-bad). The engine bar shows a `tools: unreliable` warning chip for the latter so the user knows to expect chat-only behavior.
+
+| Command | Input | Output |
+| --- | --- | --- |
+| `cmd_execute_agent_action` | `AgentAction` (vault-only variants) | `String` (status) |
+| `cmd_agent_open_url` | url | `{ kind: "opened", url }` |
+| `cmd_agent_clip_url` | url | `{ kind: "clipped_page", path: ClippedPage }` |
+| `cmd_agent_add_memory_fact` | fact, category | `{ kind: "fact_saved", fact: MemoryFact }` |
+| `cmd_agent_save_aether_note` | title, content | `{ kind: "aether_note_saved", note: AetherNote }` |
+
+### Future: destructive tools
+
+When 2.4 grows to include terminal, git, or file-delete actions, the same routing pattern applies: each gets its own `cmd_agent_*` command, but the frontend will gate the call on a per-action approval modal because those actions are not safe to auto-execute.
 
 ## Embedded IDE — Language Servers (LSP)
 

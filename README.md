@@ -55,6 +55,7 @@ The end state is: **open one app, do everything.**
 
 ### AI & Search
 - 🤖 **Streaming AI chat** with full Markdown + code-fence rendering
+- ⚡ **AI Agent Actions** — the AI does things, not just chats: creates notes, appends to daily, remembers facts, opens URLs, and clips web pages into your vault
 - 🎯 **Context picker** — pick which notes the agent should see, or use "all notes"
 - 🧬 **Semantic search** — embeddings via Ollama (`nomic-embed-text` by default), cosine similarity ranked, % match shown
 - 🧠 **Persistent AI memory** — store facts ("Ekin prefers dark mode", "Project X is in TypeScript") and the agent will recall them across sessions

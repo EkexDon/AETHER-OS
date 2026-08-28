@@ -5,8 +5,13 @@ import {
   agentQueryWithNotes, onStreamChunk, createAetherNote, getAetherNotes,
   saveConversation, getRecentConversations, deleteConversation,
   executeAgentAction, getVaultNotes, listLocalModels, listCloudModels,
+  agentOpenUrl, agentClipUrl, agentAddMemoryFact, agentSaveAetherNote,
+  type AgentActionResult,
 } from "../lib/ipc";
-import { parseAgentActions, describeAction } from "../lib/clipper";
+import { parseAgentActions, describeAction, actionLabel } from "../lib/agentActions";
+import { supportsAgentActions } from "../lib/agentModelSupport";
+import { buildClipNote, clipNoteName } from "../lib/clipper";
+import { createNote } from "../lib/ipc";
 import { filterModels, parseSlashInput } from "../lib/slash";
 import type { AgentAction } from "../types";
 
@@ -157,10 +162,15 @@ export function AgentChat({ width = 340 }: { width?: number }) {
       const userMsg = pendingUserMsg.current;
       const aiMsg = agentOutput;
       setMessages((prev) => [...prev, { role: "user", content: userMsg }, { role: "assistant", content: aiMsg }]);
-      // Parse agent actions from the AI output
+      // Parse agent actions from the AI output and auto-execute the
+      // safe ones. v1 has no destructive tools, so every action is
+      // safe to run immediately. Future versions that add terminal /
+      // git / file-delete will gate those behind the existing
+      // approval panel (which is still wired up below).
       const actions = parseAgentActions(aiMsg);
       if (actions.length > 0) {
         setPendingActions((prev) => [...prev, ...actions]);
+        void runActionBatch(actions);
       }
       pendingUserMsg.current = null;
       clearAgentOutput();
@@ -242,16 +252,91 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     if (!action) return;
     setActionExecuting(index);
     try {
-      const result = await executeAgentAction(action);
+      const result = await executeOneAction(action);
       setActionResults((prev) => ({ ...prev, [index]: result }));
-      if (action.action === "create_note" || action.action === "append_note" || action.action === "append_daily") {
-        const notes = await getVaultNotes();
-        useAetherStore.getState().setVaultNotes(notes);
-      }
+      await maybeRefreshVaultAfter(action);
     } catch (e) {
       setActionResults((prev) => ({ ...prev, [index]: `Error: ${e}` }));
     } finally {
       setActionExecuting(null);
+    }
+  };
+
+  /**
+   * Execute a list of agent actions sequentially. Used as the v1
+   * default — every action is safe-write or read+save, so the user
+   * sees the result in the chat without a per-action modal.
+   */
+  const runActionBatch = async (actions: AgentAction[]) => {
+    // Track which pending action indices these are. They were appended
+    // to `pendingActions` right before this call, so the offsets are
+    // `length - actions.length .. length - 1`.
+    const baseIndex = pendingActions.length - actions.length;
+    for (let i = 0; i < actions.length; i++) {
+      const idx = baseIndex + i;
+      setActionExecuting(idx);
+      try {
+        const result = await executeOneAction(actions[i]);
+        setActionResults((prev) => ({ ...prev, [idx]: result }));
+        await maybeRefreshVaultAfter(actions[i]);
+      } catch (e) {
+        setActionResults((prev) => ({ ...prev, [idx]: `Error: ${e}` }));
+      } finally {
+        setActionExecuting(null);
+      }
+    }
+  };
+
+  /** Route a single action to the right IPC command and return a
+   *  human-readable result string for the chat. */
+  const executeOneAction = async (action: AgentAction): Promise<string> => {
+    switch (action.action) {
+      case "create_note":
+      case "append_note":
+      case "append_daily": {
+        const result = await executeAgentAction(action);
+        return result;
+      }
+      case "add_memory_fact": {
+        const result = await agentAddMemoryFact(action.fact, action.category);
+        return result.kind === "fact_saved" ? `Remembered fact: "${action.fact}"` : "Fact saved";
+      }
+      case "save_aether_note": {
+        const result = await agentSaveAetherNote(action.title, action.content);
+        return result.kind === "aether_note_saved" ? `Saved to AETHER Notes: "${action.title}"` : "Saved to AETHER Notes";
+      }
+      case "open_url": {
+        await agentOpenUrl(action.url);
+        return `Opened ${action.url}`;
+      }
+      case "clip_url": {
+        // Backend returns the extracted HTML; we convert to MD in the
+        // frontend (turndown is a JS dep) and create the note here.
+        const result: AgentActionResult = await agentClipUrl(action.url);
+        if (result.kind !== "clipped_page") return "Clip failed";
+        const noteName = clipNoteName(result.path.title, new Date());
+        const noteBody = buildClipNote(result.path, new Date());
+        const relPath = `clips/${noteName}`;
+        const created = await createNote(relPath, noteBody);
+        return `Clipped to ${created}`;
+      }
+    }
+  };
+
+  /** After actions that change vault state, refresh the sidebar. */
+  const maybeRefreshVaultAfter = async (action: AgentAction) => {
+    if (
+      action.action === "create_note" ||
+      action.action === "append_note" ||
+      action.action === "append_daily" ||
+      action.action === "clip_url"
+    ) {
+      const notes = await getVaultNotes();
+      useAetherStore.getState().setVaultNotes(notes);
+    }
+    if (action.action === "save_aether_note") {
+      const notes = await getAetherNotes();
+      setAetherNotes(notes);
     }
   };
 
@@ -332,6 +417,15 @@ export function AgentChat({ width = 340 }: { width?: number }) {
           >
             <Cloud size={11} />
             {health?.openrouter_configured ? "connected" : "no key"}
+          </span>
+        )}
+        {!supportsAgentActions(currentModel, provider) && (
+          <span
+            className="engine-badge engine-warn"
+            title="This model may not emit tool calls reliably. Actions will still be parsed from the reply if present."
+          >
+            <Zap size={11} />
+            tools: unreliable
           </span>
         )}
       </div>
@@ -462,30 +556,22 @@ export function AgentChat({ width = 340 }: { width?: number }) {
         <div className="agent-actions-panel">
           <div className="agent-actions-header">
             <Zap size={14} />
-            <span>Proposed Actions ({pendingActions.length})</span>
+            <span>Tools used ({pendingActions.length})</span>
           </div>
           {pendingActions.map((action, idx) => (
             <div key={idx} className="agent-action-card">
-              <div className="agent-action-desc">{describeAction(action)}</div>
-              {actionResults[idx] ? (
+              <div className="agent-action-desc">
+                {actionResults[idx]
+                  ? actionLabel(action)
+                  : (
+                    <>
+                      {actionExecuting === idx && <Loader size={12} className="spin" />}
+                      <span>{describeAction(action)}</span>
+                    </>
+                  )}
+              </div>
+              {actionResults[idx] && (
                 <div className="agent-action-result">{actionResults[idx]}</div>
-              ) : (
-                <div className="agent-action-buttons">
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={() => void handleExecuteAction(idx)}
-                    disabled={actionExecuting !== null}
-                  >
-                    {actionExecuting === idx ? <Loader size={12} className="spin" /> : "Approve"}
-                  </button>
-                  <button
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => handleDismissAction(idx)}
-                    disabled={actionExecuting !== null}
-                  >
-                    Dismiss
-                  </button>
-                </div>
               )}
             </div>
           ))}

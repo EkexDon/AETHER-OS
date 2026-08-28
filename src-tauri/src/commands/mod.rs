@@ -1,4 +1,5 @@
 pub mod aether_note_commands;
+pub mod agent_action_commands;
 pub mod ai_commands;
 pub mod browser_commands;
 pub mod git_commands;

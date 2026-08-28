@@ -21,14 +21,15 @@
 13. [Workspace 10 — System Monitor](#13-workspace-10--system-monitor)
 14. [Workspace 11 — Browser](#14-workspace-11--browser)
 15. [The AI Agent (everywhere)](#15-the-ai-agent-everywhere)
-16. [Settings — vault, providers, models, editor](#16-settings)
-17. [Quick Capture — `⌘⇧N`](#17-quick-capture)
-18. [Web Clipper — `⌘⇧C`](#18-web-clipper)
-19. [Command Bar — `⌘K`](#19-command-bar)
-20. [Keyboard shortcuts cheat-sheet](#20-keyboard-shortcuts)
-21. [Where your data lives](#21-where-your-data-lives)
-22. [Power-user tips](#22-power-user-tips)
-23. [Troubleshooting](#23-troubleshooting)
+16. [AI Agent Actions](#-ai-agent-actions--when-the-ai-does-things)
+17. [Settings — vault, providers, models, editor](#16-settings)
+18. [Quick Capture — `⌘⇧N`](#17-quick-capture)
+19. [Web Clipper — `⌘⇧C`](#18-web-clipper)
+20. [Command Bar — `⌘K`](#19-command-bar)
+21. [Keyboard shortcuts cheat-sheet](#20-keyboard-shortcuts)
+22. [Where your data lives](#21-where-your-data-lives)
+23. [Power-user tips](#22-power-user-tips)
+24. [Troubleshooting](#23-troubleshooting)
 
 ---
 
@@ -695,6 +696,68 @@ Type `/model` in the input box. The app shows an inline menu of available models
   - Quick factual questions → `gemma2:2b` or `llama-3.1-8b-instant` (cheap, fast).
   - Code review / writing → `claude-3.5-sonnet` or `gpt-4o` (slower, much better quality).
   - Big multi-file refactors → `claude-3.5-sonnet` (long context, careful reasoning).
+
+### 🤖 AI Agent Actions — when the AI *does things*
+
+Beyond answering questions, the agent can take actions on your vault. It does this by emitting structured JSON blocks in its reply. The system prompt teaches the model the action grammar — any model that follows formatting instructions reliably will work, with caveats noted at the bottom of this section.
+
+![AI Agent panel — type a prompt that includes an action verb and the agent will execute it](docs/tutorial/images/22-ai-agent-actions.png)
+
+When the app sees one of these blocks, it parses the action, runs it, and shows the result as a small chip below the assistant's message. The AI is doing things — not just chatting.
+
+#### Available actions (v1 — safe writes only)
+
+| Action | What it does | Result chip |
+|---|---|---|
+| `create_note { title, content }` | Creates a new note in your vault. | `Created "My new note"` |
+| `append_note { path, content }` | Appends to an existing note by its vault-relative path. | `Updated note.md` |
+| `append_daily { content }` | Adds a timestamped bullet to today's daily note. | `Added to daily note` |
+| `add_memory_fact { fact, category }` | Persists a fact the agent should remember forever. Category is one of: `general`, `preferences`, `projects`, `people`, `work`, `personal`. | `Remembered fact` |
+| `save_aether_note { title, content }` | Saves the current answer to the AETHER Notes library. | `Saved to AETHER Notes` |
+| `open_url { url }` | Opens a URL in your default browser. | `Opened example.com` |
+| `clip_url { url }` | Fetches a web page and saves it as a clean Markdown note in your vault. | `Clipped example.com/article` |
+
+All of these are **safe** — they only add data, never delete or overwrite. v1 auto-executes on the same screen so the loop is fast; future versions will gate destructive tools (terminal, git, file-delete) behind a per-action approval modal.
+
+#### How to trigger actions in conversation
+
+Just ask the AI to do it. The system prompt teaches the model the action grammar, so any of these work:
+
+- **"Create a note called 'AETHER roadmap' with the bullet points I just described."**
+- **"Remember that I'm working on a TypeScript + Rust project called AETHER-OS, category projects."**
+- **"Add 'review pull request #42' to my daily note."**
+- **"Open the AETHER-OS repo on GitHub."**
+- **"Clip https://example.com/article into my vault."**
+
+The AI will emit the action, you'll see the chip appear with the result, and your vault will reflect the change.
+
+#### Example: a real agent-action session
+
+> **You:** Remember that I prefer dark mode and that I drink black coffee. Category preferences for both.
+>
+> **AETHER:** Got it — remembered.
+> ```action
+> {"action":"add_memory_fact","fact":"User prefers dark mode","category":"preferences"}
+> ```
+> ```action
+> {"action":"add_memory_fact","fact":"User drinks black coffee","category":"preferences"}
+> ```
+>
+> *(below the message:)*
+> ✅ **Remembered fact**: "User prefers dark mode"
+> ✅ **Remembered fact**: "User drinks black coffee"
+
+If you open Settings → AI Memory right after, both facts are there.
+
+#### Model compatibility
+
+The JSON-fenced action format is a prompt-engineering trick, not a native tool-calling API. It works with any model that can follow formatting instructions, but reliability varies. The app knows about this and shows a warning chip when the active model is unlikely to emit actions reliably:
+
+- 🟢 Reliable: `llama3.1+`, `qwen2.5+`, `mistral-nemo`, `claude-3+`, `gpt-4o`, `gemini-2+`
+- 🟡 Mixed: smaller Ollama models (gemma2:2b is OK, gemma:2b is not)
+- 🔴 Unreliable: `tinyllama`, `qwen:0.5b`, `stablelm`
+
+You can still chat with the unreliable models — they just won't take actions. Pick a more capable model from `/model` (or the dropdown) when you want actions.
 
 ---
 

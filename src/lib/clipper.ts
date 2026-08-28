@@ -1,7 +1,7 @@
 import TurndownService from "turndown";
 // @ts-expect-error — turndown-plugin-gfm ships no types
 import { gfm } from "turndown-plugin-gfm";
-import type { AgentAction, ClippedPage } from "../types";
+import type { ClippedPage } from "../types";
 
 let turndown: TurndownService | null = null;
 
@@ -71,43 +71,3 @@ export function clipNoteName(title: string, now: Date): string {
   return `${cleaned || fallback}.md`;
 }
 
-/**
- * Parse agent actions from AI output. Actions are embedded as fenced code
- * blocks with language "action" containing JSON:
- *
- *   ```action
- *   {"action":"create_note","title":"Ideas","content":"# Hello"}
- *   ```
- */
-export function parseAgentActions(output: string): AgentAction[] {
-  const actions: AgentAction[] = [];
-  const re = /```action\s*\n([\s\S]*?)```/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(output)) !== null) {
-    try {
-      const parsed = JSON.parse(m[1].trim());
-      if (parsed && typeof parsed.action === "string") {
-        actions.push(parsed as AgentAction);
-      }
-    } catch {
-      // skip malformed JSON
-    }
-  }
-  return actions;
-}
-
-/** Human-readable description for the approval UI. */
-export function describeAction(action: AgentAction): string {
-  switch (action.action) {
-    case "create_note":
-      return `Create note "${action.title}"`;
-    case "append_note":
-      return `Append to ${action.path.split("/").pop() ?? action.path}`;
-    case "append_daily":
-      return `Add to daily note: ${action.content.slice(0, 60)}`;
-    case "open_url":
-      return `Open ${action.url}`;
-    case "clip_url":
-      return `Clip ${action.url} into vault`;
-  }
-}

@@ -241,3 +241,24 @@ export const clipUrl = (url: string) =>
   call<ClippedPage>("cmd_clip_url", { url });
 export const executeAgentAction = (action: AgentAction) =>
   call<string>("cmd_execute_agent_action", { action });
+
+/** Router commands for agent-action variants that need more than the
+ *  synchronous vault path. Each returns a tagged `AgentActionResult`. */
+export interface AgentActionResultOpened { kind: "opened"; url: string }
+export interface AgentActionResultClipped { kind: "clipped_page"; path: ClippedPage }
+export interface AgentActionResultFact { kind: "fact_saved"; fact: { id: string; fact: string; category: string; created_at: number } }
+export interface AgentActionResultAether { kind: "aether_note_saved"; note: { id: string; title: string; content: string; created_at: number; source_query: string; related_notes: string[] } }
+export type AgentActionResult =
+  | AgentActionResultOpened
+  | AgentActionResultClipped
+  | AgentActionResultFact
+  | AgentActionResultAether;
+
+export const agentOpenUrl = (url: string) =>
+  call<AgentActionResult>("cmd_agent_open_url", { url });
+export const agentClipUrl = (url: string) =>
+  call<AgentActionResult>("cmd_agent_clip_url", { url });
+export const agentAddMemoryFact = (fact: string, category: string) =>
+  call<AgentActionResult>("cmd_agent_add_memory_fact", { fact, category });
+export const agentSaveAetherNote = (title: string, content: string) =>
+  call<AgentActionResult>("cmd_agent_save_aether_note", { title, content });

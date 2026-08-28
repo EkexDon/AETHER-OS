@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { htmlToMarkdown, buildClipNote, clipNoteName, parseAgentActions, describeAction } from "./clipper";
+import { htmlToMarkdown, buildClipNote, clipNoteName } from "./clipper";
+import { parseAgentActions, describeAction } from "./agentActions";
 import type { ClippedPage } from "../types";
 
 describe("clipper", () => {

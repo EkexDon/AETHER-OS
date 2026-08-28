@@ -24,6 +24,7 @@
 | Embedded IDE (Monaco editor, file tree, tabs, PTY terminal) | ✅ Shipped |
 | Git Source Control in the IDE (status, staging, commit, branches, diffs, log) | ✅ Shipped |
 | Project-wide IntelliSense in the IDE (LSP sidecars: hover, completions, go-to-definition, diagnostics) | ✅ Shipped |
+| AI Agent Actions — safe writes (create_note, append_note, append_daily, add_memory_fact, save_aether_note, open_url, clip_url) | ✅ Shipped v0.1 |
 
 ---
 
@@ -124,6 +125,8 @@
 **Tech:** Tool-calling architecture — AI responses include structured action intents, Rust backend executes them (file writes, shell commands, note creation) with user approval for destructive actions.
 
 **What you get:** Tell the AI what you want, it does it. Create notes from conversations. Run commands from chat. Summarize web pages into your vault. The AI becomes an agent, not just a chatbot.
+
+**Status (v0.1):** ✅ **Shipped — safe-write subset.** Seven actions live: `create_note`, `append_note`, `append_daily`, `add_memory_fact`, `save_aether_note`, `open_url`, `clip_url`. AI emits them as ```action JSON blocks; the app parses, routes to the right engine, and shows the result as a chip. v1 auto-executes because every action is safe-write or read+save. Destructive tools (terminal, git, file-delete) are intentionally deferred — they need a per-action approval modal that the next round adds.
 
 ---
 
@@ -288,7 +291,7 @@
 | 2.1 Note Editor | Critical | High | P0 |
 | 2.2 Backlinks | High | Low | P1 |
 | 2.3 Daily Notes & Quick Capture | High | Low | P0 |
-| 2.4 AI Agent Actions | Critical | High | P1 |
+| 2.4 AI Agent Actions (safe writes) | Critical | High | **Shipped v0.1** |
 | 2.5 Web Clipper | Medium | Medium | P2 |
 | 3.1 Task Management (Kanban) | High | Medium | P1 |
 | 3.2 Calendar & Reminders | Medium | High | P2 |
