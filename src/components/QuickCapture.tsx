@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { Zap, X, Loader2 } from "lucide-react";
 import { useAetherStore } from "../lib/store";
-import { appendDaily, getNoteContent } from "../lib/ipc";
+import { appendDaily } from "../lib/ipc";
 
 export function QuickCapture() {
-  const { showQuickCapture, setShowQuickCapture, selectNote, setNoteContent, setView } = useAetherStore();
+  const { showQuickCapture, setShowQuickCapture, selectNote, setView } = useAetherStore();
   const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,15 +36,9 @@ export function QuickCapture() {
     }
   };
 
-  const handleOpenDaily = async () => {
+  const handleOpenDaily = () => {
     if (!savedPath) return;
     selectNote(savedPath);
-    try {
-      const content = await getNoteContent(savedPath);
-      setNoteContent(content);
-    } catch {
-      // ignore
-    }
     setView("editor");
     setShowQuickCapture(false);
   };

@@ -63,7 +63,7 @@ export function CommandBar({ onClose }: { onClose: () => void }) {
       icon: <FileText size={14} />,
       run: () => {
         selectNote(n.path);
-        setView("dashboard");
+        setView("editor");
         onClose();
       },
     }));

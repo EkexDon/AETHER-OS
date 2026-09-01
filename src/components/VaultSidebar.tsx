@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from "react";
 import { FileText, Search, ChevronRight, ChevronDown } from "lucide-react";
 import { useAetherStore } from "../lib/store";
-import { getNoteContent } from "../lib/ipc";
 
 export function VaultSidebar({ width = 240 }: { width?: number }) {
-  const { vaultNotes, selectedNotePath, selectNote, setNoteContent, setView } = useAetherStore();
+  const { vaultNotes, selectedNotePath, selectNote, setView } = useAetherStore();
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -16,15 +15,9 @@ export function VaultSidebar({ width = 240 }: { width?: number }) {
 
   const tree = useMemo(() => buildTree(filtered), [filtered]);
 
-  const handleSelect = async (path: string) => {
+  const handleSelect = (path: string) => {
     selectNote(path);
     setView("editor");
-    try {
-      const content = await getNoteContent(path);
-      setNoteContent(content);
-    } catch {
-      setNoteContent(null);
-    }
   };
 
   const toggle = (dir: string) => {

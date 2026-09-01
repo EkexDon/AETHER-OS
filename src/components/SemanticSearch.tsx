@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { Search, FileText, Loader } from "lucide-react";
 import { useAetherStore } from "../lib/store";
-import { semanticSearch, getNoteContent } from "../lib/ipc";
+import { semanticSearch } from "../lib/ipc";
 
 export function SemanticSearch() {
-  const { searchResults, setSearchResults, selectNote, setNoteContent, setView, busy, setBusy } = useAetherStore();
+  const { searchResults, setSearchResults, selectNote, setView, busy, setBusy } = useAetherStore();
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -22,15 +22,9 @@ export function SemanticSearch() {
     }
   };
 
-  const handleOpen = async (path: string) => {
+  const handleOpen = (path: string) => {
     selectNote(path);
-    setView("dashboard");
-    try {
-      const content = await getNoteContent(path);
-      setNoteContent(content);
-    } catch {
-      setNoteContent(null);
-    }
+    setView("editor");
   };
 
   return (

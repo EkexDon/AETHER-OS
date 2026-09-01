@@ -76,6 +76,7 @@ interface AetherState {
   showQuickCapture: boolean;
   provider: AiProvider;
   modelByProvider: Record<AiProvider, string>;
+  openNoteTabs: string[];
   chatOpen: boolean;
 
   setVaultPath: (path: string | null) => void;
@@ -96,6 +97,7 @@ interface AetherState {
   setMemoryFacts: (facts: MemoryFact[]) => void;
   setView: (view: ViewMode) => void;
   selectNote: (path: string | null) => void;
+  closeNoteTab: (path: string) => void;
   setNoteContent: (content: string | null) => void;
   setIndexing: (v: boolean) => void;
   setBusy: (v: boolean) => void;
@@ -132,6 +134,7 @@ export const useAetherStore = create<AetherState>((set) => ({
   showQuickCapture: false,
   provider: loadProvider(),
   modelByProvider: loadModelByProvider(),
+  openNoteTabs: [],
   chatOpen: loadChatOpen(),
 
   setVaultPath: (vaultPath) => set({ vaultPath }),
@@ -155,7 +158,21 @@ export const useAetherStore = create<AetherState>((set) => ({
   setConversations: (conversations) => set({ conversations }),
   setMemoryFacts: (memoryFacts) => set({ memoryFacts }),
   setView: (view) => set({ view }),
-  selectNote: (selectedNotePath) => set({ selectedNotePath }),
+  selectNote: (selectedNotePath) => set((state) => {
+    if (!selectedNotePath) return { selectedNotePath: null };
+    const tabs = state.openNoteTabs.includes(selectedNotePath)
+      ? state.openNoteTabs
+      : [...state.openNoteTabs, selectedNotePath];
+    return { selectedNotePath, openNoteTabs: tabs };
+  }),
+  closeNoteTab: (path) => set((state) => {
+    const remaining = state.openNoteTabs.filter((t) => t !== path);
+    let nextActive = state.selectedNotePath;
+    if (state.selectedNotePath === path) {
+      nextActive = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+    }
+    return { openNoteTabs: remaining, selectedNotePath: nextActive };
+  }),
   setNoteContent: (noteContent) => set({ noteContent }),
   setIndexing: (indexing) => set({ indexing }),
   setBusy: (busy) => set({ busy }),

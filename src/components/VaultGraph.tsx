@@ -93,11 +93,8 @@ export function VaultGraph() {
     (node: any) => {
       selectNote(node.id);
       setView("editor");
-      void getNoteContent(node.id)
-        .then((content) => setNoteContent(content))
-        .catch(() => setNoteContent(null));
     },
-    [selectNote, setView, setNoteContent]
+    [selectNote, setView]
   );
 
   // Double-click background → create new note
