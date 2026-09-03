@@ -90,7 +90,7 @@ The end state is: **open one app, do everything.**
 
 ### Install
 ```bash
-git clone <your-fork-url> aether-os
+git clone <https://github.com/EkexDon/AETHER-OS.git> aether-os
 cd aether-os
 npm install
 ```
