@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Plus, Bell, Download, Trash2, MapPin, Users, Tag, X,
 } from "lucide-react";
@@ -14,10 +14,113 @@ import { EventEditorModal } from "./EventEditorModal";
 import { CalendarImportExportDialog } from "./CalendarImportExportDialog";
 import { ReminderSettingsDialog } from "./ReminderSettingsDialog";
 
-const HOUR_HEIGHT_PX = 40;
+const HOUR_HEIGHT_PX = 48;
 const HOURS_IN_DAY = 24;
 const MONTH_CELL_ROWS = 6;
 const MAX_DOTS_PER_CELL = 3;
+
+export interface TimedEventLayout {
+  event: CalendarEvent;
+  top: number;
+  height: number;
+  leftPercent: number;
+  widthPercent: number;
+  isCompact: boolean;
+}
+
+function computeTimedEventLayouts(
+  events: CalendarEvent[],
+  hourHeightPx: number = HOUR_HEIGHT_PX
+): TimedEventLayout[] {
+  if (events.length === 0) return [];
+
+  interface ParsedEvent {
+    event: CalendarEvent;
+    startMin: number;
+    endMin: number;
+  }
+
+  const parsed: ParsedEvent[] = events.map((ev) => {
+    const s = parseEventStart(ev);
+    const e = parseEventEnd(ev);
+    const startMin = s.getHours() * 60 + s.getMinutes();
+    let endMin = e.getHours() * 60 + e.getMinutes();
+    if (endMin <= startMin) {
+      endMin = Math.min(24 * 60, startMin + 30);
+    }
+    return { event: ev, startMin, endMin };
+  });
+
+  parsed.sort((a, b) => {
+    if (a.startMin !== b.startMin) return a.startMin - b.startMin;
+    return (b.endMin - b.startMin) - (a.endMin - a.startMin);
+  });
+
+  const clusters: ParsedEvent[][] = [];
+  let currentCluster: ParsedEvent[] = [];
+  let clusterEnd = -1;
+
+  for (const item of parsed) {
+    if (currentCluster.length === 0) {
+      currentCluster.push(item);
+      clusterEnd = item.endMin;
+    } else if (item.startMin < clusterEnd) {
+      currentCluster.push(item);
+      clusterEnd = Math.max(clusterEnd, item.endMin);
+    } else {
+      clusters.push(currentCluster);
+      currentCluster = [item];
+      clusterEnd = item.endMin;
+    }
+  }
+  if (currentCluster.length > 0) {
+    clusters.push(currentCluster);
+  }
+
+  const layouts: TimedEventLayout[] = [];
+
+  for (const cluster of clusters) {
+    const lanes: number[] = [];
+    const eventLanes: number[] = [];
+
+    for (const item of cluster) {
+      let placed = false;
+      for (let i = 0; i < lanes.length; i++) {
+        if (lanes[i] <= item.startMin) {
+          lanes[i] = item.endMin;
+          eventLanes.push(i);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        eventLanes.push(lanes.length);
+        lanes.push(item.endMin);
+      }
+    }
+
+    const numCols = Math.max(lanes.length, 1);
+    for (let i = 0; i < cluster.length; i++) {
+      const item = cluster[i];
+      const lane = eventLanes[i];
+      const top = item.startMin * (hourHeightPx / 60);
+      const rawHeight = (item.endMin - item.startMin) * (hourHeightPx / 60);
+      const height = Math.max(26, rawHeight);
+      const isCompact = height < 42;
+
+      layouts.push({
+        event: item.event,
+        top,
+        height,
+        leftPercent: (lane / numCols) * 100,
+        widthPercent: (1 / numCols) * 100,
+        isCompact,
+      });
+    }
+  }
+
+  return layouts;
+}
 
 function parseEventStart(event: CalendarEvent): Date {
   return event.all_day ? parseISO(`${event.start}T00:00:00`) : parseISO(event.start);
@@ -50,6 +153,9 @@ function eventsForDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
     if (ev.all_day) {
       const startKey = ev.start;
       const endKey = ev.end;
+      if (startKey === endKey) {
+        return dayKey === startKey;
+      }
       return startKey <= dayKey && dayKey < endKey;
     }
     const startKey = format(parseEventStart(ev), "yyyy-MM-dd");
@@ -80,6 +186,9 @@ function eventsOverlapRange(
   const endKey = format(addDays(rangeEnd, -1), "yyyy-MM-dd");
   return events.filter((ev) => {
     if (ev.all_day) {
+      if (ev.start === ev.end) {
+        return ev.start >= startKey && ev.start <= endKey;
+      }
       return ev.start <= endKey && startKey < ev.end;
     }
     const sKey = format(parseEventStart(ev), "yyyy-MM-dd");
@@ -419,6 +528,7 @@ function CalendarWeekGrid({
   const weekEnd = endOfWeek(date, { weekStartsOn: 1 });
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const today = new Date();
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const allDayByDay = useMemo(() => {
     const map: Record<string, CalendarEvent[]> = {};
@@ -437,6 +547,33 @@ function CalendarWeekGrid({
     }
     return map;
   }, [events, days]);
+
+  const layoutsByDay = useMemo(() => {
+    const map: Record<string, TimedEventLayout[]> = {};
+    for (const day of days) {
+      const key = format(day, "yyyy-MM-dd");
+      map[key] = computeTimedEventLayouts(timedByDay[key] ?? [], HOUR_HEIGHT_PX);
+    }
+    return map;
+  }, [days, timedByDay]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      let earliestHour = 8;
+      for (const day of days) {
+        const key = format(day, "yyyy-MM-dd");
+        for (const ev of timedByDay[key] ?? []) {
+          const h = parseEventStart(ev).getHours();
+          if (h < earliestHour) earliestHour = h;
+        }
+      }
+      const target = Math.max(0, earliestHour - 1) * HOUR_HEIGHT_PX;
+      scrollRef.current.scrollTop = target;
+    }
+  }, [date]);
+
+  const nowMinutes = today.getHours() * 60 + today.getMinutes();
+  const nowTopPx = nowMinutes * (HOUR_HEIGHT_PX / 60);
 
   return (
     <div className="calendar-week-grid-wrap">
@@ -466,7 +603,7 @@ function CalendarWeekGrid({
           );
         })}
       </div>
-      <div className="calendar-week-scroll">
+      <div className="calendar-week-scroll" ref={scrollRef}>
         <div
           className="calendar-week-grid"
           style={{
@@ -481,7 +618,6 @@ function CalendarWeekGrid({
               </div>
               {days.map((d, colIdx) => {
                 const key = format(d, "yyyy-MM-dd");
-                const timedEvents = timedByDay[key] ?? [];
                 return (
                   <div
                     key={`${key}-${hour}`}
@@ -492,35 +628,61 @@ function CalendarWeekGrid({
                       target.setHours(hour, 0, 0, 0);
                       onCreateAt(target);
                     }}
-                  >
-                    {timedEvents
-                      .filter((ev) => parseEventStart(ev).getHours() === hour)
-                      .map((ev) => {
-                        const start = parseEventStart(ev);
-                        const startMin = start.getMinutes();
-                        const top = (hour * 60 + startMin) * (HOUR_HEIGHT_PX / 60);
-                        const durationMin = eventDurationMinutes(ev);
-                        const height = Math.max(HOUR_HEIGHT_PX / 2, durationMin * (HOUR_HEIGHT_PX / 60));
-                        return (
-                          <button
-                            key={ev.id}
-                            className="calendar-event-block"
-                            style={{ top, height, background: ev.color }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEditEvent(ev);
-                            }}
-                          >
-                            <div className="calendar-event-block-title">{ev.title}</div>
-                            <div className="calendar-event-block-time">{eventTimeRange(ev)}</div>
-                          </button>
-                        );
-                      })}
-                  </div>
+                  />
                 );
               })}
             </React.Fragment>
           ))}
+
+          {days.map((d, colIdx) => {
+            const key = format(d, "yyyy-MM-dd");
+            const layouts = layoutsByDay[key] ?? [];
+            const isToday = isSameDay(d, today);
+            return (
+              <div
+                key={`day-layer-${key}`}
+                className="calendar-day-events-column"
+                style={{
+                  gridRow: `1 / span ${HOURS_IN_DAY}`,
+                  gridColumn: colIdx + 2,
+                }}
+              >
+                {isToday && (
+                  <div className="calendar-now-indicator" style={{ top: nowTopPx }} title="Current time">
+                    <span className="calendar-now-dot" />
+                  </div>
+                )}
+                {layouts.map((layout) => {
+                  const ev = layout.event;
+                  const timeDisplay = layout.isCompact
+                    ? format(parseEventStart(ev), "h:mm a")
+                    : eventTimeRange(ev);
+                  return (
+                    <button
+                      key={ev.id}
+                      className={`calendar-event-block${layout.isCompact ? " compact" : ""}`}
+                      style={{
+                        top: layout.top,
+                        height: layout.height,
+                        left: `calc(${layout.leftPercent}% + 2px)`,
+                        width: `calc(${layout.widthPercent}% - 4px)`,
+                        background: ev.color,
+                        pointerEvents: "auto",
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEditEvent(ev);
+                      }}
+                      title={`${ev.title} (${eventTimeRange(ev)})`}
+                    >
+                      <span className="calendar-event-block-title">{ev.title}</span>
+                      <span className="calendar-event-block-time">{timeDisplay}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -541,11 +703,32 @@ function CalendarDayGrid({
   const allDayEvents = eventsForDay(events, date).filter((ev) => ev.all_day);
   const timedEvents = eventsForDay(events, date).filter((ev) => !ev.all_day);
   const today = new Date();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const layouts = useMemo(() => {
+    return computeTimedEventLayouts(timedEvents, HOUR_HEIGHT_PX);
+  }, [timedEvents]);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      let earliestHour = 8;
+      for (const ev of timedEvents) {
+        const h = parseEventStart(ev).getHours();
+        if (h < earliestHour) earliestHour = h;
+      }
+      const target = Math.max(0, earliestHour - 1) * HOUR_HEIGHT_PX;
+      scrollRef.current.scrollTop = target;
+    }
+  }, [date]);
+
+  const isToday = isSameDay(date, today);
+  const nowMinutes = today.getHours() * 60 + today.getMinutes();
+  const nowTopPx = nowMinutes * (HOUR_HEIGHT_PX / 60);
 
   return (
     <div className="calendar-day-grid-wrap">
       <div className="calendar-day-header">
-        <div className={`calendar-day-header-label${isSameDay(date, today) ? " today" : ""}`}>
+        <div className={`calendar-day-header-label${isToday ? " today" : ""}`}>
           {format(date, "EEEE, MMMM d, yyyy")}
         </div>
         <div className="calendar-week-allday-strip">
@@ -562,7 +745,7 @@ function CalendarDayGrid({
           ))}
         </div>
       </div>
-      <div className="calendar-week-scroll">
+      <div className="calendar-week-scroll" ref={scrollRef}>
         <div
           className="calendar-day-grid"
           style={{
@@ -583,33 +766,51 @@ function CalendarDayGrid({
                   target.setHours(hour, 0, 0, 0);
                   onCreateAt(target);
                 }}
-              >
-                {timedEvents
-                  .filter((ev) => parseEventStart(ev).getHours() === hour)
-                  .map((ev) => {
-                    const start = parseEventStart(ev);
-                    const startMin = start.getMinutes();
-                    const top = (hour * 60 + startMin) * (HOUR_HEIGHT_PX / 60);
-                    const durationMin = eventDurationMinutes(ev);
-                    const height = Math.max(HOUR_HEIGHT_PX / 2, durationMin * (HOUR_HEIGHT_PX / 60));
-                    return (
-                      <button
-                        key={ev.id}
-                        className="calendar-event-block"
-                        style={{ top, height, background: ev.color }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEditEvent(ev);
-                        }}
-                      >
-                        <div className="calendar-event-block-title">{ev.title}</div>
-                        <div className="calendar-event-block-time">{eventTimeRange(ev)}</div>
-                      </button>
-                    );
-                  })}
-              </div>
+              />
             </React.Fragment>
           ))}
+
+          <div
+            className="calendar-day-events-column"
+            style={{
+              gridRow: `1 / span ${HOURS_IN_DAY}`,
+              gridColumn: 2,
+            }}
+          >
+            {isToday && (
+              <div className="calendar-now-indicator" style={{ top: nowTopPx }} title="Current time">
+                <span className="calendar-now-dot" />
+              </div>
+            )}
+            {layouts.map((layout) => {
+              const ev = layout.event;
+              const timeDisplay = layout.isCompact
+                ? format(parseEventStart(ev), "h:mm a")
+                : eventTimeRange(ev);
+              return (
+                <button
+                  key={ev.id}
+                  className={`calendar-event-block${layout.isCompact ? " compact" : ""}`}
+                  style={{
+                    top: layout.top,
+                    height: layout.height,
+                    left: `calc(${layout.leftPercent}% + 2px)`,
+                    width: `calc(${layout.widthPercent}% - 4px)`,
+                    background: ev.color,
+                    pointerEvents: "auto",
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditEvent(ev);
+                  }}
+                  title={`${ev.title} (${eventTimeRange(ev)})`}
+                >
+                  <span className="calendar-event-block-title">{ev.title}</span>
+                  <span className="calendar-event-block-time">{timeDisplay}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -710,4 +911,17 @@ function CalendarEventList({
 }
 
 // Re-exports for use by other components if needed.
-export { eventsForDay, eventTimeRange, eventDurationMinutes, parseEventStart, parseEventEnd, formatDateInputValue, formatTimeInputValue, eventsOverlapRange, CALENDAR_COLORS, DEFAULT_CALENDAR_COLOR };
+export {
+  eventsForDay,
+  eventTimeRange,
+  eventDurationMinutes,
+  parseEventStart,
+  parseEventEnd,
+  formatDateInputValue,
+  formatTimeInputValue,
+  eventsOverlapRange,
+  computeTimedEventLayouts,
+  HOUR_HEIGHT_PX,
+  CALENDAR_COLORS,
+  DEFAULT_CALENDAR_COLOR,
+};

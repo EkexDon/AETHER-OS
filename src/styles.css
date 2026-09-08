@@ -5052,12 +5052,17 @@ body {
   min-width: 0;
 }
 
+.calendar-day-events-column {
+  position: relative;
+  pointer-events: none;
+  min-width: 0;
+  height: 100%;
+}
+
 .calendar-event-block {
   position: absolute;
-  left: 2px;
-  right: 2px;
   border-radius: 4px;
-  padding: 4px 6px;
+  padding: 3px 6px;
   color: white;
   font-size: 11px;
   overflow: hidden;
@@ -5066,21 +5071,62 @@ body {
   font-family: inherit;
   text-align: left;
   opacity: 0.95;
+  box-sizing: border-box;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  transition: filter 0.15s ease;
 }
 
-.calendar-event-block:hover { opacity: 1; filter: brightness(1.1); }
+.calendar-event-block.compact {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.calendar-event-block:hover {
+  opacity: 1;
+  filter: brightness(1.15);
+  z-index: 10;
+}
 
 .calendar-event-block-title {
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.2;
 }
 
 .calendar-event-block-time {
   font-size: 10px;
-  opacity: 0.85;
-  margin-top: 2px;
+  opacity: 0.88;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.calendar-now-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #ef4444;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.calendar-now-dot {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.8);
 }
 
 /* ── Event editor modal ── */
