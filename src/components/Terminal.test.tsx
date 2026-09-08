@@ -9,6 +9,7 @@ const mockTermInstance = {
   loadAddon: vi.fn(),
   reset: vi.fn(),
   focus: vi.fn(),
+  refresh: vi.fn(),
   cols: 80,
   rows: 24,
 };
@@ -111,5 +112,56 @@ describe("Terminal", () => {
 
     const resetButton = screen.getByTitle(/Reset terminal/i);
     expect(() => fireEvent.click(resetButton)).not.toThrow();
+  });
+
+  it("calls fit and refresh on the active xterm when a tab is re-activated", async () => {
+    render(<Terminal />);
+    await vi.waitFor(() => {
+      expect(screen.getByText(/Terminal/i)).toBeTruthy();
+    });
+
+    const newTabButton = screen.getByTitle("New tab");
+    fireEvent.click(newTabButton);
+    fireEvent.click(newTabButton);
+
+    await vi.waitFor(() => {
+      const tabs = screen.getAllByText(/Terminal/i);
+      expect(tabs.length).toBe(3);
+    });
+
+    // JSDOM reports 0x0 for clientWidth/clientHeight, which would
+    // short-circuit the re-activation fit. Pretend the container is
+    // visible and large enough so the useEffect runs its full path.
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 800,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => 400,
+    });
+
+    mockTermInstance.refresh.mockClear();
+    mockTermInstance.focus.mockClear();
+
+    const tabs = screen.getAllByText(/Terminal/i);
+    fireEvent.click(tabs[0]);
+
+    // Two rAFs: one for layout, one for the actual fit/refresh.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    expect(mockTermInstance.refresh).toHaveBeenCalled();
+    expect(mockTermInstance.focus).toHaveBeenCalled();
+    expect(mockTermInstance.refresh).toHaveBeenCalledWith(0, 23);
+
+    Object.defineProperty(HTMLElement.prototype, "clientWidth", {
+      configurable: true,
+      get: () => 0,
+    });
+    Object.defineProperty(HTMLElement.prototype, "clientHeight", {
+      configurable: true,
+      get: () => 0,
+    });
   });
 });

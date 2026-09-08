@@ -5,9 +5,10 @@ interface BacklinksPanelProps {
   backlinks: Backlink[];
   noteName: string;
   onSelect: (path: string) => void;
+  onClose?: () => void;
 }
 
-export function BacklinksPanel({ backlinks, noteName, onSelect }: BacklinksPanelProps) {
+export function BacklinksPanel({ backlinks, noteName, onSelect, onClose }: BacklinksPanelProps) {
   return (
     <div className="backlinks-panel">
       <div className="backlinks-header">
@@ -16,6 +17,16 @@ export function BacklinksPanel({ backlinks, noteName, onSelect }: BacklinksPanel
           Backlinks ({backlinks.length})
         </span>
         <span className="backlinks-note-name">{noteName}</span>
+        {onClose && (
+          <button
+            className="backlinks-close"
+            onClick={onClose}
+            title="Close backlinks panel"
+            aria-label="Close backlinks panel"
+          >
+            <X size={14} />
+          </button>
+        )}
       </div>
       {backlinks.length === 0 ? (
         <div className="backlinks-empty">

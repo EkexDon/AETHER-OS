@@ -52,6 +52,16 @@ export function describeAction(action: AgentAction): string {
       return `Remember fact: ${action.fact.slice(0, 60)}`;
     case "save_aether_note":
       return `Save answer as AETHER Note`;
+    case "create_calendar_event":
+      return `Create event "${action.title}" on ${action.start}`;
+    case "update_calendar_event":
+      return `Update event ${action.id}`;
+    case "delete_calendar_event":
+      return `Delete event ${action.id}`;
+    case "list_calendar_events":
+      return `List calendar events`;
+    case "import_calendar_ics":
+      return `Import ICS from ${action.path}`;
   }
 }
 
@@ -74,6 +84,16 @@ export function actionLabel(action: AgentAction): string {
       return "Remembered fact";
     case "save_aether_note":
       return "Saved to AETHER Notes";
+    case "create_calendar_event":
+      return "📅 New event";
+    case "update_calendar_event":
+      return "✏️ Edit event";
+    case "delete_calendar_event":
+      return "🗑️ Delete event";
+    case "list_calendar_events":
+      return "📅 List events";
+    case "import_calendar_ics":
+      return "📥 Import ICS";
   }
 }
 

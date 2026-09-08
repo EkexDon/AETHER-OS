@@ -214,7 +214,12 @@ export type AgentAction =
   | { action: "open_url"; url: string }
   | { action: "clip_url"; url: string }
   | { action: "add_memory_fact"; fact: string; category: string }
-  | { action: "save_aether_note"; title: string; content: string };
+  | { action: "save_aether_note"; title: string; content: string }
+  | { action: "create_calendar_event"; title: string; description: string; all_day: boolean; start: string; end: string; due: string | null; color: string | null; tags: string[]; attendees: string[]; location: string | null }
+  | { action: "update_calendar_event"; id: string; title: string | null; description: string | null; all_day: boolean | null; start: string | null; end: string | null; due: string | null; color: string | null; tags: string[] | null; attendees: string[] | null; location: string | null }
+  | { action: "delete_calendar_event"; id: string }
+  | { action: "list_calendar_events"; from: string | null; to: string | null }
+  | { action: "import_calendar_ics"; path: string; overwrite_existing: boolean; default_color: string | null };
 
 export type GitChangeKind = "added" | "modified" | "deleted" | "renamed" | "typechange";
 
@@ -249,4 +254,56 @@ export interface FileDiff {
   old_content: string | null;
   new_content: string | null;
   is_binary: boolean;
+}
+
+// ── Calendar ─────────────────────────────────────────────────
+
+export interface CalendarEvent {
+  id: string;
+  uid: string;
+  title: string;
+  description: string;
+  all_day: boolean;
+  /** "YYYY-MM-DD" when all_day, RFC3339 timestamp when timed */
+  start: string;
+  /** Same format as start. Always present (single-day events have end == start + duration). */
+  end: string;
+  /** Optional deadline. Same format as start. */
+  due: string | null;
+  /** Hex like "#3b82f6" */
+  color: string;
+  tags: string[];
+  attendees: string[];
+  location: string | null;
+  /** Set when the event was created from a vault note context by the AI. */
+  source_note_path: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarEventPatch {
+  title?: string;
+  description?: string;
+  all_day?: boolean;
+  start?: string;
+  end?: string;
+  due?: string | null;
+  color?: string;
+  tags?: string[];
+  attendees?: string[];
+  location?: string | null;
+}
+
+export type CalendarView = "month" | "week" | "day";
+
+export interface IcsImportResult {
+  added: number;
+  updated: number;
+  skipped: number;
+  errors: string[];
+}
+
+export interface ReminderSettings {
+  enabled: boolean;
+  lead_times_minutes: number[];
 }

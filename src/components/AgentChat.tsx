@@ -6,6 +6,8 @@ import {
   saveConversation, getRecentConversations, deleteConversation,
   executeAgentAction, getVaultNotes, listLocalModels, listCloudModels,
   agentOpenUrl, agentClipUrl, agentAddMemoryFact, agentSaveAetherNote,
+  agentCreateCalendarEvent, agentUpdateCalendarEvent, agentDeleteCalendarEvent,
+  agentListCalendarEvents, agentImportCalendarIcs,
   type AgentActionResult,
 } from "../lib/ipc";
 import { parseAgentActions, describeAction, actionLabel } from "../lib/agentActions";
@@ -56,6 +58,8 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     setModelForProvider,
     health,
     setChatOpen,
+    upsertCalendarEvent,
+    removeCalendarEvent,
   } = useAetherStore();
 
   const [input, setInput] = useState("");
@@ -319,6 +323,71 @@ export function AgentChat({ width = 340 }: { width?: number }) {
         const relPath = `clips/${noteName}`;
         const created = await createNote(relPath, noteBody);
         return `Clipped to ${created}`;
+      }
+      case "create_calendar_event": {
+        const result = await agentCreateCalendarEvent({
+          title: action.title,
+          description: action.description,
+          all_day: action.all_day,
+          start: action.start,
+          end: action.end,
+          due: action.due,
+          color: action.color ?? "#7c3aed",
+          tags: action.tags,
+          attendees: action.attendees,
+          location: action.location,
+          source_note_path: null,
+        });
+        if (result.kind === "calendar_event_created") {
+          upsertCalendarEvent(result.event);
+          return `Created event: "${action.title}"`;
+        }
+        return "Event created";
+      }
+      case "update_calendar_event": {
+        const patch: import("../types").CalendarEventPatch = {};
+        if (action.title !== null) patch.title = action.title;
+        if (action.description !== null) patch.description = action.description;
+        if (action.all_day !== null) patch.all_day = action.all_day;
+        if (action.start !== null) patch.start = action.start;
+        if (action.end !== null) patch.end = action.end;
+        if (action.due !== null) patch.due = action.due;
+        if (action.color !== null) patch.color = action.color;
+        if (action.tags !== null) patch.tags = action.tags;
+        if (action.attendees !== null) patch.attendees = action.attendees;
+        if (action.location !== null) patch.location = action.location;
+        const result = await agentUpdateCalendarEvent(action.id, patch);
+        if (result.kind === "calendar_event_updated") {
+          upsertCalendarEvent(result.event);
+          return `Updated event ${action.id}`;
+        }
+        return "Event updated";
+      }
+      case "delete_calendar_event": {
+        const result = await agentDeleteCalendarEvent(action.id);
+        removeCalendarEvent(action.id);
+        return result.kind === "calendar_event_deleted"
+          ? `Deleted event ${action.id}`
+          : "Event deleted";
+      }
+      case "list_calendar_events": {
+        const result = await agentListCalendarEvents(action.from, action.to);
+        if (result.kind === "calendar_events_listed") {
+          return `Found ${result.events.length} event(s)`;
+        }
+        return "Listed events";
+      }
+      case "import_calendar_ics": {
+        const result = await agentImportCalendarIcs(
+          action.path,
+          action.overwrite_existing,
+          action.default_color ?? "#7c3aed"
+        );
+        if (result.kind === "calendar_ics_imported") {
+          const r = result.result;
+          return `Imported: ${r.added} added, ${r.updated} updated, ${r.skipped} skipped`;
+        }
+        return "Import complete";
       }
     }
   };

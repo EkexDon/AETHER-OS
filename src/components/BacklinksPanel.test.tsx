@@ -31,4 +31,18 @@ describe("BacklinksPanel", () => {
     fireEvent.click(screen.getByText("a"));
     expect(onSelect).toHaveBeenCalledWith("vault/a.md");
   });
+
+  it("calls onClose when clicking the close button", () => {
+    const onClose = vi.fn();
+    render(
+      <BacklinksPanel
+        backlinks={[]}
+        noteName="MyNote"
+        onSelect={() => {}}
+        onClose={onClose}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /close backlinks panel/i }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
 });

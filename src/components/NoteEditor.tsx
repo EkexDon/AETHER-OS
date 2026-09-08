@@ -595,6 +595,7 @@ export function NoteEditor() {
                 backlinks={backlinks}
                 noteName={activeNoteName}
                 onSelect={(path: string) => selectNote(path)}
+                onClose={() => setShowBacklinks(false)}
               />
             </div>
           )}

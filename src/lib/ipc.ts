@@ -5,6 +5,8 @@ import type {
   AgentAction,
   Backlink,
   BrowserInfo,
+  CalendarEvent,
+  CalendarEventPatch,
   ChatMessageRecord,
   ClippedPage,
   Conversation,
@@ -13,6 +15,8 @@ import type {
   BranchInfo,
   CommitInfo,
   GraphData,
+  IcsImportResult,
+  ReminderSettings,
   RepoStatus,
   IndexingResult,
   MemoryFact,
@@ -248,11 +252,21 @@ export interface AgentActionResultOpened { kind: "opened"; url: string }
 export interface AgentActionResultClipped { kind: "clipped_page"; path: ClippedPage }
 export interface AgentActionResultFact { kind: "fact_saved"; fact: { id: string; fact: string; category: string; created_at: number } }
 export interface AgentActionResultAether { kind: "aether_note_saved"; note: { id: string; title: string; content: string; created_at: number; source_query: string; related_notes: string[] } }
+export interface AgentActionResultCalendarCreated { kind: "calendar_event_created"; event: CalendarEvent }
+export interface AgentActionResultCalendarUpdated { kind: "calendar_event_updated"; event: CalendarEvent }
+export interface AgentActionResultCalendarDeleted { kind: "calendar_event_deleted"; id: string }
+export interface AgentActionResultCalendarListed { kind: "calendar_events_listed"; events: CalendarEvent[] }
+export interface AgentActionResultCalendarImported { kind: "calendar_ics_imported"; result: IcsImportResult }
 export type AgentActionResult =
   | AgentActionResultOpened
   | AgentActionResultClipped
   | AgentActionResultFact
-  | AgentActionResultAether;
+  | AgentActionResultAether
+  | AgentActionResultCalendarCreated
+  | AgentActionResultCalendarUpdated
+  | AgentActionResultCalendarDeleted
+  | AgentActionResultCalendarListed
+  | AgentActionResultCalendarImported;
 
 export const agentOpenUrl = (url: string) =>
   call<AgentActionResult>("cmd_agent_open_url", { url });
@@ -262,3 +276,94 @@ export const agentAddMemoryFact = (fact: string, category: string) =>
   call<AgentActionResult>("cmd_agent_add_memory_fact", { fact, category });
 export const agentSaveAetherNote = (title: string, content: string) =>
   call<AgentActionResult>("cmd_agent_save_aether_note", { title, content });
+export const agentCreateCalendarEvent = (input: {
+  title: string;
+  description: string;
+  all_day: boolean;
+  start: string;
+  end: string;
+  due: string | null;
+  color: string;
+  tags: string[];
+  attendees: string[];
+  location: string | null;
+  source_note_path: string | null;
+}) => call<AgentActionResult>("cmd_create_calendar_event", {
+  title: input.title,
+  description: input.description,
+  allDay: input.all_day,
+  start: input.start,
+  end: input.end,
+  due: input.due,
+  color: input.color,
+  tags: input.tags,
+  attendees: input.attendees,
+  location: input.location,
+  sourceNotePath: input.source_note_path,
+});
+export const agentUpdateCalendarEvent = (id: string, patch: CalendarEventPatch) =>
+  call<AgentActionResult>("cmd_update_calendar_event", { id, patch });
+export const agentDeleteCalendarEvent = (id: string) =>
+  call<AgentActionResult>("cmd_delete_calendar_event", { id });
+export const agentListCalendarEvents = (from: string | null, to: string | null) =>
+  call<AgentActionResult>("cmd_list_calendar_events", { from, to });
+export const agentImportCalendarIcs = (path: string, overwriteExisting: boolean, defaultColor: string) =>
+  call<AgentActionResult>("cmd_import_calendar_ics", { path, overwriteExisting, defaultColor });
+
+// ── Calendar ─────────────────────────────────────────────────
+
+export const listCalendarEvents = () => call<CalendarEvent[]>("cmd_list_calendar_events");
+export const getCalendarEvent = (id: string) => call<CalendarEvent>("cmd_get_calendar_event", { id });
+export const createCalendarEvent = (input: {
+  title: string;
+  description: string;
+  all_day: boolean;
+  start: string;
+  end: string;
+  due: string | null;
+  color: string;
+  tags: string[];
+  attendees: string[];
+  location: string | null;
+  source_note_path: string | null;
+}) => call<CalendarEvent>("cmd_create_calendar_event", {
+  title: input.title,
+  description: input.description,
+  allDay: input.all_day,
+  start: input.start,
+  end: input.end,
+  due: input.due,
+  color: input.color,
+  tags: input.tags,
+  attendees: input.attendees,
+  location: input.location,
+  sourceNotePath: input.source_note_path,
+});
+export const updateCalendarEvent = (id: string, patch: CalendarEventPatch) =>
+  call<CalendarEvent>("cmd_update_calendar_event", {
+    id,
+    patch: {
+      title: patch.title,
+      description: patch.description,
+      all_day: patch.all_day,
+      start: patch.start,
+      end: patch.end,
+      due: patch.due,
+      color: patch.color,
+      tags: patch.tags,
+      attendees: patch.attendees,
+      location: patch.location,
+    },
+  });
+export const deleteCalendarEvent = (id: string) => call<void>("cmd_delete_calendar_event", { id });
+export const exportCalendarIcs = (from: string | null, to: string | null, calendarName: string | null) =>
+  call<string>("cmd_export_calendar_ics", { from, to, calendarName });
+export const importCalendarIcs = (content: string, overwriteExisting: boolean, defaultColor: string) =>
+  call<IcsImportResult>("cmd_import_calendar_ics", { content, overwriteExisting, defaultColor });
+export const readIcsFromPath = (path: string) => call<string>("cmd_read_ics_from_path", { path });
+export const writeIcsToPath = (path: string, content: string) =>
+  call<void>("cmd_write_ics_to_path", { path, content });
+export const getReminderSettings = () => call<ReminderSettings>("cmd_get_reminder_settings");
+export const setReminderSettings = (settings: ReminderSettings) =>
+  call<void>("cmd_set_reminder_settings", { settings });
+export const requestNotificationPermission = () => call<boolean>("cmd_request_notification_permission");

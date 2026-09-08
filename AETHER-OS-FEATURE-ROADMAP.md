@@ -158,11 +158,13 @@
 
 ### 3.2 — Calendar & Reminders
 
-**What:** Monthly calendar view showing tasks with due dates, daily notes, and reminders. Desktop notifications for upcoming deadlines. ICS import/export for Google Calendar / Apple Calendar sync.
+**What:** Monthly, weekly, and daily calendar view showing events with full CRUD. Color customization, tag chips, attendee chips. Desktop notifications at user-configurable lead times (15min, 5min, at start, …). Full ICS import/export for Google Calendar / Apple Calendar sync.
 
 **Why:** Time is the missing dimension in note apps. Notes are spatial (they live in folders), but work is temporal (it has deadlines). A calendar bridges this — see what's due, when, and what your day looks like.
 
-**Tech:** Rust backend parsing date metadata from note frontmatter, ICS parsing/generation, macOS notification API (`mac_notification_sys` or Tauri plugin).
+**Tech:** New `calendar` engine (per-event JSON, like `AetherNotes`), new `calendar_ics` engine using the `icalendar` crate, new `calendar_notifier` engine using `tauri-plugin-notification` for native desktop notifications, frontend month/week/day grids using `date-fns`.
+
+**Status (v0.1):** ✅ **Shipped.** Calendar tab with month / week / day views, full event editor (title, all-day toggle, start/end with live duration, optional due, tags, attendees, location, markdown description, 8-color palette), right-rail event list, ICS import/export with dedupe by UID, native desktop notifications, and full AI agent integration (create / update / delete / list / import_ics). 164 Rust tests + 123 Vitest tests all green.
 
 **What you get:** See your week at a glance. Get notified before deadlines. Sync with your existing calendar. Never miss a deadline because it was buried in a note.
 
@@ -294,7 +296,7 @@
 | 2.4 AI Agent Actions (safe writes) | Critical | High | **Shipped v0.1** |
 | 2.5 Web Clipper | Medium | Medium | P2 |
 | 3.1 Task Management (Kanban) | High | Medium | P1 |
-| 3.2 Calendar & Reminders | Medium | High | P2 |
+| 3.2 Calendar & Reminders | High | High | **Shipped v0.1** |
 | 3.3 Pomodoro & Focus Mode | Medium | Low | P2 |
 | 3.4 Bookmarks & Pinned Items | Medium | Low | P1 |
 | 4.1 Auto-Git Versioning | High | Medium | P1 |

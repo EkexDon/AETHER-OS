@@ -68,6 +68,7 @@ const TerminalTabPane = memo(function TerminalTabPane({
   const resizeTimeoutRef = useRef<number | null>(null);
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const cwdRef = useRef(defaultCwd);
+  const activeFrameRef = useRef<number | null>(null);
 
   sessionIdRef.current = tab.sessionId;
   cwdRef.current = defaultCwd;
@@ -225,31 +226,47 @@ const TerminalTabPane = memo(function TerminalTabPane({
   // When this tab becomes active, fit and focus it cleanly
   useEffect(() => {
     if (isActive && xtermRef.current && fitRef.current && containerRef.current) {
-      const frame = requestAnimationFrame(() => {
-        if (!xtermRef.current || !fitRef.current || !containerRef.current) return;
-        if (containerRef.current.clientWidth < 10 || containerRef.current.clientHeight < 10) return;
+      // Two rAFs: the first lets the browser compute layout for the
+      // display:none → display:block transition; the second lets the
+      // ResizeObserver-driven fit complete so we resize the PTY to the
+      // final settled size instead of an intermediate one.
+      const frame1 = requestAnimationFrame(() => {
+        const frame2 = requestAnimationFrame(() => {
+          if (!xtermRef.current || !fitRef.current || !containerRef.current) return;
+          if (containerRef.current.clientWidth < 10 || containerRef.current.clientHeight < 10) return;
 
-        try {
-          fitRef.current.fit();
-          xtermRef.current.focus();
-        } catch {
-          // Layout may still be applying
-        }
-
-        if (sessionIdRef.current && isDesktopRuntime()) {
-          const size = { cols: xtermRef.current.cols, rows: xtermRef.current.rows };
-          if (
-            !lastSizeRef.current ||
-            lastSizeRef.current.cols !== size.cols ||
-            lastSizeRef.current.rows !== size.rows
-          ) {
-            lastSizeRef.current = size;
-            void terminalResize(sessionIdRef.current, size.cols, size.rows);
+          const before = { cols: xtermRef.current.cols, rows: xtermRef.current.rows };
+          try {
+            fitRef.current.fit();
+            // Force the renderer to redraw every row after a fit. When a
+            // hidden pane becomes visible again, the canvas can retain
+            // stale dimensions and render the buffer anchored far below
+            // the viewport, which the user sees as the prompt "shifting
+            // downward".
+            xtermRef.current.refresh(0, xtermRef.current.rows - 1);
+            xtermRef.current.focus();
+          } catch {
+            // Layout may still be applying
           }
-        }
-      });
 
-      return () => cancelAnimationFrame(frame);
+          if (sessionIdRef.current && isDesktopRuntime()) {
+            const size = { cols: xtermRef.current.cols, rows: xtermRef.current.rows };
+            if (before.cols !== size.cols || before.rows !== size.rows) {
+              lastSizeRef.current = size;
+              void terminalResize(sessionIdRef.current, size.cols, size.rows);
+            }
+          }
+        });
+        activeFrameRef.current = frame2;
+      });
+      activeFrameRef.current = frame1;
+
+      return () => {
+        if (activeFrameRef.current !== null) {
+          cancelAnimationFrame(activeFrameRef.current);
+          activeFrameRef.current = null;
+        }
+      };
     }
   }, [isActive]);
 

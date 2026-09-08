@@ -1,7 +1,21 @@
 import { create } from "zustand";
-import type { AetherNote, Conversation, GraphData, MemoryFact, Project, SystemHealth, VaultNote, VaultStats, VectorMatch } from "../types";
+import type {
+  AetherNote,
+  CalendarEvent,
+  CalendarView,
+  Conversation,
+  GraphData,
+  IcsImportResult,
+  MemoryFact,
+  Project,
+  ReminderSettings,
+  SystemHealth,
+  VaultNote,
+  VaultStats,
+  VectorMatch,
+} from "../types";
 
-export type ViewMode = "dashboard" | "search" | "graph" | "notes" | "projects" | "memory" | "terminal" | "monitor" | "browser" | "editor" | "ide";
+export type ViewMode = "dashboard" | "search" | "graph" | "notes" | "projects" | "memory" | "terminal" | "monitor" | "browser" | "editor" | "ide" | "calendar";
 
 export type AiProvider = "ollama" | "openrouter";
 
@@ -51,6 +65,21 @@ function loadPreferredEditor(): string {
   }
 }
 
+function loadReminderSettings(): ReminderSettings {
+  try {
+    const raw = localStorage.getItem("aether-calendar-reminders");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed?.enabled === "boolean" && Array.isArray(parsed?.lead_times_minutes)) {
+        return parsed;
+      }
+    }
+  } catch {
+    // ignore storage errors (e.g. private mode)
+  }
+  return { enabled: false, lead_times_minutes: [15, 0] };
+}
+
 interface AetherState {
   vaultPath: string | null;
   vaultNotes: VaultNote[];
@@ -78,6 +107,22 @@ interface AetherState {
   modelByProvider: Record<AiProvider, string>;
   openNoteTabs: string[];
   chatOpen: boolean;
+
+  // Calendar
+  calendarEvents: CalendarEvent[];
+  calendarView: CalendarView;
+  calendarDate: string;            // ISO "YYYY-MM-DD" of the focused day
+  calendarImportExportOpen: boolean;
+  calendarRemindersOpen: boolean;
+  reminderSettings: ReminderSettings;
+  setCalendarEvents: (events: CalendarEvent[]) => void;
+  upsertCalendarEvent: (event: CalendarEvent) => void;
+  removeCalendarEvent: (id: string) => void;
+  setCalendarView: (v: CalendarView) => void;
+  setCalendarDate: (d: string) => void;
+  setCalendarImportExportOpen: (open: boolean) => void;
+  setCalendarRemindersOpen: (open: boolean) => void;
+  setReminderSettings: (settings: ReminderSettings) => void;
 
   setVaultPath: (path: string | null) => void;
   setVaultNotes: (notes: VaultNote[]) => void;
@@ -136,6 +181,14 @@ export const useAetherStore = create<AetherState>((set) => ({
   modelByProvider: loadModelByProvider(),
   openNoteTabs: [],
   chatOpen: loadChatOpen(),
+
+  // Calendar
+  calendarEvents: [],
+  calendarView: "month",
+  calendarDate: new Date().toISOString().slice(0, 10),
+  calendarImportExportOpen: false,
+  calendarRemindersOpen: false,
+  reminderSettings: loadReminderSettings(),
 
   setVaultPath: (vaultPath) => set({ vaultPath }),
   setVaultNotes: (vaultNotes) => set({ vaultNotes }),
@@ -211,5 +264,30 @@ export const useAetherStore = create<AetherState>((set) => ({
       // ignore storage errors (e.g. private mode)
     }
     set({ chatOpen });
+  },
+  setCalendarEvents: (calendarEvents) => set({ calendarEvents }),
+  upsertCalendarEvent: (event) => set((state) => {
+    const existing = state.calendarEvents.findIndex((e) => e.id === event.id);
+    if (existing >= 0) {
+      const next = [...state.calendarEvents];
+      next[existing] = event;
+      return { calendarEvents: next };
+    }
+    return { calendarEvents: [...state.calendarEvents, event] };
+  }),
+  removeCalendarEvent: (id) => set((state) => ({
+    calendarEvents: state.calendarEvents.filter((e) => e.id !== id),
+  })),
+  setCalendarView: (calendarView) => set({ calendarView }),
+  setCalendarDate: (calendarDate) => set({ calendarDate }),
+  setCalendarImportExportOpen: (calendarImportExportOpen) => set({ calendarImportExportOpen }),
+  setCalendarRemindersOpen: (calendarRemindersOpen) => set({ calendarRemindersOpen }),
+  setReminderSettings: (reminderSettings) => {
+    try {
+      localStorage.setItem("aether-calendar-reminders", JSON.stringify(reminderSettings));
+    } catch {
+      // ignore storage errors (e.g. private mode)
+    }
+    set({ reminderSettings });
   },
 }));

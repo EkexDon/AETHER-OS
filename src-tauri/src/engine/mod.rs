@@ -1,6 +1,9 @@
 pub mod aether_notes;
 pub mod agent_actions;
 pub mod browser;
+pub mod calendar;
+pub mod calendar_ics;
+pub mod calendar_notifier;
 pub mod error;
 pub mod git_repo;
 pub mod local_ai;

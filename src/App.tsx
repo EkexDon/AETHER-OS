@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, lazy, Suspense } from "react";
-import { LayoutDashboard, Search, GitBranch, Notebook, Settings, Bot, Wifi, WifiOff, FolderGit2, Brain, TerminalSquare, Activity, Globe, Edit3, Zap, Clipboard, Code2, Loader2 } from "lucide-react";
+import { LayoutDashboard, Search, GitBranch, Notebook, Settings, Bot, Wifi, WifiOff, FolderGit2, Brain, TerminalSquare, Activity, Globe, Edit3, Zap, Clipboard, Code2, Loader2, Calendar } from "lucide-react";
 import { useAetherStore, type ViewMode } from "./lib/store";
 import { VaultSidebar } from "./components/VaultSidebar";
 import { Dashboard } from "./components/Dashboard";
@@ -23,6 +23,9 @@ import { getVaultPath, getVaultNotes, getVaultStats, getVaultGraph, getHealth } 
 // only fetched when the user actually opens that view.
 const IdeView = lazy(() =>
   import("./components/IdeView").then((m) => ({ default: m.IdeView }))
+);
+const CalendarView = lazy(() =>
+  import("./components/Calendar").then((m) => ({ default: m.Calendar }))
 );
 
 export function App() {
@@ -150,6 +153,7 @@ export function App() {
   const navItems: { mode: ViewMode; icon: React.ReactNode; label: string }[] = [
     { mode: "dashboard", icon: <LayoutDashboard size={18} />, label: "Dashboard" },
     { mode: "editor", icon: <Edit3 size={18} />, label: "Editor" },
+    { mode: "calendar", icon: <Calendar size={18} />, label: "Calendar" },
     { mode: "ide", icon: <Code2 size={18} />, label: "IDE" },
     { mode: "projects", icon: <FolderGit2 size={18} />, label: "Projects" },
     { mode: "memory", icon: <Brain size={18} />, label: "Memory" },
@@ -211,6 +215,17 @@ export function App() {
       <main className={`main-content${view === "browser" ? " browser-active" : ""}${view === "ide" ? " ide-active" : ""}`}>
         {view === "dashboard" && <Dashboard />}
         {view === "editor" && <NoteEditor />}
+        {view === "calendar" && (
+          <Suspense
+            fallback={
+              <div className="ide-loading">
+                <Loader2 size={20} className="spin" /> Loading calendar…
+              </div>
+            }
+          >
+            <CalendarView />
+          </Suspense>
+        )}
         {view === "projects" && <Projects />}
         {view === "memory" && <MemoryPanel />}
         {view === "search" && <SemanticSearch />}

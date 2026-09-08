@@ -6,7 +6,8 @@ use std::sync::Arc;
 use commands::browser_commands::BrowserWebviews;
 use engine::{
     aether_notes::AetherNotes, ai_config::AiConfigStore, browser::BrowserManager,
-    cloud_ai::CloudAiEngine, local_ai::LocalAiEngine, lsp::LspManager, memory_store::MemoryStore,
+    calendar::Calendar, calendar_notifier::CalendarNotifier, cloud_ai::CloudAiEngine,
+    local_ai::LocalAiEngine, lsp::LspManager, memory_store::MemoryStore,
     system_monitor::SystemMonitor, terminal::TerminalManager, vault_reader::VaultReader,
     vector_db::VectorEngine, web_clipper::WebClipper,
 };
@@ -31,11 +32,14 @@ pub struct AppState {
     pub lsp: Arc<LspManager>,
     /// Handle for emitting LSP messages to the webview.
     pub lsp_app: tauri::AppHandle,
+    pub calendar: Arc<Calendar>,
+    pub notifier: Arc<CalendarNotifier>,
 }
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
@@ -49,6 +53,12 @@ pub fn run() {
             let terminal = TerminalManager::new();
             let system_monitor = SystemMonitor::new();
             let browser = BrowserManager::new();
+            let calendar = Arc::new(Calendar::new(&data_dir.join("calendar"))?);
+            let notifier = Arc::new(CalendarNotifier::new(
+                &app.handle().clone(),
+                &data_dir.join("calendar"),
+            )?);
+            notifier.clone().start(calendar.clone())?;
             app.manage(AppState {
                 vault: Arc::new(vault),
                 vectors: Arc::new(vectors),
@@ -64,6 +74,8 @@ pub fn run() {
                 clipper: Arc::new(WebClipper::new()),
                 lsp: Arc::new(LspManager::new()),
                 lsp_app: app.handle().clone(),
+                calendar,
+                notifier,
             });
             Ok(())
         })
@@ -147,6 +159,18 @@ pub fn run() {
             commands::git_commands::cmd_git_create_branch,
             commands::git_commands::cmd_git_log,
             commands::git_commands::cmd_git_diff_file,
+            commands::calendar_commands::cmd_list_calendar_events,
+            commands::calendar_commands::cmd_get_calendar_event,
+            commands::calendar_commands::cmd_create_calendar_event,
+            commands::calendar_commands::cmd_update_calendar_event,
+            commands::calendar_commands::cmd_delete_calendar_event,
+            commands::calendar_commands::cmd_export_calendar_ics,
+            commands::calendar_commands::cmd_import_calendar_ics,
+            commands::calendar_commands::cmd_write_ics_to_path,
+            commands::calendar_commands::cmd_read_ics_from_path,
+            commands::calendar_commands::cmd_get_reminder_settings,
+            commands::calendar_commands::cmd_set_reminder_settings,
+            commands::calendar_commands::cmd_request_notification_permission,
             commands::lsp_commands::cmd_lsp_start,
             commands::lsp_commands::cmd_lsp_send,
             commands::lsp_commands::cmd_lsp_stop,
