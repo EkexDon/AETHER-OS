@@ -12,3 +12,4 @@ pub mod project_commands;
 pub mod system_commands;
 pub mod terminal_commands;
 pub mod vault_commands;
+pub mod task_commands;

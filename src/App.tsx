@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef, lazy, Suspense } from "react";
-import { LayoutDashboard, Search, GitBranch, Notebook, Settings, Bot, Wifi, WifiOff, FolderGit2, Brain, TerminalSquare, Activity, Globe, Edit3, Zap, Clipboard, Code2, Loader2, Calendar } from "lucide-react";
+import { LayoutDashboard, Search, GitBranch, Notebook, Settings, Bot, Wifi, WifiOff, FolderGit2, Brain, TerminalSquare, Activity, Globe, Edit3, Zap, Clipboard, Code2, Loader2, Calendar, CheckSquare } from "lucide-react";
 import { useAetherStore, type ViewMode } from "./lib/store";
 import { VaultSidebar } from "./components/VaultSidebar";
 import { Dashboard } from "./components/Dashboard";
@@ -8,6 +8,7 @@ import { SemanticSearch } from "./components/SemanticSearch";
 import { VaultGraph } from "./components/VaultGraph";
 import { AetherNotes } from "./components/AetherNotes";
 import { Projects } from "./components/Projects";
+import { TaskBoard } from "./components/TaskBoard";
 import { MemoryPanel } from "./components/MemoryPanel";
 import { CommandBar } from "./components/CommandBar";
 import { SettingsPanel } from "./components/SettingsPanel";
@@ -154,6 +155,7 @@ export function App() {
     { mode: "dashboard", icon: <LayoutDashboard size={18} />, label: "Dashboard" },
     { mode: "editor", icon: <Edit3 size={18} />, label: "Editor" },
     { mode: "calendar", icon: <Calendar size={18} />, label: "Calendar" },
+    { mode: "tasks", icon: <CheckSquare size={18} />, label: "Tasks & Projects" },
     { mode: "ide", icon: <Code2 size={18} />, label: "IDE" },
     { mode: "projects", icon: <FolderGit2 size={18} />, label: "Projects" },
     { mode: "memory", icon: <Brain size={18} />, label: "Memory" },
@@ -226,6 +228,7 @@ export function App() {
             <CalendarView />
           </Suspense>
         )}
+        {view === "tasks" && <TaskBoard />}
         {view === "projects" && <Projects />}
         {view === "memory" && <MemoryPanel />}
         {view === "search" && <SemanticSearch />}

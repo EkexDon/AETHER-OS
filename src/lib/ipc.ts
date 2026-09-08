@@ -29,6 +29,10 @@ import type {
   VaultNote,
   VaultStats,
   VectorMatch,
+  TaskProject,
+  TaskProjectPatch,
+  TaskItem,
+  TaskItemPatch,
 } from "../types";
 
 export class IpcUnavailableError extends Error {
@@ -367,3 +371,51 @@ export const getReminderSettings = () => call<ReminderSettings>("cmd_get_reminde
 export const setReminderSettings = (settings: ReminderSettings) =>
   call<void>("cmd_set_reminder_settings", { settings });
 export const requestNotificationPermission = () => call<boolean>("cmd_request_notification_permission");
+
+// ── Projects & Tasks (Kanban / Issue Board) ─────────────────
+export const listTaskProjects = () => call<TaskProject[]>("cmd_list_task_projects");
+export const getTaskProject = (id: string) => call<TaskProject>("cmd_get_task_project", { id });
+export const createTaskProject = (input: {
+  name: string;
+  description: string;
+  color: string;
+  icon?: string | null;
+}) =>
+  call<TaskProject>("cmd_create_task_project", {
+    name: input.name,
+    description: input.description,
+    color: input.color,
+    icon: input.icon ?? null,
+  });
+export const updateTaskProject = (id: string, patch: TaskProjectPatch) =>
+  call<TaskProject>("cmd_update_task_project", { id, patch });
+export const deleteTaskProject = (id: string) =>
+  call<void>("cmd_delete_task_project", { id });
+
+export const listTasks = (projectId?: string | null) =>
+  call<TaskItem[]>("cmd_list_tasks", { projectId: projectId ?? null });
+export const getTask = (id: string) => call<TaskItem>("cmd_get_task", { id });
+export const createTask = (input: {
+  projectId: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  dueDate?: string | null;
+  labels: string[];
+  order?: number | null;
+}) =>
+  call<TaskItem>("cmd_create_task", {
+    projectId: input.projectId,
+    title: input.title,
+    description: input.description,
+    status: input.status,
+    priority: input.priority,
+    dueDate: input.dueDate ?? null,
+    labels: input.labels,
+    order: input.order ?? null,
+  });
+export const updateTask = (id: string, patch: TaskItemPatch) =>
+  call<TaskItem>("cmd_update_task", { id, patch });
+export const deleteTask = (id: string) => call<void>("cmd_delete_task", { id });
+

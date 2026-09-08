@@ -13,9 +13,11 @@ import type {
   VaultNote,
   VaultStats,
   VectorMatch,
+  TaskProject,
+  TaskItem,
 } from "../types";
 
-export type ViewMode = "dashboard" | "search" | "graph" | "notes" | "projects" | "memory" | "terminal" | "monitor" | "browser" | "editor" | "ide" | "calendar";
+export type ViewMode = "dashboard" | "search" | "graph" | "notes" | "projects" | "tasks" | "memory" | "terminal" | "monitor" | "browser" | "editor" | "ide" | "calendar";
 
 export type AiProvider = "ollama" | "openrouter";
 
@@ -124,6 +126,34 @@ interface AetherState {
   setCalendarRemindersOpen: (open: boolean) => void;
   setReminderSettings: (settings: ReminderSettings) => void;
 
+  // Projects & Tasks
+  taskProjects: TaskProject[];
+  selectedProjectId: string | null;
+  tasks: TaskItem[];
+  taskViewMode: "board" | "list";
+  taskFilterQuery: string;
+  taskFilterPriority: string | null;
+  taskFilterLabel: string | null;
+  projectModalOpen: boolean;
+  editingProject: TaskProject | null;
+  taskDetailModalOpen: boolean;
+  selectedTaskId: string | null;
+  setTaskProjects: (projects: TaskProject[]) => void;
+  upsertTaskProject: (project: TaskProject) => void;
+  removeTaskProject: (id: string) => void;
+  setSelectedProjectId: (id: string | null) => void;
+  setTasks: (tasks: TaskItem[]) => void;
+  upsertTaskItem: (task: TaskItem) => void;
+  removeTaskItem: (id: string) => void;
+  setTaskViewMode: (mode: "board" | "list") => void;
+  setTaskFilterQuery: (query: string) => void;
+  setTaskFilterPriority: (priority: string | null) => void;
+  setTaskFilterLabel: (label: string | null) => void;
+  setProjectModalOpen: (open: boolean) => void;
+  setEditingProject: (project: TaskProject | null) => void;
+  setTaskDetailModalOpen: (open: boolean) => void;
+  setSelectedTaskId: (id: string | null) => void;
+
   setVaultPath: (path: string | null) => void;
   setVaultNotes: (notes: VaultNote[]) => void;
   setVaultStats: (stats: VaultStats | null) => void;
@@ -189,6 +219,19 @@ export const useAetherStore = create<AetherState>((set) => ({
   calendarImportExportOpen: false,
   calendarRemindersOpen: false,
   reminderSettings: loadReminderSettings(),
+
+  // Projects & Tasks
+  taskProjects: [],
+  selectedProjectId: null,
+  tasks: [],
+  taskViewMode: "board",
+  taskFilterQuery: "",
+  taskFilterPriority: null,
+  taskFilterLabel: null,
+  projectModalOpen: false,
+  editingProject: null,
+  taskDetailModalOpen: false,
+  selectedTaskId: null,
 
   setVaultPath: (vaultPath) => set({ vaultPath }),
   setVaultNotes: (vaultNotes) => set({ vaultNotes }),
@@ -290,4 +333,43 @@ export const useAetherStore = create<AetherState>((set) => ({
     }
     set({ reminderSettings });
   },
+
+  // Task actions
+  setTaskProjects: (taskProjects) => set({ taskProjects }),
+  upsertTaskProject: (project) => set((state) => {
+    const idx = state.taskProjects.findIndex((p) => p.id === project.id);
+    if (idx >= 0) {
+      const next = [...state.taskProjects];
+      next[idx] = project;
+      return { taskProjects: next };
+    }
+    return { taskProjects: [...state.taskProjects, project] };
+  }),
+  removeTaskProject: (id) => set((state) => ({
+    taskProjects: state.taskProjects.filter((p) => p.id !== id),
+    selectedProjectId: state.selectedProjectId === id ? null : state.selectedProjectId,
+    tasks: state.tasks.filter((t) => t.project_id !== id),
+  })),
+  setSelectedProjectId: (selectedProjectId) => set({ selectedProjectId }),
+  setTasks: (tasks) => set({ tasks }),
+  upsertTaskItem: (task) => set((state) => {
+    const idx = state.tasks.findIndex((t) => t.id === task.id);
+    if (idx >= 0) {
+      const next = [...state.tasks];
+      next[idx] = task;
+      return { tasks: next };
+    }
+    return { tasks: [...state.tasks, task] };
+  }),
+  removeTaskItem: (id) => set((state) => ({
+    tasks: state.tasks.filter((t) => t.id !== id),
+  })),
+  setTaskViewMode: (taskViewMode) => set({ taskViewMode }),
+  setTaskFilterQuery: (taskFilterQuery) => set({ taskFilterQuery }),
+  setTaskFilterPriority: (taskFilterPriority) => set({ taskFilterPriority }),
+  setTaskFilterLabel: (taskFilterLabel) => set({ taskFilterLabel }),
+  setProjectModalOpen: (projectModalOpen) => set({ projectModalOpen }),
+  setEditingProject: (editingProject) => set({ editingProject }),
+  setTaskDetailModalOpen: (taskDetailModalOpen) => set({ taskDetailModalOpen }),
+  setSelectedTaskId: (selectedTaskId) => set({ selectedTaskId }),
 }));

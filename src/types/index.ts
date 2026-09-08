@@ -307,3 +307,52 @@ export interface ReminderSettings {
   enabled: boolean;
   lead_times_minutes: number[];
 }
+
+// ── Projects & Tasks (Kanban / Issue Board) ─────────────────
+
+export type TaskStatus = "backlog" | "todo" | "in_progress" | "done";
+
+export type TaskPriority = "none" | "low" | "medium" | "high" | "urgent";
+
+export interface TaskProject {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  icon?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskProjectPatch {
+  name?: string;
+  description?: string;
+  color?: string;
+  icon?: string | null;
+}
+
+export interface TaskItem {
+  id: string;
+  project_id: string;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  labels: string[];
+  order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskItemPatch {
+  project_id?: string;
+  title?: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
+  due_date?: string | null;
+  labels?: string[];
+  order?: number;
+}
+

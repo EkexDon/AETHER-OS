@@ -18,3 +18,4 @@ pub mod workspace;
 
 pub mod cloud_ai;
 pub mod ai_config;
+pub mod task_board;

@@ -8,8 +8,8 @@ use engine::{
     aether_notes::AetherNotes, ai_config::AiConfigStore, browser::BrowserManager,
     calendar::Calendar, calendar_notifier::CalendarNotifier, cloud_ai::CloudAiEngine,
     local_ai::LocalAiEngine, lsp::LspManager, memory_store::MemoryStore,
-    system_monitor::SystemMonitor, terminal::TerminalManager, vault_reader::VaultReader,
-    vector_db::VectorEngine, web_clipper::WebClipper,
+    system_monitor::SystemMonitor, task_board::TaskBoardEngine, terminal::TerminalManager,
+    vault_reader::VaultReader, vector_db::VectorEngine, web_clipper::WebClipper,
 };
 use tauri::Manager;
 
@@ -34,6 +34,7 @@ pub struct AppState {
     pub lsp_app: tauri::AppHandle,
     pub calendar: Arc<Calendar>,
     pub notifier: Arc<CalendarNotifier>,
+    pub task_board: Arc<TaskBoardEngine>,
 }
 
 pub fn run() {
@@ -59,6 +60,7 @@ pub fn run() {
                 &data_dir.join("calendar"),
             )?);
             notifier.clone().start(calendar.clone())?;
+            let task_board = Arc::new(TaskBoardEngine::new(&data_dir.join("tasks"))?);
             app.manage(AppState {
                 vault: Arc::new(vault),
                 vectors: Arc::new(vectors),
@@ -76,6 +78,7 @@ pub fn run() {
                 lsp_app: app.handle().clone(),
                 calendar,
                 notifier,
+                task_board,
             });
             Ok(())
         })
@@ -175,6 +178,16 @@ pub fn run() {
             commands::lsp_commands::cmd_lsp_send,
             commands::lsp_commands::cmd_lsp_stop,
             commands::lsp_commands::cmd_lsp_stop_all,
+            commands::task_commands::cmd_list_task_projects,
+            commands::task_commands::cmd_get_task_project,
+            commands::task_commands::cmd_create_task_project,
+            commands::task_commands::cmd_update_task_project,
+            commands::task_commands::cmd_delete_task_project,
+            commands::task_commands::cmd_list_tasks,
+            commands::task_commands::cmd_get_task,
+            commands::task_commands::cmd_create_task,
+            commands::task_commands::cmd_update_task,
+            commands::task_commands::cmd_delete_task,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build AETHER-OS")
