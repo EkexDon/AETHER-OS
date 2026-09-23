@@ -21,13 +21,14 @@ use crate::AppState;
 const NO_VAULT: &str = "No vault path configured. Open Settings to set a vault path.";
 
 /// Build the engine for `AppState`: settings live in `<data_dir>/history`,
-/// the watcher follows the vault configured in `<data_dir>/config.json`,
-/// and every commit is broadcast as a `history-commit` event.
+/// the watcher follows the vault of the shared `reader` (configured in
+/// `<data_dir>/config.json`), and every commit is broadcast as a
+/// `history-commit` event.
 pub fn start_note_history(
     app: &AppHandle,
     data_dir: &Path,
+    reader: Arc<VaultReader>,
 ) -> Result<Arc<NoteHistory>, AetherError> {
-    let reader = VaultReader::new(data_dir)?;
     let history = Arc::new(NoteHistory::new(&data_dir.join("history"), move || {
         reader.detect_vault_path()
     })?);

@@ -22,9 +22,9 @@ export function AppearanceSettings() {
               value={preference}
               onChange={setPreference}
               options={[
-                { value: "system", label: "System", icon: <Monitor size={13} /> },
-                { value: "light", label: "Light", icon: <Sun size={13} /> },
-                { value: "dark", label: "Dark", icon: <Moon size={13} /> },
+                { value: "system", label: "System", icon: <Monitor size={14} /> },
+                { value: "light", label: "Light", icon: <Sun size={14} /> },
+                { value: "dark", label: "Dark", icon: <Moon size={14} /> },
               ]}
             />
           }
@@ -49,7 +49,7 @@ export function AppearanceSettings() {
                     onClick={() => setAccent(a.id as AccentId)}
                   >
                     <span className="accent-swatch-color" style={{ background: a.swatch }} />
-                    {selected && <Check size={12} strokeWidth={3} className="accent-swatch-check" />}
+                    {selected && <Check size={14} strokeWidth={3} className="accent-swatch-check" />}
                   </button>
                 );
               })}

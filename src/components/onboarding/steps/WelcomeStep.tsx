@@ -14,7 +14,7 @@ export function WelcomeStep() {
         {POINTS.map(({ icon: Icon, text }) => (
           <li key={text}>
             <span className="ob-point-icon">
-              <Icon size={15} />
+              <Icon size={16} />
             </span>
             {text}
           </li>

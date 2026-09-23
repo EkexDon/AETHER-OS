@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { FolderSync, Lock, RefreshCw, ShieldCheck } from "lucide-react";
-import "../../styles/views/sync.css";
+import { FolderSync, Lock, RefreshCw } from "lucide-react";
 import { useAetherStore } from "../../lib/store";
 import { retainSyncEvents, useSyncStore } from "../../lib/syncStore";
 import { runSyncNow } from "../../lib/sync/commands";
@@ -75,7 +74,6 @@ export function SyncView() {
     <div className="view sync-view">
       <ViewHeader
         title="Sync & Backup"
-        icon={ShieldCheck}
         subtitle={status ? `${summary.label} · end-to-end encrypted, no account` : "End-to-end encrypted, no account"}
         actions={
           <>

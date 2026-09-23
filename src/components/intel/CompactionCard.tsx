@@ -3,7 +3,6 @@ import { Archive, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { Badge, Button, cx } from "../../ui";
 import { parseSummary } from "../../lib/intel/summary";
 import type { CompactionState } from "../../lib/intelStore";
-import "../../styles/views/intel.css";
 
 export interface CompactionCardProps {
   compaction: CompactionState;
@@ -35,7 +34,7 @@ export function CompactionCard({ compaction, showEarlier, onToggleEarlier, defau
     <section className={cx("intel-summary", open && "is-open")} aria-label="Conversation summary">
       <button type="button" className="intel-summary-head" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
         <span className="intel-summary-icon" aria-hidden="true">
-          <Archive size={13} />
+          <Archive size={14} />
         </span>
         <span className="intel-summary-titles">
           <span className="intel-summary-title">Conversation summary</span>
@@ -73,7 +72,7 @@ export function CompactionCard({ compaction, showEarlier, onToggleEarlier, defau
               <Button
                 size="sm"
                 variant="ghost"
-                iconLeft={showEarlier ? <EyeOff size={13} /> : <Eye size={13} />}
+                iconLeft={showEarlier ? <EyeOff size={14} /> : <Eye size={14} />}
                 onClick={onToggleEarlier}
               >
                 {showEarlier ? "Hide earlier messages" : `Show ${count} earlier`}

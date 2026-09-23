@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import { ArrowLeft, FileCode2, Globe, PackageOpen, Printer, type LucideIcon } from "lucide-react";
+import { ArrowLeft, FileCode2, Globe, PackageOpen, Printer, Replace, type LucideIcon } from "lucide-react";
 import { Button, Kbd, Modal, useToast } from "../../ui";
 import { useAetherStore } from "../../lib/store";
 import { useExportStore } from "../../lib/exportStore";
@@ -13,7 +13,7 @@ import {
   onExportProgress,
 } from "../../lib/ipc";
 import { loadFlowOptions, loadLastDir, saveFlowOptions, saveLastDir } from "../../lib/export/options";
-import { phaseLabel, plural, progressPercent } from "../../lib/export/format";
+import { existingPathFromError, isAlreadyExistsError, phaseLabel, plural, progressPercent } from "../../lib/export/format";
 import { printDocument } from "../../lib/export/print";
 import {
   baseName,
@@ -77,6 +77,10 @@ export function ExportWizard({ flow, initialScope, onClose }: ExportWizardProps)
   const [scopeError, setScopeError] = useState<string | null>(null);
   const [destination, setDestination] = useState("");
   const [destTouched, setDestTouched] = useState(false);
+  /** Destination picked in the native save dialog (it already confirmed replacing). */
+  const [dialogPath, setDialogPath] = useState<string | null>(null);
+  /** An existing file the user is asked to replace. */
+  const [replacePath, setReplacePath] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [progress, setProgress] = useState<ExportProgress | null>(null);
@@ -151,21 +155,30 @@ export function ExportWizard({ flow, initialScope, onClose }: ExportWizardProps)
     }
   };
 
-  const run = async () => {
+  /**
+   * Export. HTML pages and bundles never replace an existing file unless
+   * the user confirmed it: in the native save dialog (`dialogPath`) or in
+   * the "Replace existing file?" prompt, which retries with `replace`.
+   */
+  const run = async (replace = false) => {
     if (!canExport) return;
     setRunning(true);
     setError(null);
     setProgress(null);
+    setReplacePath(null);
+    const target = destination.trim();
+    const overwrite = flow !== "site" && (replace || dialogPath === target);
+    const sent: ExportOptions = { ...options, overwrite };
     const unlisten = await onExportProgress(setProgress);
     try {
       let next: ExportResult;
       if (flow === "html") {
         if (!notePath) throw new Error("Choose a note to export.");
-        next = { flow, report: await exportNoteHtml(notePath, destination.trim(), options) };
+        next = { flow, report: await exportNoteHtml(notePath, target, sent) };
       } else if (flow === "site") {
-        next = { flow, report: await exportSite(scope, destination.trim(), options) };
+        next = { flow, report: await exportSite(scope, target, sent) };
       } else {
-        next = { flow, report: await exportBundle(scope, destination.trim(), options) };
+        next = { flow, report: await exportBundle(scope, target, sent) };
       }
       saveFlowOptions(flow, options);
       const out = next.flow === "site" ? next.report.out_dir : next.report.path;
@@ -178,8 +191,12 @@ export function ExportWizard({ flow, initialScope, onClose }: ExportWizardProps)
       void loadRecents();
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      setError(message);
-      toast.error("Export failed", { description: message });
+      if (flow !== "site" && !overwrite && isAlreadyExistsError(message)) {
+        setReplacePath(existingPathFromError(message.replace(/^invalid input: /, "")) ?? target);
+      } else {
+        setError(message);
+        toast.error("Export failed", { description: message });
+      }
     } finally {
       unlisten();
       setRunning(false);
@@ -202,7 +219,7 @@ export function ExportWizard({ flow, initialScope, onClose }: ExportWizardProps)
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && !result) {
       e.preventDefault();
-      void run();
+      void run(false);
     }
   };
 
@@ -264,7 +281,7 @@ export function ExportWizard({ flow, initialScope, onClose }: ExportWizardProps)
           Print / PDF
         </Button>
       )}
-      <Button variant="primary" onClick={() => void run()} loading={running} disabled={!canExport}>
+      <Button variant="primary" onClick={() => void run(false)} loading={running} disabled={!canExport}>
         {meta.action}
       </Button>
     </>
@@ -319,9 +336,10 @@ export function ExportWizard({ flow, initialScope, onClose }: ExportWizardProps)
                 <DestinationField
                   flow={flow}
                   value={destination}
-                  onChange={(v) => {
+                  onChange={(v, fromDialog) => {
                     setDestTouched(true);
                     setDestination(v);
+                    setDialogPath(fromDialog ? v.trim() : null);
                   }}
                   vaultRoot={vaultRoot}
                   allowInsideVault={options.allow_inside_vault}
@@ -345,6 +363,26 @@ export function ExportWizard({ flow, initialScope, onClose }: ExportWizardProps)
           </>
         )}
       </div>
+      <Modal
+        open={replacePath !== null}
+        onClose={() => setReplacePath(null)}
+        size="sm"
+        icon={Replace}
+        title="Replace existing file?"
+        description="A file with this name already exists. Replacing it cannot be undone."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setReplacePath(null)}>
+              Keep it
+            </Button>
+            <Button variant="danger" onClick={() => void run(true)}>
+              Replace
+            </Button>
+          </>
+        }
+      >
+        <code className="export-replace-path">{replacePath}</code>
+      </Modal>
     </Modal>
   );
 }

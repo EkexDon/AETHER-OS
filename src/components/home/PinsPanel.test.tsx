@@ -6,6 +6,8 @@ vi.mock("../../lib/ipc", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/ipc")>()),
   ...ipc,
 }));
+const bus = vi.hoisted(() => ({ openConversation: vi.fn(), startNewConversation: vi.fn() }));
+vi.mock("../../lib/agentChatBus", () => bus);
 
 import { PinsPanel, PIN_DRAG_TYPE } from "./PinsPanel";
 import { PinsDrawer } from "./PinsDrawer";
@@ -44,6 +46,7 @@ function dataTransfer() {
 beforeEach(() => {
   vi.clearAllMocks();
   ipc.agentOpenUrl.mockResolvedValue({ kind: "opened", url: "https://tauri.app/" });
+  bus.openConversation.mockResolvedValue(undefined);
   usePinsStore.setState({ groups: groups() });
   useAetherStore.setState({
     view: "dashboard",
@@ -74,8 +77,9 @@ describe("PinsPanel", () => {
     expect(useIdeStore.getState().rootPath).toBe("/dev/app");
     expect(useAetherStore.getState().view).toBe("ide");
 
+    // Conversation pins load that chat into the agent panel.
     fireEvent.click(screen.getByText("Weekly plan"));
-    expect(useAetherStore.getState().chatOpen).toBe(true);
+    await vi.waitFor(() => expect(bus.openConversation).toHaveBeenCalledWith("c1"));
 
     fireEvent.click(screen.getByText("Tauri docs"));
     await vi.waitFor(() => expect(ipc.agentOpenUrl).toHaveBeenCalledWith("https://tauri.app/"));

@@ -103,7 +103,7 @@ describe("UnlockModal", () => {
 
   it("shows backend errors inline and keeps the dialog open", async () => {
     useSyncStore.setState({ status: status({ initialized: true }), settings, unlockOpen: true });
-    unlockSync.mockRejectedValue(new Error("invalid input: wrong passphrase"));
+    unlockSync.mockRejectedValue(new Error("crypto error: wrong passphrase"));
     render(<UnlockModal />);
     const dialog = await screen.findByRole("dialog", { name: "Unlock sync" });
     fireEvent.change(within(dialog).getByLabelText("Passphrase"), { target: { value: "nope nope" } });

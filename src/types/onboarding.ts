@@ -63,6 +63,12 @@ export interface VaultPrefs {
   daily_filename_pattern: string;
 }
 
+/** General app preferences (`<data_dir>/general_prefs.json`); read by the Rust side too. */
+export interface GeneralPrefs {
+  /** Ask before quitting while terminal sessions are still running (default `true`). */
+  confirm_quit_with_terminals: boolean;
+}
+
 /** One top-level entry of the app data directory. */
 export interface DataLocation {
   name: string;

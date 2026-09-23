@@ -15,6 +15,7 @@ use git2::{BranchType, Repository, Status};
 use serde::{Deserialize, Serialize};
 
 use super::error::AetherError;
+use super::fs_guard;
 
 /// Fallback identity when neither the repo nor the global config defines one.
 /// Without this a fresh machine could not commit from the IDE at all.
@@ -139,6 +140,32 @@ impl GitRepo {
             )));
         }
         Ok(p.to_path_buf())
+    }
+
+    /// Resolve a repository-relative path from the UI to its location in
+    /// the work tree. `.git` internals are refused (case-insensitively),
+    /// and the location's folder must — symlinks resolved — stay inside the
+    /// work tree, so a symlinked folder cannot be used to read, rewrite or
+    /// delete files outside the repository.
+    fn worktree_path(
+        &self,
+        rel: &str,
+    ) -> Result<(std::path::PathBuf, std::path::PathBuf), AetherError> {
+        let path = Self::normalize(rel)?;
+        if fs_guard::has_git_component(&path) {
+            return Err(AetherError::InvalidInput(format!(
+                "refusing to touch the repository's .git folder: {rel}"
+            )));
+        }
+        let workdir = self.workdir()?;
+        let root = std::fs::canonicalize(workdir)?;
+        let absolute = workdir.join(&path);
+        if let Some(parent) = absolute.parent() {
+            fs_guard::resolve_within(&root, parent).map_err(|_| {
+                AetherError::InvalidInput(format!("path leaves the repository: {rel}"))
+            })?;
+        }
+        Ok((path, absolute))
     }
 
     fn signature(&self) -> Result<git2::Signature<'static>, AetherError> {
@@ -271,14 +298,12 @@ impl GitRepo {
 
     /// Stage files (add new/modified content to the index).
     pub fn stage(&self, paths: &[String]) -> Result<(), AetherError> {
-        let workdir = self.workdir()?;
         let mut index = self
             .repo
             .index()
             .map_err(|e| AetherError::Vault(format!("cannot open index: {e}")))?;
         for rel in paths {
-            let path = Self::normalize(rel)?;
-            let absolute = workdir.join(&path);
+            let (path, absolute) = self.worktree_path(rel)?;
             if absolute.is_file() {
                 index
                     .add_path(&path)
@@ -335,10 +360,8 @@ impl GitRepo {
     /// Discard all *unstaged* changes of the given paths. This rewrites the
     /// working tree and cannot be undone — the UI must confirm first.
     pub fn discard(&self, paths: &[String]) -> Result<(), AetherError> {
-        let workdir = self.workdir()?;
         for rel in paths {
-            let path = Self::normalize(rel)?;
-            let absolute = workdir.join(&path);
+            let (path, absolute) = self.worktree_path(rel)?;
 
             let tracked_status = {
                 let mut opts = git2::StatusOptions::new();
@@ -373,6 +396,12 @@ impl GitRepo {
                         .map_err(|e| AetherError::Vault(format!("cannot find blob: {e}")))?;
                     if let Some(parent) = absolute.parent() {
                         std::fs::create_dir_all(parent)?;
+                    }
+                    // Writing through a symlink would change its target.
+                    if std::fs::symlink_metadata(&absolute)
+                        .is_ok_and(|m| m.file_type().is_symlink())
+                    {
+                        std::fs::remove_file(&absolute)?;
                     }
                     std::fs::write(&absolute, blob.content())?;
                 }
@@ -530,8 +559,7 @@ impl GitRepo {
     /// Old/new content of one file for the diff view. `staged` selects the
     /// HEAD↔index comparison; otherwise index↔worktree is shown.
     pub fn diff_file(&self, rel: &str, staged: bool) -> Result<FileDiff, AetherError> {
-        let path = Self::normalize(rel)?;
-        let workdir = self.workdir()?;
+        let (path, absolute) = self.worktree_path(rel)?;
 
         let decode = |bytes: &[u8]| -> (Option<String>, bool) {
             if bytes.contains(&0) {
@@ -555,7 +583,7 @@ impl GitRepo {
             (o, n, ob || nb)
         } else {
             let index_content = self.index_blob_content(&path)?;
-            let disk_bytes = std::fs::read(workdir.join(&path)).ok();
+            let disk_bytes = std::fs::read(&absolute).ok();
             let (o, ob) = match &index_content {
                 Some(bytes) => decode(bytes),
                 // Untracked: nothing in HEAD or the index — show as
@@ -1075,6 +1103,42 @@ mod tests {
             std::fs::read_to_string(t.path().join("precious.txt")).expect("read"),
             "keep me"
         );
+    }
+
+    /// Table: a normal file, `..`, `.git` internals and a symlinked folder
+    /// leading out of the work tree.
+    #[test]
+    fn work_tree_paths_stay_inside_the_repository() {
+        let t = TestRepo::new();
+        t.write("a.txt", "v1");
+        t.commit_all("base");
+        let outside = tempfile::tempdir().expect("outside");
+        std::fs::write(outside.path().join("victim.txt"), "keep").expect("write");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(outside.path(), t.path().join("link")).expect("symlink");
+        let repo = GitRepo::open(t.path()).expect("open");
+
+        assert!(repo.diff_file("a.txt", false).is_ok());
+        for bad in [
+            "../x.txt",
+            ".git/config",
+            ".GIT/HEAD",
+            "sub/.git/hooks/pre-commit",
+        ] {
+            assert!(repo.discard(&[bad.to_owned()]).is_err(), "{bad}");
+            assert!(repo.diff_file(bad, false).is_err(), "{bad}");
+            assert!(repo.stage(&[bad.to_owned()]).is_err(), "{bad}");
+        }
+        assert!(t.path().join(".git/config").exists());
+        #[cfg(unix)]
+        {
+            assert!(repo.discard(&["link/victim.txt".to_owned()]).is_err());
+            assert!(repo.diff_file("link/victim.txt", false).is_err());
+            assert_eq!(
+                std::fs::read_to_string(outside.path().join("victim.txt")).expect("read"),
+                "keep"
+            );
+        }
     }
 
     #[test]

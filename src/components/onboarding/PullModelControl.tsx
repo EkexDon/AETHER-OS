@@ -2,7 +2,6 @@ import { CircleCheck, Download, RotateCcw, X } from "lucide-react";
 import { Badge, Button, IconButton, cx } from "../../ui";
 import { useOnboardingStore } from "../../lib/onboardingStore";
 import { describePullStatus, pullPercent } from "../../lib/onboarding/models";
-import "../../styles/views/onboarding.css";
 
 /** Progress bar for a model download; indeterminate while the size is unknown. */
 export function PullProgressBar({ percent, label }: { percent: number | null; label: string }) {
@@ -74,7 +73,7 @@ export function PullModelControl({
 
   if (installed || pull?.phase === "done") {
     return (
-      <Badge variant="success" icon={<CircleCheck size={11} />}>
+      <Badge variant="success" icon={<CircleCheck size={14} />}>
         Installed
       </Badge>
     );
@@ -88,7 +87,7 @@ export function PullModelControl({
             {pull.error}
           </span>
         )}
-        <Button size="sm" variant="secondary" iconLeft={<RotateCcw size={13} />} onClick={() => void start()} disabled={disabled}>
+        <Button size="sm" variant="secondary" iconLeft={<RotateCcw size={14} />} onClick={() => void start()} disabled={disabled}>
           Retry
         </Button>
       </div>
@@ -96,7 +95,7 @@ export function PullModelControl({
   }
 
   return (
-    <Button size="sm" variant="secondary" iconLeft={<Download size={13} />} onClick={() => void start()} disabled={disabled}>
+    <Button size="sm" variant="secondary" iconLeft={<Download size={14} />} onClick={() => void start()} disabled={disabled}>
       {sizeLabel ? `Download · ${sizeLabel}` : "Download"}
     </Button>
   );

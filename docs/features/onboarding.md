@@ -74,9 +74,9 @@ everywhere) while the wizard or settings are closed.
 
 | Section | Contents |
 | --- | --- |
-| General (order 42) | Start view, agent panel on start (remember / open / closed), interface language (English, read-only), run setup again, "What's new" toggle |
+| General (order 5, first) | Start view, agent panel on start (remember / open / closed), confirm on quit with running terminals (default on), interface language (English, read-only), run setup again, "What's new" toggle |
 | Vault | Folder with Browse, status (notes, tasks, tags, links), Reveal in Finder, create a starter vault, find existing vaults, daily-note folder & file-name pattern |
-| AI Providers | Default provider, Ollama connection (fixed `http://localhost:11434`), default model from installed models, download any model by name with progress, OpenRouter key (save / test / remove) and default cloud model, embedding model status + download, "Index now" |
+| AI Providers | Default provider, Ollama connection (fixed `http://localhost:11434`), default model from installed models, download any model by name with progress, OpenRouter key (save / test / remove) and default cloud model, embedding model (any installed or named Ollama model; switching clears the vector index and asks for a re-index) + download, "Index vault" |
 | Editor | Note editor text size (13–22 px) and line width (560–1120 px), applied instantly; external editor for projects |
 | Shortcuts (70) | Every registry command and editor shortcut, searchable, "only with a shortcut", click to run, copy cheat sheet (Markdown table), save it as a vault note |
 | Data & Privacy (80) | Where the data lives (vault, data folder with per-item sizes), what leaves the machine, crash reports (view / copy / delete all), application log (frontend-only filter, copy), reset app data |
@@ -96,7 +96,8 @@ the page reloads.
 | Data | Location |
 | --- | --- |
 | Wizard state `{ completed_at, version_seen, skipped_steps }` | `<data_dir>/onboarding.json` |
-| Daily-note folder & pattern | `<data_dir>/vault_prefs.json` |
+| Daily-note folder & pattern | `<data_dir>/vault_prefs.json` (read by the vault reader for every daily note) |
+| Confirm on quit with running terminals | `<data_dir>/general_prefs.json` (`{ confirm_quit_with_terminals }`) |
 | Start view, agent panel on start, auto update check + last check time, "What's new" toggle, editor font size / line width | localStorage `aether-onboarding-prefs` |
 | Editor typography | CSS variables `--editor-font-size` / `--editor-line-width` on `<html>`, read in `src/styles/views/onboarding.css` (`.editor-body`, `.editor-body .ProseMirror`) |
 | Changelog | `CHANGELOG.md` at the repo root, compiled in with `include_str!` |
@@ -115,7 +116,8 @@ the page reloads.
 | `cmd_onboarding_system_profile` | — | `{ total_ram_gb, cpu_cores, physical_cores, arch, os }` |
 | `cmd_onboarding_pull_model` | `name` | `PullOutcome { name, cancelled }`; streams `ollama-pull-progress { name, status, completed, total }` |
 | `cmd_onboarding_cancel_pull` | `name` | `bool` (was running) |
-| `cmd_onboarding_get_vault_prefs` / `set_vault_prefs` | `prefs: { daily_folder, daily_filename_pattern }` | `VaultPrefs` |
+| `cmd_onboarding_get_vault_prefs` / `set_vault_prefs` | `prefs: { daily_folder, daily_filename_pattern }` (`/` in the pattern = sub-folders, e.g. `YYYY/MM/YYYY-MM-DD`) | `VaultPrefs` |
+| `cmd_onboarding_get_general_prefs` / `set_general_prefs` | `prefs: { confirm_quit_with_terminals }` | `GeneralPrefs` |
 | `cmd_onboarding_reveal_vault` | — | reveals the connected vault in the file manager |
 | `cmd_onboarding_data_locations` | — | `DataLocation[] { name, path, is_dir, size_bytes, description }` |
 | `cmd_onboarding_read_app_log` | `maxBytes` (clamped 1 KiB–1 MiB) | `AppLogTail { path, content, size_bytes, truncated }` (whole lines) |
@@ -168,17 +170,22 @@ pulls stream fake progress over ≈ 3 s and the pulled model then appears in
 
 ## Limitations
 
-- **Daily-note preferences are forward-looking**: they shape new starter
-  vaults only. Quick capture and the agent still write to
-  `daily/YYYY-MM-DD.md` (owned by the vault reader).
-- **Embedding model is fixed** to `nomic-embed-text` in `cmd_index_vault`;
-  Settings shows it read-only rather than offering a choice that would not
-  take effect.
-- **Not implemented (would be fake today):** "confirm on quit with running
-  terminals" (needs a `RunEvent::ExitRequested` hook in `lib.rs` and the
-  `core:window:allow-destroy` capability), "show FAB stack" (the shell has no
-  floating action buttons since the v0.2 titlebar), spellcheck toggle (the
-  editor sets no `spellcheck` attribute to toggle).
+- Resolved in v0.2 (Wave 3):
+  - **Daily-note preferences** are honoured by the vault reader
+    (`VaultReader::get_or_create_daily_note`) for Quick Capture, Home, note
+    tasks and the agent's `append_daily`; `/` in the pattern creates
+    sub-folders on demand.
+  - **Embedding model** is configurable in Settings → AI Providers
+    (`cmd_get_embedding_model` / `cmd_set_embedding_model`, stored in
+    `ai/ai_config.json`); changing it clears the vector index
+    (`VectorEngine::clear`) and the toast asks for a re-index.
+  - **Confirm on quit with running terminals** is implemented
+    (`commands/app_commands.rs`: `quit-requested` event,
+    `cmd_quit_confirmed`; dialog in `src/shell/QuitConfirmHost.tsx`, toggle
+    in Settings → General). A second ⌘Q within 5 s quits without asking.
+  - The overlays are mounted from `src/shell/FeatureHosts.tsx`
+    (`onboarding.host`) instead of an invisible status bar item.
+- **Not implemented:** "show FAB stack" (the shell has no floating action
+  buttons since the v0.2 titlebar), spellcheck toggle (the editor sets
+  `spellcheck="false"`; there is no setting for it).
 - Interface copy is English only; the language row is informational.
-- The overlays are mounted through an invisible status bar item
-  (`onboarding.host`) because `App.tsx` has no anchor.

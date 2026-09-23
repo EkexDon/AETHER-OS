@@ -6,7 +6,6 @@ import { useIntelStore } from "../../lib/intelStore";
 import { applyTag, insertLink, refreshRelated } from "../../lib/intel/related";
 import { noteNameFromPath } from "../../lib/intel/noteEdits";
 import type { RelatedSuggestion } from "../../types";
-import "../../styles/views/intel.css";
 
 function reasonVariant(kind: RelatedSuggestion["kind"]): "accent" | "info" | "neutral" {
   if (kind === "semantic") return "accent";
@@ -114,7 +113,7 @@ export function RelatedDrawer() {
       <aside className="intel-drawer" style={{ right }} aria-label="Related notes">
         <header className="intel-drawer-header">
           <span className="intel-summary-icon" aria-hidden="true">
-            <Sparkles size={13} />
+            <Sparkles size={14} />
           </span>
           <div className="intel-drawer-titles">
             <span className="intel-drawer-title">Related notes</span>
@@ -123,7 +122,7 @@ export function RelatedDrawer() {
           <IconButton
             size="sm"
             label="Refresh suggestions"
-            icon={entry?.loading ? <Spinner size={12} /> : <RefreshCw size={13} />}
+            icon={entry?.loading ? <Spinner size={14} /> : <RefreshCw size={14} />}
             onClick={onRefresh}
             disabled={!selectedNotePath || entry?.loading}
           />
@@ -138,7 +137,7 @@ export function RelatedDrawer() {
             </div>
           ) : !entry || (entry.loading && suggestions.length === 0) ? (
             <div className="intel-drawer-state">
-              <Spinner size={13} /> Finding related notes…
+              <Spinner size={14} /> Finding related notes…
             </div>
           ) : (
             <>
@@ -170,7 +169,7 @@ export function RelatedDrawer() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          iconLeft={<Link2 size={13} />}
+                          iconLeft={<Link2 size={14} />}
                           loading={busy === `link:${s.path}`}
                           disabled={busy !== null}
                           onClick={() => void onInsert(s)}
@@ -187,7 +186,7 @@ export function RelatedDrawer() {
                 <span className="ui-section-label">Tags</span>
                 {tags.length === 0 ? (
                   <p className="intel-drawer-state">
-                    <Hash size={13} /> No tag suggestions for this note.
+                    <Hash size={14} /> No tag suggestions for this note.
                   </p>
                 ) : (
                   <div className="intel-tags">
@@ -200,7 +199,7 @@ export function RelatedDrawer() {
                         disabled={busy !== null}
                         aria-label={`Add tag ${tag}`}
                       >
-                        {busy === `tag:${tag}` ? <Spinner size={11} /> : <Plus size={11} />}#{tag}
+                        {busy === `tag:${tag}` ? <Spinner size={14} /> : <Plus size={14} />}#{tag}
                       </button>
                     ))}
                   </div>

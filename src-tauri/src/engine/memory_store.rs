@@ -30,6 +30,33 @@ struct FactsFile {
     facts: Vec<MemoryFact>,
 }
 
+/// Characters of the first message used as the default summary.
+const SUMMARY_CHARS: usize = 80;
+
+/// Title derived from the first message (`SUMMARY_CHARS`, then `…`).
+fn summary_from_messages(messages: &[ChatMessageRecord]) -> String {
+    messages
+        .first()
+        .map(|m| {
+            let mut s = m.content.chars().take(SUMMARY_CHARS).collect::<String>();
+            if m.content.chars().count() > SUMMARY_CHARS {
+                s.push('…');
+            }
+            s
+        })
+        .unwrap_or_default()
+}
+
+/// Conversation ids become part of file names: ASCII letters, digits, `-`
+/// and `_` only, at most 64 characters.
+fn is_valid_conversation_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
 pub struct MemoryStore {
     root: PathBuf,
 }
@@ -61,16 +88,7 @@ impl MemoryStore {
             .map(|d| d.as_secs() as i64)
             .unwrap_or(0);
         let id = uuid::Uuid::new_v4().to_string();
-        let summary = messages
-            .first()
-            .map(|m| {
-                let mut s = m.content.chars().take(80).collect::<String>();
-                if m.content.chars().count() > 80 {
-                    s.push('…');
-                }
-                s
-            })
-            .unwrap_or_default();
+        let summary = summary_from_messages(&messages);
         let conversation = Conversation {
             id: id.clone(),
             timestamp: now,
@@ -83,6 +101,76 @@ impl MemoryStore {
             .map_err(|e| AetherError::Vault(format!("conversation serialize: {e}")))?;
         std::fs::write(path, content)?;
         Ok(conversation)
+    }
+
+    /// Create or replace a conversation. With `id`, every previous record of
+    /// that id is replaced and the timestamp refreshed, so one chat session
+    /// is one history entry. `summary` (e.g. a compaction summary) defaults
+    /// to the first message, like [`MemoryStore::save_conversation`]. The
+    /// record is written atomically (temp file + rename).
+    pub fn upsert_conversation(
+        &self,
+        id: Option<&str>,
+        messages: Vec<ChatMessageRecord>,
+        context_notes: Vec<String>,
+        summary: Option<String>,
+    ) -> Result<Conversation, AetherError> {
+        if messages.is_empty() {
+            return Err(AetherError::InvalidInput(
+                "a conversation needs at least one message".to_owned(),
+            ));
+        }
+        let id = match id.map(str::trim).filter(|s| !s.is_empty()) {
+            Some(existing) if is_valid_conversation_id(existing) => existing.to_owned(),
+            Some(invalid) => {
+                return Err(AetherError::InvalidInput(format!(
+                    "invalid conversation id: {invalid}"
+                )))
+            }
+            None => uuid::Uuid::new_v4().to_string(),
+        };
+        let dir = self.conv_dir();
+        std::fs::create_dir_all(&dir)?;
+        self.remove_conversation_files(&id)?;
+
+        let now = chrono::Utc::now().timestamp();
+        let summary = summary
+            .map(|s| s.trim().to_owned())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| summary_from_messages(&messages));
+        let conversation = Conversation {
+            id: id.clone(),
+            timestamp: now,
+            messages,
+            context_notes,
+            summary,
+        };
+        let json = serde_json::to_string_pretty(&conversation)
+            .map_err(|e| AetherError::Vault(format!("conversation serialize: {e}")))?;
+        let path = dir.join(format!("{now}-{id}.json"));
+        let tmp = dir.join(format!(".{now}-{id}.json.tmp"));
+        std::fs::write(&tmp, json)?;
+        std::fs::rename(&tmp, &path)?;
+        Ok(conversation)
+    }
+
+    /// Delete every stored record of conversation `id`.
+    fn remove_conversation_files(&self, id: &str) -> Result<(), AetherError> {
+        for entry in std::fs::read_dir(self.conv_dir())? {
+            let path = entry?.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let Ok(content) = std::fs::read_to_string(&path) else {
+                continue;
+            };
+            if let Ok(existing) = serde_json::from_str::<Conversation>(&content) {
+                if existing.id == id {
+                    std::fs::remove_file(&path)?;
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn load_recent(&self, limit: usize) -> Result<Vec<Conversation>, AetherError> {
@@ -281,6 +369,98 @@ mod tests {
             .delete_conversation(&saved.id)
             .expect("conversation must delete");
         assert!(store.load_recent(10).expect("must load").is_empty());
+    }
+
+    fn turns(n: usize) -> Vec<ChatMessageRecord> {
+        (0..n)
+            .flat_map(|i| {
+                [
+                    msg("user", &format!("Question {i}? I prefer short answers.")),
+                    msg("assistant", &format!("Answer {i}.")),
+                ]
+            })
+            .collect()
+    }
+
+    fn conversation_files(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+        std::fs::read_dir(dir.join("conversations"))
+            .expect("list")
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("json"))
+            .collect()
+    }
+
+    #[test]
+    fn upsert_replaces_the_previous_record_of_a_session() {
+        let (store, dir) = store();
+        let first = store
+            .upsert_conversation(None, turns(1), vec!["a.md".into()], None)
+            .expect("save");
+        assert_eq!(first.summary, "Question 0? I prefer short answers.");
+        let second = store
+            .upsert_conversation(
+                Some(&first.id),
+                turns(3),
+                vec![],
+                Some("Topic: Q\nFacts:\n- x".into()),
+            )
+            .expect("update");
+        assert_eq!(second.id, first.id);
+
+        let files = conversation_files(dir.path());
+        assert_eq!(files.len(), 1);
+        let stored: super::Conversation =
+            serde_json::from_str(&std::fs::read_to_string(&files[0]).expect("read"))
+                .expect("parse");
+        assert_eq!(stored.messages.len(), 6);
+        assert!(stored.summary.starts_with("Topic: Q"));
+    }
+
+    #[test]
+    fn upsert_replaces_records_written_by_save_conversation() {
+        let (store, dir) = store();
+        let saved = store
+            .save_conversation(vec![msg("user", "first")], vec![])
+            .expect("save");
+        store
+            .upsert_conversation(Some(&saved.id), turns(2), vec![], None)
+            .expect("upsert");
+        assert_eq!(conversation_files(dir.path()).len(), 1);
+        let loaded = store.load_recent(10).expect("load");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].messages.len(), 4);
+    }
+
+    #[test]
+    fn memory_store_loads_upserted_conversations() {
+        let (store, _dir) = store();
+        let saved = store
+            .upsert_conversation(
+                None,
+                turns(2),
+                vec![],
+                Some("Topic: Loaded\nFacts:\n- y".into()),
+            )
+            .expect("save");
+        let loaded = store.load_recent(10).expect("load");
+        assert_eq!(loaded.len(), 1);
+        assert_eq!(loaded[0].id, saved.id);
+        assert!(loaded[0].summary.starts_with("Topic: Loaded"));
+        store.delete_conversation(&saved.id).expect("delete");
+        assert!(store.load_recent(10).expect("load").is_empty());
+    }
+
+    #[test]
+    fn upsert_validates_input() {
+        let (store, dir) = store();
+        assert!(store
+            .upsert_conversation(None, vec![], vec![], None)
+            .is_err());
+        assert!(store
+            .upsert_conversation(Some("../evil"), turns(1), vec![], None)
+            .is_err());
+        assert!(conversation_files(dir.path()).is_empty());
     }
 
     #[test]

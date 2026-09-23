@@ -106,6 +106,11 @@ export interface MethodSpec {
   permission: string | null;
   /** How long the worker waits for the host's answer. */
   timeoutMs: number;
+  /**
+   * Largest accepted parameter payload (see `payloadSize` in `limits.ts`);
+   * defaults to `MAX_PAYLOAD_SIZE` (1 MiB). Only note content may be larger.
+   */
+  maxPayload?: number;
   /** Check and normalise the positional parameters; throws `TypeError`. */
   validate(params: unknown[]): unknown[];
 }
@@ -137,6 +142,8 @@ function arity(params: unknown[], max: number, method: string): void {
 }
 
 const NOTE_MAX = 5 * 1024 * 1024;
+/** Payload cap of the methods that carry a whole note (content + path/title + framing). */
+const NOTE_PAYLOAD_MAX = NOTE_MAX + 8 * 1024;
 const PATH_MAX = 1024;
 const COMMAND_ID = /^[A-Za-z0-9._-]{1,64}$/;
 
@@ -159,6 +166,7 @@ export const PLUGIN_METHODS: Record<PluginMethod, MethodSpec> = {
   "vault.write": {
     permission: "vault:write",
     timeoutMs: 10_000,
+    maxPayload: NOTE_PAYLOAD_MAX,
     validate: (p) => {
       arity(p, 2, "vault.write");
       return [string(p[0], "path", PATH_MAX), string(p[1], "content", NOTE_MAX, true)];
@@ -167,6 +175,7 @@ export const PLUGIN_METHODS: Record<PluginMethod, MethodSpec> = {
   "notes.create": {
     permission: "notes:create",
     timeoutMs: 10_000,
+    maxPayload: NOTE_PAYLOAD_MAX,
     validate: (p) => {
       arity(p, 2, "notes.create");
       return [string(p[0], "title", 200), p[1] === undefined || p[1] === null ? "" : string(p[1], "content", NOTE_MAX, true)];

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import agentActionsRs from "../../../src-tauri/src/engine/agent_actions.rs?raw";
 import type { AgentAction } from "../../types";
-import { actionRisk, allowToggleLabel, describeRule, needsApproval, normalizeScope, ruleMatches, ruleScope, type AllowRule } from "./risk";
+import { ACTION_RISKS, actionRisk, allowToggleLabel, describeRule, needsApproval, normalizeScope, ruleMatches, ruleScope, type AllowRule } from "./risk";
 
 const run = (cwd?: string | null): AgentAction => ({ action: "run_command", command: "npm test", cwd });
 
@@ -42,6 +43,30 @@ describe("actionRisk", () => {
 
   it("treats unknown kinds from newer prompts as dangerous", () => {
     expect(actionRisk({ action: "format_disk" } as unknown as AgentAction)).toBe("dangerous");
+    for (const sneaky of ["__proto__", "constructor", "toString", "hasOwnProperty", ""]) {
+      expect(actionRisk({ action: sneaky } as unknown as AgentAction), sneaky).toBe("dangerous");
+    }
+    expect(actionRisk({} as unknown as AgentAction)).toBe("dangerous");
+    expect(actionRisk({ action: 42 } as unknown as AgentAction)).toBe("dangerous");
+  });
+
+  it("classifies every Rust action kind exactly like action_risk in agent_actions.rs", () => {
+    const source = agentActionsRs;
+    const kindBody = /pub fn action_kind\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(source)?.[1] ?? "";
+    const kinds = new Map([...kindBody.matchAll(/AgentAction::(\w+)\s*\{[^}]*\}\s*=>\s*"(\w+)"/g)].map((m) => [m[1], m[2]]));
+    const riskBody = /pub fn action_risk\([^)]*\)[^{]*\{([\s\S]*?)\n\}/.exec(source)?.[1] ?? "";
+    const rust: Record<string, string> = {};
+    const arms = [...riskBody.matchAll(/((?:\|?\s*AgentAction::\w+\s*\{\s*\.\.\s*\}\s*)+)=>\s*ActionRisk::(\w+)/g)];
+    for (const [, variants, risk] of arms) {
+      for (const [, variant] of variants.matchAll(/AgentAction::(\w+)/g)) {
+        const kind = kinds.get(variant);
+        expect(kind, `action_kind has no arm for ${variant}`).toBeDefined();
+        rust[kind!] = risk.toLowerCase();
+      }
+    }
+    expect(Object.keys(rust).length, "could not parse action_risk").toBeGreaterThan(10);
+    expect(Object.keys(rust).length).toBe(kinds.size);
+    expect({ ...ACTION_RISKS }).toEqual(rust);
   });
 });
 

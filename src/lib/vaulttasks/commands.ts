@@ -32,7 +32,7 @@ export const vaultTasksCommands: CommandContribution[] = [
     keywords: ["todo", "checkbox", "capture", "daily", "task"],
     run: (ctx) => {
       const store = useVaultTasksStore.getState();
-      ctx.closeCommandBar();
+      ctx.closeLauncher();
       if (!store.openQuickAdd()) {
         // No dialog host mounted (status bar hidden): use the view's field.
         ctx.setView("vaulttasks");

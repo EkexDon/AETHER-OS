@@ -63,7 +63,7 @@ function ChipInput({ label, values, placeholder, icon, onChange }: ChipInputProp
               onClick={() => onChange(values.filter((x) => x !== v))}
               aria-label={`Remove ${v}`}
             >
-              <X size={10} />
+              <X size={14} />
             </button>
           </span>
         ))}
@@ -336,7 +336,7 @@ export function EventEditorModal({
             onClick={() => void handleDelete()}
             disabled={saving}
           >
-            <Trash2 size={13} /> {confirmingDelete ? "Confirm delete" : "Delete"}
+            <Trash2 size={14} /> {confirmingDelete ? "Confirm delete" : "Delete"}
           </button>
         )
       }
@@ -461,7 +461,7 @@ export function EventEditorModal({
             label="Tags"
             values={tags}
             placeholder="Type a tag and press Enter"
-            icon={<TagIcon size={10} />}
+            icon={<TagIcon size={14} />}
             onChange={setTags}
           />
 
@@ -469,14 +469,14 @@ export function EventEditorModal({
             label="Attendees"
             values={attendees}
             placeholder="Name or email"
-            icon={<User size={10} />}
+            icon={<User size={14} />}
             onChange={setAttendees}
           />
 
           <label className="event-editor-field">
             <span className="event-editor-field-label">Location</span>
             <div className="event-editor-field-row">
-              <MapPin size={12} className="text-tertiary" />
+              <MapPin size={14} className="text-tertiary" />
               <input
                 className="settings-input"
                 type="text"

@@ -2,8 +2,41 @@ use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::commands::ide_commands::workspace;
+use crate::engine::fs_guard;
+use crate::engine::workspace::Workspace;
 use crate::AppState;
 use tauri::State;
+
+/// Folder bundles that `open` would launch or install instead of showing.
+const BUNDLE_EXTENSIONS: &[&str] = &[
+    "app",
+    "appex",
+    "action",
+    "bundle",
+    "framework",
+    "kext",
+    "mdimporter",
+    "mpkg",
+    "pkg",
+    "plugin",
+    "prefpane",
+    "qlgenerator",
+    "saver",
+    "service",
+    "workflow",
+    "xpc",
+];
+
+/// Known editor keys: (key, macOS application name, CLI shim).
+const KNOWN_EDITORS: &[(&str, &str, &str)] = &[
+    ("devin", "Devin", "devin"),
+    ("windsurf", "Windsurf", "windsurf"),
+    ("cursor", "Cursor", "cursor"),
+    ("code", "Visual Studio Code", "code"),
+    ("vscode", "Visual Studio Code", "code"),
+    ("visual studio code", "Visual Studio Code", "code"),
+];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
@@ -47,9 +80,13 @@ fn detect_language(path: &Path) -> String {
 }
 
 fn run_git(path: &Path, args: &[&str]) -> Option<String> {
+    // Read-only queries: no fsmonitor hook from the repository's config, no
+    // index refresh lock.
     let output = Command::new("git")
+        .args(["-c", "core.fsmonitor=false"])
         .args(args)
         .current_dir(path)
+        .env("GIT_OPTIONAL_LOCKS", "0")
         .output()
         .ok()?;
     if !output.status.success() {
@@ -120,17 +157,118 @@ fn scan_directory(dir: &Path, depth: u32) -> Vec<PathBuf> {
     found
 }
 
+/// Folders a project path from the UI may live in: the configured project
+/// folders, the vault and the file-search folders (canonical).
+fn allowed_roots(state: &State<'_, AppState>) -> Vec<PathBuf> {
+    let mut roots = workspace(state).roots().to_vec();
+    roots.extend(
+        state
+            .search
+            .settings()
+            .file_roots
+            .iter()
+            .filter_map(|r| std::fs::canonicalize(r).ok()),
+    );
+    roots
+}
+
+/// Resolve an existing path inside `roots` (symlinks resolved).
+fn resolve_in_roots(roots: &[PathBuf], path: &str) -> Result<PathBuf, String> {
+    Workspace::new(roots)
+        .resolve_existing(path)
+        .map_err(|e| e.to_string())
+}
+
+/// Resolve a folder to reveal: an existing directory inside `roots` that is
+/// not an application or installer bundle (which `open` would launch).
+fn resolve_folder_in_roots(roots: &[PathBuf], path: &str) -> Result<PathBuf, String> {
+    let dir = resolve_in_roots(roots, path)?;
+    if !dir.is_dir() {
+        return Err(format!("not a folder: {}", dir.display()));
+    }
+    let is_bundle = dir
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| BUNDLE_EXTENSIONS.contains(&e.to_ascii_lowercase().as_str()));
+    if is_bundle {
+        return Err(format!(
+            "refusing to open an application or installer bundle: {}",
+            dir.display()
+        ));
+    }
+    Ok(dir)
+}
+
+/// The editor to launch: a known key (`devin`, `cursor`, …) maps to its app
+/// name and CLI shim; anything else must be a plain macOS application name
+/// (no path separators, no leading `-` or `.`, no control characters) and is
+/// only ever launched through `open -a`.
+fn resolve_editor(requested: &str) -> Result<(String, Option<&'static str>), String> {
+    let key = requested.trim();
+    if let Some((_, app, cli)) = KNOWN_EDITORS
+        .iter()
+        .find(|(k, _, _)| k.eq_ignore_ascii_case(key))
+    {
+        return Ok(((*app).to_owned(), Some(*cli)));
+    }
+    let valid = !key.is_empty()
+        && key.chars().count() <= 100
+        && !key.starts_with(['-', '.'])
+        && !key
+            .chars()
+            .any(|c| c.is_control() || matches!(c, '/' | '\\' | ':'));
+    if !valid {
+        return Err(format!("invalid editor application name: {requested:?}"));
+    }
+    Ok((key.to_owned(), None))
+}
+
+/// Validate a project folder before it is added: an absolute path to an
+/// existing directory that is not a filesystem root, a system folder or
+/// inside the app data folder (`config_dir`). Returns the trimmed path.
+fn validate_project_dir(dir: &str, config_dir: &Path) -> Result<String, String> {
+    let trimmed = dir.trim();
+    let path = Path::new(trimmed);
+    if trimmed.is_empty() || trimmed.contains('\0') || !path.is_absolute() {
+        return Err(format!(
+            "project folder must be an absolute path: {trimmed:?}"
+        ));
+    }
+    let canonical = std::fs::canonicalize(path)
+        .map_err(|_| format!("project folder does not exist: {trimmed}"))?;
+    if !canonical.is_dir() {
+        return Err(format!("not a folder: {trimmed}"));
+    }
+    if fs_guard::is_system_location(&canonical) {
+        return Err(format!(
+            "a filesystem root or system folder cannot be a project folder: {trimmed}"
+        ));
+    }
+    if let Ok(data) = std::fs::canonicalize(config_dir) {
+        if canonical.starts_with(&data) {
+            return Err("the AETHER-OS data folder cannot be a project folder".to_owned());
+        }
+    }
+    Ok(trimmed.to_owned())
+}
+
+/// Find code projects below `directories`. Only folders inside the
+/// configured project folders or the vault are scanned; others are skipped
+/// like missing ones.
 #[tauri::command]
-pub async fn cmd_scan_projects(directories: Vec<String>) -> Result<Vec<Project>, String> {
+pub async fn cmd_scan_projects(
+    state: State<'_, AppState>,
+    directories: Vec<String>,
+) -> Result<Vec<Project>, String> {
+    let roots = workspace(&state).roots().to_vec();
     let mut projects = Vec::new();
     let mut seen = std::collections::HashSet::new();
 
     for dir_str in &directories {
-        let dir = Path::new(dir_str);
-        if !dir.exists() {
+        let Ok(dir) = resolve_in_roots(&roots, dir_str) else {
             continue;
-        }
-        for path in scan_directory(dir, 0) {
+        };
+        for path in scan_directory(&dir, 0) {
             let path_str = path.to_string_lossy().to_string();
             if !seen.insert(path_str.clone()) {
                 continue;
@@ -157,25 +295,27 @@ pub async fn cmd_scan_projects(directories: Vec<String>) -> Result<Vec<Project>,
     Ok(projects)
 }
 
+/// Open a project (or file) in an external editor (default: Devin). The
+/// path must lie inside the project folders, the vault or the file-search
+/// folders.
 #[tauri::command]
-pub async fn cmd_open_project(path: String, editor: Option<String>) -> Result<(), String> {
+pub async fn cmd_open_project(
+    state: State<'_, AppState>,
+    path: String,
+    editor: Option<String>,
+) -> Result<(), String> {
+    let target = resolve_in_roots(&allowed_roots(&state), &path)?;
     let requested = editor.unwrap_or_else(|| "devin".to_owned());
+    let (app_name, cli) = resolve_editor(&requested)?;
 
-    // Map common editor keys to their macOS Application bundle names, and
-    // launch via `open -a` so this works even when the editor's CLI shim
-    // (e.g. `code`, `cursor`, `windsurf`, `devin`) has not been installed into PATH.
-    let app_name = match requested.to_lowercase().as_str() {
-        "devin" => "Devin".to_owned(),
-        "windsurf" => "Windsurf".to_owned(),
-        "cursor" => "Cursor".to_owned(),
-        "code" | "vscode" | "visual studio code" => "Visual Studio Code".to_owned(),
-        _ => requested.clone(),
-    };
-
+    // Launch via `open -a` so this works even when the editor's CLI shim
+    // (e.g. `code`, `cursor`, `windsurf`, `devin`) has not been installed
+    // into PATH. The canonical target is absolute, so it can never be
+    // mistaken for an option.
     let open_status = Command::new("open")
         .arg("-a")
         .arg(&app_name)
-        .arg(&path)
+        .arg(&target)
         .status();
 
     if let Ok(status) = open_status {
@@ -184,33 +324,39 @@ pub async fn cmd_open_project(path: String, editor: Option<String>) -> Result<()
         }
     }
 
-    // Fallback: try the raw CLI command directly (works if the user has
-    // installed the shell command shim for their editor).
-    let status = Command::new(&requested)
-        .arg(&path)
+    // Fallback for known editors only: their CLI shim, if installed.
+    let Some(cli) = cli else {
+        return Err(format!("Failed to launch {app_name}"));
+    };
+    let status = Command::new(cli)
+        .arg(&target)
         .status()
         .map_err(|e| format!("Failed to launch {app_name}: {e}"))?;
     if !status.success() {
-        return Err(format!("{requested} exited with status {status}"));
+        return Err(format!("{cli} exited with status {status}"));
     }
     Ok(())
 }
 
+/// Open a new Terminal window in a project folder.
 #[tauri::command]
-pub async fn cmd_open_in_terminal(path: String) -> Result<(), String> {
+pub async fn cmd_open_in_terminal(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    let dir = resolve_folder_in_roots(&allowed_roots(&state), &path)?;
     Command::new("open")
         .arg("-a")
         .arg("Terminal")
-        .arg(&path)
+        .arg(&dir)
         .status()
         .map_err(|e| format!("Failed to open Terminal: {e}"))?;
     Ok(())
 }
 
+/// Show a project folder in Finder.
 #[tauri::command]
-pub async fn cmd_open_in_finder(path: String) -> Result<(), String> {
+pub async fn cmd_open_in_finder(state: State<'_, AppState>, path: String) -> Result<(), String> {
+    let dir = resolve_folder_in_roots(&allowed_roots(&state), &path)?;
     Command::new("open")
-        .arg(&path)
+        .arg(&dir)
         .status()
         .map_err(|e| format!("Failed to open Finder: {e}"))?;
     Ok(())
@@ -232,6 +378,7 @@ pub async fn cmd_add_project_dir(
     state: State<'_, AppState>,
     dir: String,
 ) -> Result<Vec<String>, String> {
+    let dir = validate_project_dir(&dir, state.vault.config_dir())?;
     let config_path = state.vault.config_dir().join("project_dirs.json");
     let mut directories = if config_path.exists() {
         let content = std::fs::read_to_string(&config_path).map_err(|e| e.to_string())?;
@@ -281,8 +428,87 @@ pub async fn cmd_remove_project_dir(
 
 #[cfg(test)]
 mod tests {
-    use super::{detect_language, is_project_dir, scan_directory};
+    use super::{
+        detect_language, is_project_dir, resolve_editor, resolve_folder_in_roots, resolve_in_roots,
+        scan_directory, validate_project_dir,
+    };
     use std::path::Path;
+
+    /// Table: good path, `..` path, symlink escape, absolute outside path.
+    #[test]
+    fn project_paths_must_stay_inside_the_roots() {
+        let root_dir = tempfile::tempdir().expect("root");
+        let outside = tempfile::tempdir().expect("outside");
+        let root = std::fs::canonicalize(root_dir.path()).expect("canonicalize");
+        std::fs::create_dir(root.join("app")).expect("mkdir");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(outside.path(), root.join("escape")).expect("symlink");
+        let roots = vec![root.clone()];
+        let dotdot = format!(
+            "{}/../{}",
+            root.display(),
+            outside.path().file_name().unwrap().to_string_lossy()
+        );
+        let mut cases = vec![
+            (root.join("app").display().to_string(), true),
+            (dotdot, false),
+            (outside.path().display().to_string(), false),
+        ];
+        #[cfg(unix)]
+        cases.push((root.join("escape").display().to_string(), false));
+        for (path, ok) in cases {
+            assert_eq!(resolve_in_roots(&roots, &path).is_ok(), ok, "{path}");
+        }
+    }
+
+    #[test]
+    fn folders_to_reveal_are_directories_but_not_bundles() {
+        let root_dir = tempfile::tempdir().expect("root");
+        let root = std::fs::canonicalize(root_dir.path()).expect("canonicalize");
+        std::fs::create_dir_all(root.join("project")).expect("mkdir");
+        std::fs::create_dir_all(root.join("Tool.app/Contents")).expect("mkdir");
+        touch(&root, "file.txt");
+        let roots = vec![root.clone()];
+        assert!(resolve_folder_in_roots(&roots, &root.join("project").to_string_lossy()).is_ok());
+        assert!(resolve_folder_in_roots(&roots, &root.join("Tool.app").to_string_lossy()).is_err());
+        assert!(resolve_folder_in_roots(&roots, &root.join("file.txt").to_string_lossy()).is_err());
+    }
+
+    #[test]
+    fn editors_are_known_keys_or_plain_app_names() {
+        assert_eq!(
+            resolve_editor("code").unwrap(),
+            ("Visual Studio Code".to_owned(), Some("code"))
+        );
+        assert_eq!(resolve_editor("Cursor").unwrap().1, Some("cursor"));
+        assert_eq!(resolve_editor("Zed").unwrap(), ("Zed".to_owned(), None));
+        for bad in [
+            "",
+            "/usr/bin/python3",
+            "../evil",
+            "-a",
+            ".hidden",
+            "a\nb",
+            "C:x",
+        ] {
+            assert!(resolve_editor(bad).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn project_dirs_are_validated_before_they_are_added() {
+        let data = tempfile::tempdir().expect("data");
+        let projects = tempfile::tempdir().expect("projects");
+        let ok = |d: &str| validate_project_dir(d, data.path()).is_ok();
+        assert!(ok(&projects.path().to_string_lossy()));
+        assert!(!ok("relative/dir"));
+        assert!(!ok("/"));
+        assert!(!ok("/usr"));
+        assert!(!ok(&data.path().to_string_lossy()));
+        std::fs::create_dir(data.path().join("tasks")).expect("mkdir");
+        assert!(!ok(&data.path().join("tasks").to_string_lossy()));
+        assert!(!ok("/definitely/not/here/xyz"));
+    }
 
     fn touch(dir: &Path, name: &str) {
         std::fs::write(dir.join(name), "").expect("marker file must be written");

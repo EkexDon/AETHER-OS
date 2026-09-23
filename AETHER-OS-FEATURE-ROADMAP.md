@@ -4,27 +4,43 @@
 
 ---
 
-## Current State (v0.1)
+## Current State (v0.2.0 — 2026-09-23)
 
 | Feature | Status |
 |---------|--------|
-| AI Agent Chat (Ollama, streaming, note context) | ✅ Shipped |
-| Semantic Search (vector embeddings) | ✅ Shipped |
-| Knowledge Graph (wikilink visualization) | ✅ Shipped |
-| Dashboard (vault stats, note preview) | ✅ Shipped |
-| AETHER Notes (AI-generated note persistence) | ✅ Shipped |
-| Project Dashboard (git status, scan, open in editor) | ✅ Shipped |
-| Persistent AI Memory (facts, conversations) | ✅ Shipped |
-| Command Bar (Cmd+K palette) | ✅ Shipped |
-| Configurable Default Editor | ✅ Shipped |
-| Resizable Panels | ✅ Shipped |
-| Built-in Terminal (PTY, multi-tab, xterm.js) | ✅ Shipped |
-| System Monitor (CPU, RAM, disk, network, processes) | ✅ Shipped |
-| Embedded Browser (native webview subviews, tabs, bookmarks, history) | ✅ Shipped |
-| Embedded IDE (Monaco editor, file tree, tabs, PTY terminal) | ✅ Shipped |
-| Git Source Control in the IDE (status, staging, commit, branches, diffs, log) | ✅ Shipped |
-| Project-wide IntelliSense in the IDE (LSP sidecars: hover, completions, go-to-definition, diagnostics) | ✅ Shipped |
-| AI Agent Actions — safe writes (create_note, append_note, append_daily, add_memory_fact, save_aether_note, open_url, clip_url) | ✅ Shipped v0.1 |
+| AI Agent Chat (Ollama / OpenRouter, streaming, note context) | ✅ Shipped v0.1 |
+| Semantic Search (vector embeddings) | ✅ Shipped v0.1 — now part of Universal Search (v0.2) |
+| Knowledge Graph (wikilink visualization, tag filter) | ✅ Shipped v0.1 |
+| Dashboard → **Home** (today, continue, pins, focus, vault health) | ✅ Shipped v0.2 |
+| AETHER Notes (AI-generated note persistence) | ✅ Shipped v0.1 |
+| Project Dashboard (git status, scan, open in editor) | ✅ Shipped v0.1 |
+| Persistent AI Memory (facts, conversations) | ✅ Shipped v0.1 |
+| Command Bar → **Launcher** (⌘K + ⌥Space system-wide) | ✅ Shipped v0.2 |
+| Configurable Default Editor | ✅ Shipped v0.1 |
+| Resizable Panels | ✅ Shipped v0.1 |
+| Built-in Terminal (PTY, multi-tab, xterm.js) | ✅ Shipped v0.1 |
+| System Monitor (CPU, RAM, disk, network, processes) | ✅ Shipped v0.1 |
+| Embedded Browser (native webview subviews, tabs, bookmarks) | ✅ Shipped v0.1 |
+| Embedded IDE (Monaco editor, file tree, tabs, PTY terminal) | ✅ Shipped v0.1 |
+| Git Source Control in the IDE (status, staging, commit, branches, diffs, log) | ✅ Shipped v0.1 |
+| Project-wide IntelliSense in the IDE (LSP sidecars) | ✅ Shipped v0.1 |
+| Note Editor (WYSIWYG Markdown, tabs, backlinks, unlinked mentions, autosave) | ✅ Shipped v0.1 |
+| Daily Notes, Quick Capture, Web Clipper | ✅ Shipped v0.1 |
+| Calendar & Reminders (month/week/day, ICS, notifications) | ✅ Shipped v0.1 |
+| Project task boards (Kanban + list) | ✅ Shipped v0.1 |
+| AI Agent Actions — safe writes | ✅ Shipped v0.1 |
+| AI Agent Actions — destructive tools behind approvals + audit log | ✅ Shipped v0.2 |
+| Design system, light/dark themes, grouped navigation, status bar, shortcuts overlay | ✅ Shipped v0.2 |
+| Clipboard Manager (1.3) | ✅ Shipped v0.2 |
+| Quick Launcher (1.4) + Universal Search (4.4) | ✅ Shipped v0.2 |
+| Note Tasks — checkbox tasks from notes (3.1) | ✅ Shipped v0.2 |
+| Pomodoro & Focus Mode (3.3), Pins (3.4) | ✅ Shipped v0.2 |
+| Auto-Git note versioning (4.1) | ✅ Shipped v0.2 |
+| AI note suggestions (4.2), conversation compaction (4.3) | ✅ Shipped v0.2 |
+| Plugin system (5.1) | ✅ Shipped v0.2 |
+| Export & publishing (5.2) | ✅ Shipped v0.2 |
+| Sync & multi-device (5.3) | ◐ Shipped v0.2 as encrypted folder sync + backups; relay / LAN sync not built |
+| First-run setup, complete settings, update check, local crash reports | ✅ Shipped v0.2 |
 
 ---
 
@@ -64,6 +80,8 @@
 
 **What you get:** Never lose a copied snippet again. Search paste history by content. Pin frequently used code blocks. Reduces friction between browser, editor, and terminal.
 
+**Status (v0.2):** ✅ **Shipped.** `arboard` polling (700 ms, image back-off) into SQLite + FTS5; kinds text / link / code / colour / image with filters, pinning (never pruned), re-copy, save as note, retention and size limits, pause, and a secret filter that drops token formats, JWTs, keys, card numbers and high-entropy strings before storage. ⇧⌘V opens it. Not built: per-app exclusion (the frontmost app is not available without platform bindings), rich text / file clips. See `docs/features/clipboard.md`.
+
 ---
 
 ### 1.4 — Quick Launcher
@@ -75,6 +93,8 @@
 **Tech:** Extend existing CommandBar component, add file system indexing (Rust `walkdir`), fuzzy search (`fuzzy-matcher` crate), app launching via `open -a`.
 
 **What you get:** One input to rule them all. No moreFinder, no more Spotlight, no more app switching. Type what you want, hit enter, it's open.
+
+**Status (v0.2):** ✅ **Shipped.** ⌘K in the app and ⌥Space system-wide (`tauri-plugin-global-shortcut`, configurable). Searches commands, notes, projects, project files (`.gitignore`-aware), macOS apps (launch via `open -a`), events, tasks, memory, conversations, bookmarks and clipboard; prefixes `>` `#` `/` `@` `?`; alternate open with ⌘↵; frecency-ranked recents. It replaces the Command Bar. App discovery is macOS-only. See `docs/features/search.md`.
 
 ---
 
@@ -128,6 +148,8 @@
 
 **Status (v0.1):** ✅ **Shipped — safe-write subset.** Seven actions live: `create_note`, `append_note`, `append_daily`, `add_memory_fact`, `save_aether_note`, `open_url`, `clip_url`. AI emits them as ```action JSON blocks; the app parses, routes to the right engine, and shows the result as a chip. v1 auto-executes because every action is safe-write or read+save. Destructive tools (terminal, git, file-delete) are intentionally deferred — they need a per-action approval modal that the next round adds.
 
+**Status (v0.2):** ✅ **Shipped — destructive tools with approvals.** Every action has a risk level (safe / confirm / dangerous). New: `run_command` (login shell, cwd inside a project or the vault, timeout, output caps), `delete_note` (moves to `<vault>/.trash/`), `move_note`, `git_commit`, `create_task`, `toggle_vault_task`, plus the calendar actions. Confirm and dangerous actions stop at an approval dialog with a resolved preview and warnings; "always allow" rules are scoped (dangerous rules end when the app quits); every executed or denied action goes to a local audit log. Not built: `web_search`, native tool-calling APIs (the JSON block format is used for every model). See `docs/features/intel.md`.
+
 ---
 
 ### 2.5 — Web Clipper & Research Mode
@@ -153,6 +175,8 @@
 **Tech:** Rust backend scanning vault for `- [ ]` and `- [x]` patterns, extracting task text + source note path. React Kanban board with drag-and-drop (@hello-pangea/dnd or similar).
 
 **What you get:** All your tasks in one place. Drag to prioritize. Click to see the note context. No separate todo app needed.
+
+**Status (v0.2):** ✅ **Shipped as Note Tasks** (plus the separate project boards shipped in v0.1). Every `- [ ]` / `- [x]` in the vault is parsed in Rust (Obsidian Tasks syntax: due / scheduled / start / done dates, priorities, tags, `[/]` in progress, `[-]` cancelled; frontmatter and code blocks ignored) with a per-note parse cache. Board (Todo / In progress / Done / Cancelled), list by due date and by-note layouts; ticking, dragging, due dates and priorities rewrite only the task's line, with a stale-line check; tasks can be promoted to board cards; ⇧⌘T adds to today's daily note. Not built: recurrence, a filesystem watcher (refresh on open/focus), scrolling the editor to the task line. See `docs/features/vaulttasks.md`.
 
 ---
 
@@ -180,6 +204,8 @@
 
 **What you get:** Build deep work habits. Track how much focused time you actually get. See patterns — "I focus best at 10am" — and optimize your schedule.
 
+**Status (v0.2):** ✅ **Shipped.** Wall-clock Pomodoro in the status bar (⌥⌘T; work / break / long break, configurable, survives reloads), focus log in `<app data>/focus/sessions.jsonl` with today's minutes, sessions, streak and a 7-day chart on Home, desktop notifications and optional sound, and Focus Mode (⇧⌘F, Esc twice to leave) that dims the rail and hides sidebar, titlebar actions and most status items. Focus Mode is a UI mode inside the window, not OS-level window management. See `docs/features/home.md`.
+
 ---
 
 ### 3.4 — Bookmarks & Pinned Items
@@ -191,6 +217,8 @@
 **Tech:** Zustand store with localStorage persistence, React sidebar component, drag-to-reorder.
 
 **What you get:** Your most-used items are always one click away. No searching, no navigating. Customize your workflow surface.
+
+**Status (v0.2):** ✅ **Shipped.** Pins for notes, projects, commands, AI conversations and links in named groups; drag or ⌥↑/⌥↓ to reorder; shown on Home and in a non-modal pins drawer (⌥⌘B, status bar); ⇧⌘D pins the open note; missing targets are flagged. Stored in `localStorage` (per device, not synced). See `docs/features/home.md`.
 
 ---
 
@@ -206,6 +234,8 @@
 
 **What you get:** Never lose a draft. See how your notes evolved. Restore anything. Your knowledge base has a history, not just a present.
 
+**Status (v0.2):** ✅ **Shipped.** `notify` watcher (2 s debounce) plus a 30 s safety scan commit changed notes and attachments with `git2` into `<vault>/.git` (existing repositories are adopted without touching remotes, branches or config). History view with an activity timeline, per-note versions, unified / side-by-side diffs and restore-as-new-version; a drawer in the editor (⇧⌘H); snapshot now (⌥⌘S). Not built: following a note across renames, squashing or pruning old versions. See `docs/features/history.md`.
+
 ---
 
 ### 4.2 — AI-Powered Note Suggestions
@@ -217,6 +247,8 @@
 **Tech:** Semantic similarity via existing vector embeddings, real-time suggestions during editing, AI summarization via Ollama.
 
 **What you get:** Your knowledge graph grows automatically. Connections you'd never make manually are surfaced. The system gets smarter the more you use it.
+
+**Status (v0.2):** ✅ **Shipped — links and tags.** While writing, related notes are computed 1.5 s after typing stops (vector index when built, keyword/tag fallback otherwise) and shown as "N related" (⇧⌘R) with a reason chip and one-click `[[link]]`; tag chips add existing vault tags to the frontmatter. The agent can use the open note plus its related notes as context. Not built: automatic note summaries for the dashboard. See `docs/features/intel.md`.
 
 ---
 
@@ -230,6 +262,8 @@
 
 **What you get:** Month-long AI conversations that stay fast. No more manually starting "new chat" because the old one got slow. The AI remembers the summary, you keep the full history.
 
+**Status (v0.2):** ✅ **Shipped.** The chat now sends a bounded conversation window (summary + newest messages, budgeted per provider). Past a threshold (default 6,000 estimated tokens) older messages are summarised by the current model into topic / facts / decisions / open questions / preferences, with a local extractive fallback; manual "compact now"; token meter in the engine bar; one `MemoryStore` record per session with the summary. Token counts are a character-based estimate, not the model's tokenizer. See `docs/features/intel.md`.
+
 ---
 
 ### 4.4 — Cross-Module Universal Search
@@ -241,6 +275,8 @@
 **Tech:** Unified search index combining vector embeddings (notes), BM25 keyword search (all text), file system index, and memory store queries. React results UI with category tabs.
 
 **What you get:** Find anything from one input. No more "which search do I use?" One box, everything searchable, results ranked by relevance.
+
+**Status (v0.2):** ✅ **Shipped.** One SQLite FTS5 index (bm25 with title / tag / body weights, diacritic folding) over notes, projects, files, apps, events, tasks, memory and conversations; fuzzy title matching; optional semantic results from the vector index; reciprocal-rank fusion with a frecency boost. The Search view (⌘3 / ⇧⌘K) has category tabs, highlighted snippets and a preview pane; bookmarks and clipboard are merged in the launcher. Not built: indexing file contents (names and paths only), semantic search beyond notes, a live file watcher. See `docs/features/search.md`.
 
 ---
 
@@ -256,6 +292,8 @@
 
 **What you get:** Infinite extensibility without forking. Build custom tools for your workflow. Share them with others. AETHER-OS becomes a platform, not just an app.
 
+**Status (v0.2):** ✅ **Shipped — Web Worker sandbox.** Manifest (`manifest.json` + one ES module), one hardened worker per plugin, typed RPC, permissions requested by the manifest and granted by the user (vault read/write, create notes, commands, panel, status bar, AI query, clipboard, HTTPS GET to named hosts), enforced in the webview host and again in Rust; declarative panels (validated view tree or sanitised Markdown); install from folder or zip; three bundled examples (Word Count, Daily Review, Random Note). Not built: a marketplace, multi-file plugins, a CPU/memory watchdog, custom views in the rail. Author guide: `docs/PLUGIN-API.md`.
+
 ---
 
 ### 5.2 — Export & Publishing
@@ -267,6 +305,8 @@
 **Tech:** Rust backend for PDF generation (via `printpdf` or `wkhtmltopdf`), static site generation from Markdown, optional GitHub Pages deployment.
 
 **What you get:** Share notes as polished PDFs. Publish a knowledge site from your vault. Export everything as a backup. Your knowledge isn't locked in.
+
+**Status (v0.2):** ✅ **Shipped.** `pulldown-cmark` + `syntect`: a note as standalone HTML (inlined styles and images) or PDF via the system print dialog; a note, folder, tag, selection or the whole vault as a static site (backlinks, tag pages, client-side search, light/dark, sitemap, CNAME, relative links for any host) or a Markdown bundle zip (optional wikilink conversion). Wizard with live preview; raw HTML sanitised. Not built: direct PDF files without the print dialog, one-click deployment to GitHub Pages, transclusion of `![[Note]]`. See `docs/features/export.md`.
 
 ---
 
@@ -280,32 +320,34 @@
 
 **What you get:** Your knowledge base on every device. Encrypted, private, no subscription. Sync happens in the background.
 
+**Status (v0.2):** ◐ **Shipped as encrypted folder sync — relay-based sync is not built.** Devices sync through a folder the user already syncs (iCloud Drive, Dropbox, Syncthing, NAS, USB). Argon2id key from the passphrase, AES-256-GCM per object, keyed BLAKE3 names, content-addressed blobs, per-device encrypted indexes, tombstones, conflict copies with side-by-side resolution; vault plus optional app data; background rounds every 30 s–1 h. Encrypted `.aetherbak` backups (manual or scheduled with retention, verify, merge/replace restore). There is **no relay server, no direct LAN sync, no mobile client and no CRDT merging** (conflicts are per file, last writer keeps the path). The envelope and folder format is documented so a relay can reuse it. See `docs/features/sync.md`.
+
 ---
 
 ## Priority Matrix
 
-| Feature | Impact | Effort | Priority |
-|---------|--------|--------|----------|
-| 1.1 Built-in Terminal | Critical | Medium | P0 |
-| 1.2 System Monitor | High | Low | P0 |
-| 1.3 Clipboard Manager | High | Medium | P1 |
-| 1.4 Quick Launcher | High | Low | P1 |
-| 2.1 Note Editor | Critical | High | P0 |
-| 2.2 Backlinks | High | Low | P1 |
-| 2.3 Daily Notes & Quick Capture | High | Low | P0 |
-| 2.4 AI Agent Actions (safe writes) | Critical | High | **Shipped v0.1** |
-| 2.5 Web Clipper | Medium | Medium | P2 |
-| 3.1 Task Management (Kanban) | High | Medium | P1 |
-| 3.2 Calendar & Reminders | High | High | **Shipped v0.1** |
-| 3.3 Pomodoro & Focus Mode | Medium | Low | P2 |
-| 3.4 Bookmarks & Pinned Items | Medium | Low | P1 |
-| 4.1 Auto-Git Versioning | High | Medium | P1 |
-| 4.2 AI Note Suggestions | Medium | Medium | P2 |
-| 4.3 Conversation Auto-Compaction | High | Low | P1 |
-| 4.4 Universal Search | High | Medium | P1 |
-| 5.1 Plugin System | High | Very High | P3 |
-| 5.2 Export & Publishing | Medium | Medium | P3 |
-| 5.3 Sync & Multi-Device | High | Very High | P3 |
+| Feature | Impact | Effort | Priority | Status |
+|---------|--------|--------|----------|--------|
+| 1.1 Built-in Terminal | Critical | Medium | P0 | ✅ v0.1 |
+| 1.2 System Monitor | High | Low | P0 | ✅ v0.1 |
+| 1.3 Clipboard Manager | High | Medium | P1 | ✅ v0.2 |
+| 1.4 Quick Launcher | High | Low | P1 | ✅ v0.2 |
+| 2.1 Note Editor | Critical | High | P0 | ✅ v0.1 |
+| 2.2 Backlinks | High | Low | P1 | ✅ v0.1 |
+| 2.3 Daily Notes & Quick Capture | High | Low | P0 | ✅ v0.1 |
+| 2.4 AI Agent Actions | Critical | High | — | ✅ v0.1 safe writes · ✅ v0.2 destructive tools with approvals |
+| 2.5 Web Clipper | Medium | Medium | P2 | ✅ v0.1 |
+| 3.1 Task Management (Kanban) | High | Medium | P1 | ✅ v0.1 project boards · ✅ v0.2 Note Tasks |
+| 3.2 Calendar & Reminders | High | High | — | ✅ v0.1 |
+| 3.3 Pomodoro & Focus Mode | Medium | Low | P2 | ✅ v0.2 |
+| 3.4 Bookmarks & Pinned Items | Medium | Low | P1 | ✅ v0.2 |
+| 4.1 Auto-Git Versioning | High | Medium | P1 | ✅ v0.2 |
+| 4.2 AI Note Suggestions | Medium | Medium | P2 | ✅ v0.2 (links + tags; no auto-summaries) |
+| 4.3 Conversation Auto-Compaction | High | Low | P1 | ✅ v0.2 |
+| 4.4 Universal Search | High | Medium | P1 | ✅ v0.2 |
+| 5.1 Plugin System | High | Very High | P3 | ✅ v0.2 (no marketplace) |
+| 5.2 Export & Publishing | Medium | Medium | P3 | ✅ v0.2 |
+| 5.3 Sync & Multi-Device | High | Very High | P3 | ◐ v0.2 encrypted folder sync + backups; relay / LAN / mobile open |
 
 ---
 

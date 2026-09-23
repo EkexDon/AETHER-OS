@@ -137,15 +137,17 @@ suite pass again.
 ### Editor hand-off
 
 "Open note" selects the note in the editor and stores the target line in
-`useVaultTasksStore` (`pendingLine`). An editor integration can call
-`useVaultTasksStore.getState().consumePendingLine(notePath)` after opening a
-note to get the 0-based line (once) and scroll to it. The toast shows the line
-("Opened Masterarbeit · line 21").
+`useVaultTasksStore` (`pendingLine`). `NoteEditor` calls
+`useVaultTasksStore.getState().consumePendingLine(notePath)` after loading the
+note, maps the 0-based file line onto the editor block
+(`src/lib/editor/lineToBlock.ts`, front matter lines counted), scrolls there
+and briefly flashes the block (`src/lib/editor/lineFlash.ts`). The toast shows
+the line ("Opened Masterarbeit · line 21").
 
 ## Limitations
 
-- The editor does not scroll to the line yet; it only receives the line via
-  `consumePendingLine` (see above).
+- Resolved in v0.2 (Wave 3): the editor scrolls to the task's line and
+  highlights it (see *Editor hand-off*).
 - Recurrence (`🔁 every week`) is kept as text; completing a recurring task
   does not create the next occurrence.
 - Setext headings, indented (4-space) code blocks, HTML comments and `%%`

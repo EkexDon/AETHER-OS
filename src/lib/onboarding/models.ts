@@ -73,6 +73,39 @@ export function isValidModelName(name: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/.test(n) && !n.includes("..") && !n.includes("//");
 }
 
+/** Well-known Ollama embedding models, suggested even before they are installed. */
+export const KNOWN_EMBEDDING_MODELS = [EMBEDDING_MODEL, "mxbai-embed-large", "bge-m3", "all-minilm", "snowflake-arctic-embed"];
+
+const EMBEDDING_HINT = /embed|minilm|bge|\be5\b|gte|arctic/i;
+
+/** One suggestion for the embedding model field. */
+export interface EmbeddingModelOption {
+  name: string;
+  installed: boolean;
+}
+
+/**
+ * Suggestions for the embedding model: installed models that look like
+ * embedding models first, then the other installed models, then well-known
+ * embedding models that are not installed yet. Names are unique
+ * (`:latest` is ignored when comparing).
+ */
+export function embeddingModelOptions(installed: readonly string[] | null | undefined): EmbeddingModelOption[] {
+  const seen = new Set<string>();
+  const out: EmbeddingModelOption[] = [];
+  const push = (name: string, isInstalled: boolean) => {
+    const key = normalizeModelName(name);
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push({ name, installed: isInstalled });
+  };
+  const list = [...(installed ?? [])].sort((a, b) => a.localeCompare(b));
+  list.filter((m) => EMBEDDING_HINT.test(m)).forEach((m) => push(m, true));
+  list.filter((m) => !EMBEDDING_HINT.test(m)).forEach((m) => push(m, true));
+  KNOWN_EMBEDDING_MODELS.forEach((m) => push(m, false));
+  return out;
+}
+
 /** Percentage (0–100) of the current layer, `null` when unknown. */
 export function pullPercent(progress: Pick<OllamaPullProgress, "completed" | "total"> | null | undefined): number | null {
   if (!progress?.total || progress.total <= 0 || progress.completed === null) return null;

@@ -11,6 +11,7 @@ import { agentOpenUrl } from "../ipc";
 import { useAetherStore } from "../store";
 import { useIdeStore } from "../ideStore";
 import { getCommands, runCommand } from "../commands/registry";
+import { openConversation } from "../agentChatBus";
 
 /** Display metadata per pin kind. */
 export const PIN_KIND_META: Record<PinKind, { label: string; icon: LucideIcon }> = {
@@ -30,7 +31,8 @@ export interface PinOpenDeps {
   setIdeRoot: (path: string) => void;
   /** Resolves `false` when the command is unknown or disabled. */
   runCommand: (id: string) => Promise<boolean>;
-  openChat: () => void;
+  /** Load a saved conversation into the agent panel; rejects when it is gone. */
+  openConversation: (id: string) => Promise<unknown>;
   openUrl: (url: string) => Promise<unknown>;
 }
 
@@ -75,7 +77,7 @@ export function isPinStale(pin: PinItem, notes: VaultNote[], commandIds: Readonl
 
 /**
  * Open a pin: note → editor, project → IDE with that root, command → run
- * it, conversation → open the agent panel, url → system browser. Throws an
+ * it, conversation → that chat in the agent panel, url → system browser. Throws an
  * `Error` with a readable message when the target cannot be opened.
  */
 export async function openPin(pin: PinItem, deps: PinOpenDeps): Promise<void> {
@@ -99,7 +101,7 @@ export async function openPin(pin: PinItem, deps: PinOpenDeps): Promise<void> {
       return;
     }
     case "conversation":
-      deps.openChat();
+      await deps.openConversation(pin.ref);
       return;
     case "url": {
       const url = normalizePinUrl(pin.ref);
@@ -118,7 +120,7 @@ export function livePinDeps(): PinOpenDeps {
     setView: (mode) => useAetherStore.getState().setView(mode),
     setIdeRoot: (path) => useIdeStore.getState().setRoot(path),
     runCommand: (id) => runCommand(id),
-    openChat: () => useAetherStore.getState().setChatOpen(true),
+    openConversation: (id) => openConversation(id),
     openUrl: (url) => agentOpenUrl(url),
   };
 }

@@ -177,14 +177,14 @@ export function SystemMonitor() {
         subtitle="Live CPU, memory, disk and network usage"
         actions={
           <>
-            <Badge size="md" icon={<Clock size={12} />} className="monitor-uptime" title="Uptime">
+            <Badge size="md" icon={<Clock size={14} />} className="monitor-uptime" title="Uptime">
               {formatUptime(metrics.uptime)}
             </Badge>
             <Button
               variant="secondary"
               size="sm"
               className="monitor-toggle"
-              iconLeft={running ? <Pause size={13} /> : <Play size={13} />}
+              iconLeft={running ? <Pause size={14} /> : <Play size={14} />}
               onClick={() => setRunning((r) => !r)}
             >
               {running ? "Pause" : "Resume"}
@@ -197,7 +197,7 @@ export function SystemMonitor() {
 
         <div className="monitor-grid">
           <MetricCard
-            icon={<Cpu size={15} />}
+            icon={<Cpu size={16} />}
             label="CPU"
             value={`${metrics.overall_cpu.toFixed(1)}%`}
             subValue={`${metrics.cpus.length} cores`}
@@ -206,7 +206,7 @@ export function SystemMonitor() {
             sparklineColor={tokens["--color-accent"]}
           />
           <MetricCard
-            icon={<MemoryStick size={15} />}
+            icon={<MemoryStick size={16} />}
             label="Memory"
             value={formatBytes(metrics.memory.used)}
             subValue={`of ${formatBytes(metrics.memory.total)} (${memPct.toFixed(1)}%)`}
@@ -216,7 +216,7 @@ export function SystemMonitor() {
           />
           {metrics.battery && (
             <MetricCard
-              icon={<Battery size={15} />}
+              icon={<Battery size={16} />}
               label="Battery"
               value={`${metrics.battery.percent.toFixed(0)}%`}
               subValue={metrics.battery.charging ? "Charging" : "On battery"}
@@ -252,10 +252,10 @@ export function SystemMonitor() {
               <div key={i} className="monitor-network-item">
                 <span className="monitor-network-name">{net.interface}</span>
                 <span className="monitor-network-rate">
-                  <ArrowDown size={11} /> {formatRate(net.rx_rate)}
+                  <ArrowDown size={14} /> {formatRate(net.rx_rate)}
                 </span>
                 <span className="monitor-network-rate">
-                  <ArrowUp size={11} /> {formatRate(net.tx_rate)}
+                  <ArrowUp size={14} /> {formatRate(net.tx_rate)}
                 </span>
               </div>
             ))}

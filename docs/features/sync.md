@@ -214,6 +214,12 @@ pending_uploads, pending_downloads, conflicts, message, … }`) and
 `keep: "local"` means the version at the file's own path, `"remote"` the
 conflict copy — independent of which device you resolve on.
 
+Errors carry their own prefixes (`AetherError::Sync` / `AetherError::Crypto`):
+`sync error: …` for the folder, the transfer and restores (e.g. "the sync
+folder is not reachable: <dir>"), `crypto error: …` for keys and data (e.g.
+"wrong passphrase", "decryption failed: the data was modified or belongs to a
+different passphrase").
+
 ## Code map
 
 | Layer | Files |

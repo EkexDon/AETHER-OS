@@ -21,7 +21,6 @@ import { printDocument } from "../../lib/export/print";
 import { joinPath } from "../../lib/export/scope";
 import type { ExportFlow, ExportKind, RecentExport } from "../../types";
 import { ExportWizard } from "./ExportWizard";
-import "../../styles/views/export.css";
 
 const KIND_ICONS: Record<ExportKind, LucideIcon> = {
   html: FileCode2,
@@ -144,14 +143,8 @@ export function ExportView() {
   return (
     <div className="view export-view">
       <ViewHeader
-        icon={Share}
         title="Export"
         subtitle="HTML, PDF, websites and Markdown bundles — generated on this machine, nothing is uploaded."
-        actions={
-          <Button variant="secondary" iconLeft={<Printer size={14} />} onClick={() => void printCurrent()}>
-            Print current note
-          </Button>
-        }
       />
       <div className="view-body export-body">
         <section className="export-flows" aria-label="Export formats">
@@ -198,10 +191,10 @@ export function ExportView() {
         <section className="export-recents" aria-labelledby="export-recents-title">
           <div className="export-section-head">
             <h2 id="export-recents-title" className="ui-section-label">
-              <History size={12} /> Recent exports
+              <History size={14} /> Recent exports
             </h2>
             {recents.length > 0 && (
-              <Button variant="ghost" size="sm" iconLeft={<Trash2 size={13} />} onClick={() => void clear()}>
+              <Button variant="ghost" size="sm" iconLeft={<Trash2 size={14} />} onClick={() => void clear()}>
                 Clear list
               </Button>
             )}
@@ -249,14 +242,14 @@ export function ExportView() {
                             <IconButton
                               size="sm"
                               label={r.kind === "site" ? "Open site in browser" : "Open in browser"}
-                              icon={<ExternalLink size={13} />}
+                              icon={<ExternalLink size={14} />}
                               onClick={() => void openPath(target, false)}
                             />
                           )}
                           <IconButton
                             size="sm"
                             label="Reveal in Finder"
-                            icon={<FolderOpen size={13} />}
+                            icon={<FolderOpen size={14} />}
                             onClick={() => void openPath(r.path, true)}
                           />
                         </>

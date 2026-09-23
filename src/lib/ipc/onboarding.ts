@@ -2,6 +2,7 @@
 import type {
   AppLogTail,
   DataLocation,
+  GeneralPrefs,
   OllamaPullProgress,
   OnboardingState,
   PullOutcome,
@@ -36,6 +37,10 @@ export const cancelOllamaPull = (name: string) => call<boolean>("cmd_onboarding_
 export const getVaultPrefs = () => call<VaultPrefs>("cmd_onboarding_get_vault_prefs");
 /** Validate and store the vault preferences; resolves to what was stored. */
 export const setVaultPrefs = (prefs: VaultPrefs) => call<VaultPrefs>("cmd_onboarding_set_vault_prefs", { prefs });
+/** General preferences shared with the Rust side (quit confirmation). */
+export const getGeneralPrefs = () => call<GeneralPrefs>("cmd_onboarding_get_general_prefs");
+/** Store the general preferences; resolves to what was stored. */
+export const setGeneralPrefs = (prefs: GeneralPrefs) => call<GeneralPrefs>("cmd_onboarding_set_general_prefs", { prefs });
 /** Reveal the connected vault in the file manager. */
 export const revealVault = () => call<void>("cmd_onboarding_reveal_vault");
 /** Top-level files and folders of the app data directory with sizes. */

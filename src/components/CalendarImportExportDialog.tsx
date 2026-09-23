@@ -97,8 +97,8 @@ export function CalendarImportExportDialog({ onClose }: { onClose: () => void })
           value={tab}
           onChange={setTab}
           items={[
-            { id: "export", label: "Export", icon: <Download size={13} /> },
-            { id: "import", label: "Import", icon: <Upload size={13} /> },
+            { id: "export", label: "Export", icon: <Download size={14} /> },
+            { id: "import", label: "Import", icon: <Upload size={14} /> },
           ]}
           className="calendar-dialog-tabs"
         />
@@ -134,7 +134,7 @@ export function CalendarImportExportDialog({ onClose }: { onClose: () => void })
               </label>
               <div className="calendar-dialog-actions">
                 <button className="btn btn-primary" onClick={() => void handleExport()}>
-                  <Download size={12} /> Export .ics
+                  <Download size={14} /> Export .ics
                 </button>
                 <button className="btn btn-secondary" onClick={() => void handleCopyToClipboard()}>
                   Copy to clipboard
@@ -150,7 +150,7 @@ export function CalendarImportExportDialog({ onClose }: { onClose: () => void })
                 onClick={() => void handleImportFile()}
                 disabled={importing}
               >
-                <Upload size={12} /> Choose .ics file
+                <Upload size={14} /> Choose .ics file
               </button>
               <label className="event-editor-field-row">
                 <input
@@ -189,7 +189,7 @@ export function CalendarImportExportDialog({ onClose }: { onClose: () => void })
                         className="calendar-import-errors-toggle"
                         onClick={() => setShowErrors((v) => !v)}
                       >
-                        {showErrors ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        {showErrors ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                         Error details
                       </button>
                       {showErrors && (

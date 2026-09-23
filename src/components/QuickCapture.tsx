@@ -62,7 +62,7 @@ export function QuickCapture() {
     >
       <div className="quick-capture-header">
         <span className="quick-capture-badge">
-          <Zap size={13} />
+          <Zap size={14} />
           Quick Capture
         </span>
         <span className="quick-capture-hint">→ Today's Daily Note</span>

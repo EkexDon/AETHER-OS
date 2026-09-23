@@ -1,10 +1,9 @@
 use tauri::{AppHandle, Emitter, State};
 
 use crate::engine::intel::compaction::{self, ConversationContext};
+use crate::engine::onboarding::validate_model_name;
 use crate::engine::vector_db::VectorMatch;
 use crate::AppState;
-
-const EMBEDDING_MODEL: &str = "nomic-embed-text";
 
 const SYSTEM_PROMPT: &str = "You are AETHER, the user's personal AI assistant integrated with their NoPes knowledge base. You have access to the user's notes and can answer questions about them. Be concise, helpful, and reference specific notes when relevant. When the user asks about their knowledge, use the provided note context to give accurate answers. The notes may contain images, PDFs, videos, and mermaid diagrams — acknowledge these media types when relevant.\n\n\
 # Agent actions\n\
@@ -105,6 +104,7 @@ pub async fn cmd_index_vault(state: State<'_, AppState>) -> Result<IndexingResul
 
     let mut indexed = 0u32;
     let mut skipped = 0u32;
+    let embedding_model = state.ai_config.embedding_model();
 
     for note in &notes {
         let content = match state.vault.read_note(&note.path) {
@@ -120,7 +120,11 @@ pub async fn cmd_index_vault(state: State<'_, AppState>) -> Result<IndexingResul
             continue;
         }
 
-        let embedding = match state.ai.generate_embedding(&content, EMBEDDING_MODEL).await {
+        let embedding = match state
+            .ai
+            .generate_embedding(&content, &embedding_model)
+            .await
+        {
             Ok(vec) => vec,
             Err(_) => {
                 skipped += 1;
@@ -163,7 +167,7 @@ pub async fn cmd_semantic_search(
 ) -> Result<Vec<VectorMatch>, String> {
     let embedding = state
         .ai
-        .generate_embedding(&query, EMBEDDING_MODEL)
+        .generate_embedding(&query, &state.ai_config.embedding_model())
         .await
         .map_err(|e| e.to_string())?;
     state
@@ -182,7 +186,7 @@ pub async fn cmd_agent_query(
 ) -> Result<Vec<String>, String> {
     let embedding = state
         .ai
-        .generate_embedding(&prompt, EMBEDDING_MODEL)
+        .generate_embedding(&prompt, &state.ai_config.embedding_model())
         .await
         .map_err(|e| e.to_string())?;
 
@@ -342,6 +346,35 @@ pub async fn cmd_set_openrouter_key(
         .set_openrouter_key(key.as_deref())
         .map_err(|e| e.to_string())?;
     Ok(state.ai_config.openrouter_key().is_some())
+}
+
+/// The Ollama model used for note embeddings (default `nomic-embed-text`).
+#[tauri::command]
+pub async fn cmd_get_embedding_model(state: State<'_, AppState>) -> Result<String, String> {
+    Ok(state.ai_config.embedding_model())
+}
+
+/// Store a new embedding model (a valid, non-empty Ollama model name) and
+/// return it. Switching models empties the vector index — vectors of
+/// different models cannot be compared — so the next `cmd_index_vault`
+/// rebuilds it from scratch.
+#[tauri::command]
+pub async fn cmd_set_embedding_model(
+    state: State<'_, AppState>,
+    model: String,
+) -> Result<String, String> {
+    let model = validate_model_name(&model).map_err(|e| e.to_string())?;
+    if model == state.ai_config.embedding_model() {
+        return Ok(model);
+    }
+    // Clear first: if saving the model failed afterwards, the index would
+    // only need a rebuild; the other order could leave vectors of the old
+    // model locked in under the new one.
+    state.vectors.clear().map_err(|e| e.to_string())?;
+    state
+        .ai_config
+        .set_embedding_model(&model)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

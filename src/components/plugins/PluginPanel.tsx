@@ -1,6 +1,8 @@
+import { Component, useMemo, type ErrorInfo, type ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
 import { Badge, Button, cx } from "../../ui";
 import { MarkdownRenderer } from "../MarkdownRenderer";
-import { groupBadges, sanitizePluginMarkdown, type PluginViewNode } from "../../lib/plugins/viewTree";
+import { groupBadges, sanitizePluginMarkdown, sanitizeViewTree, type PluginViewNode } from "../../lib/plugins/viewTree";
 
 /** Props of {@link PluginPanel}. */
 export interface PluginPanelProps {
@@ -10,6 +12,8 @@ export interface PluginPanelProps {
   onAction: (actionId: string) => void;
   /** Accessible name of the panel region. */
   label: string;
+  /** Called when the panel cannot be rendered (invalid tree or a render error). */
+  onError?: (message: string) => void;
 }
 
 type Grouped = ReturnType<typeof groupBadges>[number];
@@ -60,23 +64,78 @@ function PanelNode({ node, onAction }: { node: Grouped; onAction: (actionId: str
     case "markdown":
       return (
         <div className="plugin-panel-markdown">
-          <MarkdownRenderer content={sanitizePluginMarkdown(node.content)} />
+          <MarkdownRenderer content={sanitizePluginMarkdown(node.content)} allowMedia={false} />
         </div>
       );
+    default:
+      return null;
+  }
+}
+
+function PanelProblem({ message }: { message: string }) {
+  return (
+    <div className="ui-notice ui-notice-danger plugin-panel-problem" role="alert">
+      <TriangleAlert size={14} aria-hidden="true" />
+      <span>This panel could not be displayed: {message}</span>
+    </div>
+  );
+}
+
+interface BoundaryProps {
+  children: ReactNode;
+  onError?: (message: string) => void;
+  /** A new value (the plugin sent a new tree) clears a previous error. */
+  resetKey: unknown;
+}
+
+/** Keeps a crashing panel from taking the Plugins page down with it. */
+class PanelBoundary extends Component<BoundaryProps, { message: string | null }> {
+  state = { message: null as string | null };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { message: error instanceof Error ? error.message : String(error) };
+  }
+
+  componentDidCatch(error: Error, _info: ErrorInfo): void {
+    this.props.onError?.(error.message);
+  }
+
+  componentDidUpdate(prev: BoundaryProps): void {
+    if (prev.resetKey !== this.props.resetKey && this.state.message !== null) this.setState({ message: null });
+  }
+
+  render() {
+    return this.state.message !== null ? <PanelProblem message={this.state.message} /> : this.props.children;
   }
 }
 
 /**
- * Renders a plugin's declarative panel. Every string is rendered as a React
- * text node (never as HTML); Markdown goes through the sanitiser and the
- * app's renderer, which shows raw HTML as text.
+ * Renders a plugin's declarative panel. The tree is validated again here
+ * (only known node types with string props render, whatever reached the
+ * store); every string is rendered as a React text node (never as HTML);
+ * Markdown goes through the sanitiser and the app's renderer, which shows
+ * raw HTML as text and loads no media. Render errors stay inside the panel.
  */
-export function PluginPanel({ nodes, onAction, label }: PluginPanelProps) {
+export function PluginPanel({ nodes, onAction, label, onError }: PluginPanelProps) {
+  const checked = useMemo((): { nodes: PluginViewNode[]; error: null } | { nodes: null; error: string } => {
+    try {
+      return { nodes: sanitizeViewTree(nodes), error: null };
+    } catch (error) {
+      return { nodes: null, error: error instanceof Error ? error.message : String(error) };
+    }
+  }, [nodes]);
+
   return (
     <section className="plugin-panel" aria-label={label}>
-      {groupBadges(nodes).map((node, i) => (
-        <PanelNode key={i} node={node} onAction={onAction} />
-      ))}
+      {checked.error !== null ? (
+        <PanelProblem message={checked.error} />
+      ) : (
+        <PanelBoundary key={label} onError={onError} resetKey={nodes}>
+          {groupBadges(checked.nodes).map((node, i) => (
+            <PanelNode key={i} node={node} onAction={onAction} />
+          ))}
+        </PanelBoundary>
+      )}
     </section>
   );
 }

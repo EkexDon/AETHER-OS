@@ -13,7 +13,7 @@ function ctx(view = "dashboard"): CommandContext {
   return {
     view,
     setView: vi.fn(),
-    closeCommandBar: vi.fn(),
+    closeLauncher: vi.fn(),
     toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), dismiss: vi.fn() },
   } as unknown as CommandContext;
 }

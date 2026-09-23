@@ -1,5 +1,4 @@
 import { Bookmark, Minimize2, Pause, SkipForward, Timer } from "lucide-react";
-import "../../styles/views/home.css";
 import { useFocusStore } from "../../lib/focusStore";
 import { useHomeStore } from "../../lib/homeStore";
 import { countPins, usePinsStore } from "../../lib/pinsStore";
@@ -34,7 +33,7 @@ export function FocusStatusItem() {
           toast.info("Focus mode off");
         }}
       >
-        <Minimize2 size={12} />
+        <Minimize2 size={14} />
         <span className="statusbar-muted">Exit focus</span>
       </button>
     </Tooltip>
@@ -46,7 +45,7 @@ export function FocusStatusItem() {
         {exitFocus}
         <Tooltip content="Start a Pomodoro" shortcut="mod+alt+t" placement="top">
           <button type="button" className="statusbar-item home-focus-status" data-focus-keep="" onClick={toggle}>
-            <Timer size={12} />
+            <Timer size={14} />
             <span className="statusbar-muted">Focus</span>
           </button>
         </Tooltip>
@@ -72,7 +71,7 @@ export function FocusStatusItem() {
           aria-label={`${label} ${clock}, ${action.toLowerCase()}`}
           onClick={toggle}
         >
-          {running ? <span className="home-focus-dot" aria-hidden="true" /> : <Pause size={11} />}
+          {running ? <span className="home-focus-dot" aria-hidden="true" /> : <Pause size={14} />}
           <span className="home-focus-clock tabular">{timer.status === "ready" ? formatClock(timer.durationMs) : clock}</span>
           <span className="statusbar-muted">{timer.status === "ready" ? `Start ${label.toLowerCase()}` : label}</span>
         </button>
@@ -86,7 +85,7 @@ export function FocusStatusItem() {
             aria-label={skipLabel}
             onClick={skip}
           >
-            <SkipForward size={12} />
+            <SkipForward size={14} />
           </button>
         </Tooltip>
       )}
@@ -110,7 +109,7 @@ export function PinsStatusItem() {
           {...{ [PINS_DRAWER_TOGGLE_ATTR]: "" }}
           onClick={toggle}
         >
-          <Bookmark size={12} />
+          <Bookmark size={14} />
           {total > 0 && <span className="statusbar-muted tabular">{total}</span>}
         </button>
       </Tooltip>

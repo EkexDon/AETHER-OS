@@ -139,6 +139,8 @@ A local-first AI homestation: vault, AI chat, IDE, terminal, calendar and tasks 
 ## Architecture
 Everything privileged lives in Rust (see [[Rust Ownership]] for the mental model). The UI talks through typed IPC only. Patterns I use in the frontend: [[React Patterns]].
 
+![[aether-architecture.png|480]]
+
 ## Open questions
 - Should sync use CRDTs? → [[Local-first Sync]]
 - Full-text search engine → [[SQLite FTS5]]
@@ -295,6 +297,8 @@ Small rack in the storage room: a Proxmox node, a NAS and a Raspberry Pi running
 A side project: plan raised beds, track sowing dates, get reminders.
 
 Stack: React Native + SQLite. Reuses ideas from [[React Patterns]].
+
+![First sketch of the bed editor](garden-sketch.png)
 
 - [ ] Sketch the bed editor UI
 - [ ] Research companion planting data sets

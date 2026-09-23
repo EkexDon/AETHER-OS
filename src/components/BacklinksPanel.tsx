@@ -44,7 +44,7 @@ export function BacklinksPanel({ backlinks, noteName, onSelect, onClose }: Backl
               onClick={() => onSelect(bl.note_path)}
             >
               <div className="backlink-item-header">
-                <FileText size={12} />
+                <FileText size={14} />
                 <span className="backlink-item-name">{bl.note_name}</span>
                 <span className="backlink-item-line">L{bl.line}</span>
               </div>

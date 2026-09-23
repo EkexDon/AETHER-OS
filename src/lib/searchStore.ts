@@ -59,7 +59,7 @@ export const useSearchStore = create<SearchState>((set, get) => ({
 
   openLauncher: (query = "") => {
     set({ pendingQuery: query });
-    useShellStore.getState().setCommandBarOpen(true);
+    useShellStore.getState().setLauncherOpen(true);
   },
   clearPendingQuery: () => {
     if (get().pendingQuery !== null) set({ pendingQuery: null });

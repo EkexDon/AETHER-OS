@@ -3,6 +3,7 @@ import wordCount from "../../../plugins/examples/word-count/manifest.json?raw";
 import dailyReview from "../../../plugins/examples/daily-review/manifest.json?raw";
 import randomNote from "../../../plugins/examples/random-note/manifest.json?raw";
 import { compareSemver, defaultSettingValue, parseSemver, pluginIdProblem, settingValueProblem, validateManifest } from "./manifest";
+import { APP_VERSION } from "../onboarding/appVersion";
 
 const base = {
   id: "com.example.test",
@@ -17,7 +18,8 @@ const withField = (field: string, value: unknown) => ({ ...base, [field]: value 
 describe("validateManifest", () => {
   it("accepts the bundled examples", () => {
     for (const raw of [wordCount, dailyReview, randomNote]) {
-      const manifest = validateManifest(raw, "0.1.0");
+      const manifest = validateManifest(raw, APP_VERSION);
+      expect(manifest.minAppVersion).toBe(APP_VERSION);
       expect(manifest.id.startsWith("aether.")).toBe(true);
       expect(manifest.main).toBe("main.js");
     }

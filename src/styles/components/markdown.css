@@ -100,6 +100,30 @@
   text-decoration-color: currentColor;
 }
 
+.md-render .md-link.is-external .md-link-icon {
+  display: inline-block;
+  margin-left: 2px;
+  vertical-align: -1px;
+  opacity: 0.7;
+}
+
+/* Links that may not navigate (unsafe schemes, unknown notes) read as plain text. */
+.md-render .md-link.is-inert {
+  color: inherit;
+  text-decoration: underline dotted;
+  text-decoration-color: var(--color-border-strong);
+  cursor: default;
+}
+
+.md-render .md-table-scroll {
+  margin: var(--space-3) 0;
+  overflow-x: auto;
+}
+
+.md-render .md-table-scroll > .md-table {
+  margin: 0;
+}
+
 .md-render .md-table {
   width: 100%;
   margin: var(--space-3) 0;
@@ -167,12 +191,88 @@
 }
 
 .md-image {
+  display: block;
   max-width: 100%;
+  height: auto;
   margin: var(--space-3) 0;
   border-radius: var(--radius-lg);
 }
 
+.md-audio {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  margin: var(--space-3) 0;
+}
+
+/* Loading / unavailable / not-loaded placeholder for embedded media. */
+.md-media-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  min-height: 40px;
+  margin: var(--space-2) 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-fill-subtle);
+  color: var(--color-fg-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+  vertical-align: middle;
+}
+
+.md-media-state.is-error {
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--color-warning) 35%, var(--color-border));
+}
+
+.md-media-state.is-error svg {
+  color: var(--color-warning);
+  flex: none;
+}
+
+.md-media-state-text {
+  flex: none;
+  font-weight: var(--weight-medium);
+}
+
+.md-media-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+}
+
+.md-media-load {
+  flex: none;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-2-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-elevated);
+  color: var(--color-fg-primary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out);
+}
+
+.md-media-load:hover {
+  background: var(--color-fill-hover);
+  border-color: var(--color-border-strong);
+}
+
+.md-media-alt {
+  color: var(--color-fg-secondary);
+  font-style: italic;
+}
+
 .md-pdf-wrapper {
+  display: block;
   margin: var(--space-4) 0;
   overflow: hidden;
   border: 1px solid var(--color-border);
@@ -188,6 +288,7 @@
 }
 
 .md-video-wrapper {
+  display: block;
   position: relative;
   margin: var(--space-4) 0;
 }
@@ -197,4 +298,9 @@
   max-width: 100%;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-md);
+}
+
+/* [[Wikilinks]] read as links; ones that name no note are dimmed. */
+.md-render .md-link.is-missing {
+  color: var(--color-fg-tertiary);
 }

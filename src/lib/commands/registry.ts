@@ -196,7 +196,7 @@ export const CORE_COMMANDS: CommandContribution[] = [
     icon: CommandIcon,
     shortcut: "mod+k",
     keywords: ["search", "launcher", "find", "run"],
-    run: (ctx) => ctx.toggleCommandBar(),
+    run: (ctx) => ctx.toggleLauncher(),
   },
   {
     id: "note.new",

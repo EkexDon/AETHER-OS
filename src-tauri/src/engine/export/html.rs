@@ -757,7 +757,10 @@ fn truncate_chars(text: &str, max: usize) -> String {
 }
 
 /// URL schemes a link may use in an exported page.
-const SAFE_SCHEMES: &[&str] = &["http", "https", "mailto", "tel", "obsidian"];
+/// Link schemes kept in exported pages. App-specific schemes (`obsidian:`,
+/// `vscode:`, …) are dropped: in a published page they would let a visitor's
+/// locally installed app act on whatever the link encodes.
+const SAFE_SCHEMES: &[&str] = &["http", "https", "mailto", "tel"];
 
 /// Lower-cased scheme of an absolute URL (`https`), `None` for relative
 /// references. Whitespace and control characters are ignored, so
@@ -1104,8 +1107,10 @@ fn safe_attr(name: &str, value: Option<&str>) -> bool {
                 return false;
             }
             match url_scheme(&lower) {
+                // Inline images may be data URLs; links and citations never.
                 Some(scheme) => {
-                    SAFE_SCHEMES.contains(&scheme.as_str()) || lower.starts_with("data:image/")
+                    SAFE_SCHEMES.contains(&scheme.as_str())
+                        || (name == "src" && lower.trim_start().starts_with("data:image/"))
                 }
                 None => true,
             }
@@ -1753,6 +1758,47 @@ mod tests {
             sanitize_html("<details open><summary>S</summary></details>"),
             "<details open><summary>S</summary></details>"
         );
+    }
+
+    #[test]
+    fn only_web_mail_and_relative_links_survive() {
+        for (input, expected) in [
+            (r#"<a href="obsidian://open?vault=x">o</a>"#, "<a>o</a>"),
+            (r#"<a href="data:text/html,x">d</a>"#, "<a>d</a>"),
+            (r#"<a href="data:image/svg+xml,x">d</a>"#, "<a>d</a>"),
+            (
+                r#"<a href="notes/b.html">rel</a>"#,
+                r#"<a href="notes/b.html">rel</a>"#,
+            ),
+            (
+                r#"<a href="mailto:me@example.com">m</a>"#,
+                r#"<a href="mailto:me@example.com">m</a>"#,
+            ),
+            (
+                r#"<img src="data:image/png;base64,AAAA">"#,
+                r#"<img src="data:image/png;base64,AAAA">"#,
+            ),
+        ] {
+            assert_eq!(sanitize_html(input), expected, "{input}");
+        }
+    }
+
+    #[test]
+    fn note_derived_text_is_escaped_in_titles_alt_text_and_tags() {
+        let (_d, model) = model_with(&[(
+            "X.md",
+            "---\ntags: [\"a\\\"><script>\"]\n---\n# T\"><img src=x onerror=1>\n\n![al\"t<b>](pic.png) [[Y|y\"><i>]] [o](obsidian://open?x=1) #t<s>\n",
+        )]);
+        let idx = model.note_for_path("X.md").expect("note");
+        let html = standalone_document(&model, idx, &ExportOptions::default())
+            .expect("render")
+            .html;
+        assert!(!html.contains("<script>"), "{html}");
+        assert!(!html.contains("<img src=x"), "{html}");
+        assert!(!html.contains("onerror=1>"), "{html}");
+        assert!(!html.contains("obsidian://"), "{html}");
+        assert!(html.contains(r#"alt="al&quot;t&lt;b&gt;""#), "{html}");
+        assert!(html.contains("&quot;&gt;&lt;script&gt;</span>"), "{html}");
     }
 
     #[test]

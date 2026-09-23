@@ -17,6 +17,7 @@ import {
   type MockHandlerMap,
 } from "./runtime";
 import { mockVault } from "./vaultStore";
+import { MOCK_PROJECTS_ROOT } from "./fixtures/workspace";
 
 /** Event name used by the real backend for streamed tokens. */
 export const STREAM_EVENT = "llm-stream-chunk";
@@ -36,15 +37,30 @@ const MOCK_CLOUD_MODELS = [
 ];
 const MISSING_KEY = "OpenRouter API key is missing. Set it in Settings → AI Providers.";
 
+/** Embedding model until the user picks another one. */
+export const DEFAULT_MOCK_EMBEDDING_MODEL = "nomic-embed-text";
+
 interface AiState {
   openRouterKey: string | null;
   turns: number;
+  embeddingModel: string;
 }
 
-let state: AiState = { openRouterKey: null, turns: 0 };
+const seedState = (): AiState => ({ openRouterKey: null, turns: 0, embeddingModel: DEFAULT_MOCK_EMBEDDING_MODEL });
+
+let state: AiState = seedState();
 registerReset(() => {
-  state = { openRouterKey: null, turns: 0 };
+  state = seedState();
 });
+
+/** Same rule as `engine::onboarding::validate_model_name`. */
+function validModelName(raw: string): string {
+  const name = raw.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/.test(name) || name.includes("..") || name.includes("//")) {
+    throw new Error(`invalid input: "${name}" is not a valid Ollama model name`);
+  }
+  return name;
+}
 
 /** Split text into stream chunks: one word plus its trailing whitespace. */
 export function chunkText(text: string): string[] {
@@ -67,12 +83,19 @@ interface ContextNote {
   content: string;
 }
 
-type ActionKind = "append_daily" | "add_memory_fact" | "create_note" | null;
+type ActionKind = "append_daily" | "add_memory_fact" | "create_note" | "run_command" | "delete_note" | "move_note" | null;
 
 /** Decide whether this answer carries an agent action. Explicit intents
- *  always do; otherwise every third turn appends to the daily note. */
+ *  always do (including the ones that need approval: running a command,
+ *  deleting or moving a note); otherwise every third turn appends to the
+ *  daily note. */
 export function pickAction(prompt: string, turn: number): ActionKind {
   const p = prompt.toLowerCase();
+  if (/\b(run|execute|führe|starte)\b/.test(p) && (/`[^`]+`/.test(prompt) || /\b(command|befehl|tests?|build)\b/.test(p))) {
+    return "run_command";
+  }
+  if (/\b(delete|remove|trash|lösche|entferne)\b.*\b(note|notiz)\b/.test(p)) return "delete_note";
+  if (/\b(move|verschiebe)\b.*\b(note|notiz)\b/.test(p)) return "move_note";
   if (/\b(remember|merk|merke|vergiss nicht)\b/.test(p)) return "add_memory_fact";
   if (/\b(create|new|neue|erstelle)\b.*\b(note|notiz)\b/.test(p)) return "create_note";
   if (/\b(daily|today|heute|todo|log)\b/.test(p)) return "append_daily";
@@ -95,6 +118,19 @@ function actionBlock(kind: Exclude<ActionKind, null>, prompt: string, german: bo
         content: `# ${title}\n\nCreated by AETHER from the chat.\n\n- [ ] Flesh this out\n`,
       };
       return `${german ? "Ich lege dafür eine neue Notiz an." : "I'll create a new note for this."}\n\n\`\`\`action\n${JSON.stringify(action)}\n\`\`\``;
+    }
+    case "run_command": {
+      const command = /`([^`]+)`/.exec(prompt)?.[1]?.trim() || "npm test";
+      const action = { action: "run_command", command, cwd: `${MOCK_PROJECTS_ROOT}/aether-demo-app` };
+      return `${german ? "Ich führe den Befehl im Projekt aus — bitte bestätige ihn." : "I'll run that in the project — please approve it first."}\n\n\`\`\`action\n${JSON.stringify(action)}\n\`\`\``;
+    }
+    case "delete_note": {
+      const action = { action: "delete_note", path: "00-Inbox/Quick Capture.md" };
+      return `${german ? "Ich verschiebe die Notiz in den Papierkorb, sobald du zustimmst." : "I'll move that note to the trash once you approve."}\n\n\`\`\`action\n${JSON.stringify(action)}\n\`\`\``;
+    }
+    case "move_note": {
+      const action = { action: "move_note", from: "00-Inbox/Reading List.md", to: "03-Resources/" };
+      return `${german ? "Ich verschiebe die Notiz nach 03-Resources." : "I'll move the note to 03-Resources."}\n\n\`\`\`action\n${JSON.stringify(action)}\n\`\`\``;
     }
     case "append_daily": {
       const action = { action: "append_daily", content: `Asked AETHER: "${short}"` };
@@ -206,5 +242,11 @@ export const aiHandlers: MockHandlerMap = {
     return MOCK_CLOUD_MODELS;
   },
   cmd_list_local_models: () => MOCK_LOCAL_MODELS,
+  cmd_get_embedding_model: () => state.embeddingModel,
+  cmd_set_embedding_model: (args) => {
+    // Like the real backend, a new model invalidates the (fake) vector index.
+    state.embeddingModel = validModelName(argString(args, "model"));
+    return state.embeddingModel;
+  },
   cmd_get_health: () => health(),
 };

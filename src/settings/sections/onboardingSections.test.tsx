@@ -165,6 +165,19 @@ describe("General, Editor, Vault, AI and About sections", () => {
     expect(useOnboardingStore.getState().wizardOpen).toBe(true);
   }, 10_000);
 
+  it("stores the quit confirmation in the backend's general prefs", async () => {
+    useOnboardingStore.setState({ generalPrefs: null });
+    render(<GeneralSettings />);
+    const toggle = screen.getByRole("switch", { name: "Confirm on quit with running terminals" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(toggle);
+    await waitFor(async () =>
+      expect(await mockInvoke("cmd_onboarding_get_general_prefs")).toEqual({ confirm_quit_with_terminals: false })
+    );
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+  });
+
   it("applies the note editor typography", () => {
     render(<EditorSettings />);
     fireEvent.change(screen.getByLabelText("Text size"), { target: { value: "18" } });
@@ -200,7 +213,35 @@ describe("General, Editor, Vault, AI and About sections", () => {
     expect(useAetherStore.getState().modelByProvider.ollama).toBe("qwen2.5:7b");
     fireEvent.click(screen.getByRole("radio", { name: "OpenRouter" }));
     expect(useAetherStore.getState().provider).toBe("openrouter");
-    expect(screen.getByText(/nomic-embed-text/)).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("nomic-embed-text")).toBeInTheDocument();
+  });
+
+  it("switches the embedding model and offers to re-index", async () => {
+    render(<AiProviderSettings />);
+    const field = await screen.findByDisplayValue("nomic-embed-text");
+    const save = screen.getByRole("button", { name: "Save" });
+    expect(save).toBeDisabled();
+    const row = field.closest(".settings-row") as HTMLElement;
+    expect(row.textContent).toContain("switching clears the index");
+    expect(row.textContent).not.toContain("(fixed)");
+
+    fireEvent.change(field, { target: { value: "not a model" } });
+    expect(save).toBeDisabled();
+    fireEvent.change(field, { target: { value: "mxbai-embed-large" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(async () => expect(await mockInvoke("cmd_get_embedding_model")).toBe("mxbai-embed-large"));
+    const toast = await waitFor(() => {
+      const t = useToastStore.getState().toasts.find((x) => x.title === "Vault must be re-indexed");
+      expect(t).toBeDefined();
+      return t!;
+    });
+    expect(toast.description).toContain("mxbai-embed-large");
+    expect(toast.action?.label).toBe("Index now");
+    expect(await screen.findByText(/is not installed yet/)).toBeInTheDocument();
+    // The suggestions list installed models first.
+    const options = [...document.querySelectorAll("#settings-embedding-models option")].map((o) => o.getAttribute("value"));
+    expect(options.slice(0, 3)).toEqual(["gemma2:2b", "llama3.2:1b", "qwen2.5:7b"]);
+    expect(options).toContain("nomic-embed-text");
   });
 
   it("credits the open-source projects", () => {

@@ -107,10 +107,10 @@ export function AiStep() {
         </Badge>
         {profile && (
           <span className="ob-muted ob-inline-icon">
-            <Cpu size={13} /> {describeProfile(profile)}
+            <Cpu size={14} /> {describeProfile(profile)}
           </span>
         )}
-        <Button size="sm" variant="ghost" iconLeft={<RefreshCw size={13} />} loading={checking} onClick={() => void recheck()}>
+        <Button size="sm" variant="ghost" iconLeft={<RefreshCw size={14} />} loading={checking} onClick={() => void recheck()}>
           Check again
         </Button>
       </div>
@@ -129,13 +129,13 @@ export function AiStep() {
 
       <div className="ob-card is-highlight">
         <div className="ob-card-head">
-          <Sparkles size={15} className="ob-card-icon" />
+          <Sparkles size={16} className="ob-card-icon" />
           <div className="ob-card-head-text">
             <div className="ob-card-title">
               Recommended for this machine: {recommendation.label}
             </div>
             <p className="ob-muted">
-              {profile ? recommendation.reason : <><Spinner size={11} /> Reading memory size…</>}
+              {profile ? recommendation.reason : <><Spinner size={14} /> Reading memory size…</>}
             </p>
           </div>
         </div>
@@ -197,7 +197,7 @@ export function AiStep() {
       )}
 
       <div className="ob-section">
-        <Button size="sm" variant="ghost" iconLeft={<Cloud size={13} />} onClick={() => setShowCloud((v) => !v)} aria-expanded={showCloud}>
+        <Button size="sm" variant="ghost" iconLeft={<Cloud size={14} />} onClick={() => setShowCloud((v) => !v)} aria-expanded={showCloud}>
           {health?.openrouter_configured ? "OpenRouter is connected" : "Use a cloud model instead (OpenRouter)"}
         </Button>
         {showCloud && (

@@ -22,7 +22,6 @@ import { Button, EmptyState, Kbd, ListRow, SearchField, Switch, Tabs, ViewHeader
 import { SearchPreview } from "./SearchPreview";
 import { SearchResultCard, relativeAge } from "./SearchResultCard";
 import { HighlightedText } from "./Highlighted";
-import "../../styles/views/search.css";
 
 /** Debounce of the Search view (slower than the launcher: bigger result sets). */
 export const VIEW_DEBOUNCE_MS = 150;
@@ -254,7 +253,7 @@ export function UniversalSearch() {
             />
             <Button
               size="sm"
-              iconLeft={<RefreshCw size={13} />}
+              iconLeft={<RefreshCw size={14} />}
               loading={reindexing}
               disabled={!backend}
               onClick={() => void onReindex()}
@@ -304,7 +303,7 @@ export function UniversalSearch() {
           <div className="ui-notice ui-notice-warning usearch-notice" role="status">
             <Sparkles size={14} />
             <span>Semantic search needs the vault index. Showing keyword results until the vault is embedded.</span>
-            <Button size="sm" iconLeft={<Database size={13} />} loading={vaultIndexing} onClick={() => void runVaultIndex()}>
+            <Button size="sm" iconLeft={<Database size={14} />} loading={vaultIndexing} onClick={() => void runVaultIndex()}>
               Index vault
             </Button>
           </div>

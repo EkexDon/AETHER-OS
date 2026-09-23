@@ -5,9 +5,54 @@ use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
 use crate::engine::error::AetherError;
+use crate::engine::fs_guard;
+use crate::engine::onboarding::{read_vault_prefs, VaultPrefs};
 
 const INDEX_FILE: &str = ".nopes/index.json";
 const CONFIG_FILE: &str = "config.json";
+
+/// Largest vault asset (image, video, audio, PDF) handed to the webview.
+pub const MAX_ASSET_BYTES: u64 = 25 * 1024 * 1024;
+
+/// Extensions served by [`VaultReader::read_asset`] and their MIME types.
+const ASSET_TYPES: &[(&str, &str)] = &[
+    ("png", "image/png"),
+    ("jpg", "image/jpeg"),
+    ("jpeg", "image/jpeg"),
+    ("gif", "image/gif"),
+    ("webp", "image/webp"),
+    ("svg", "image/svg+xml"),
+    ("bmp", "image/bmp"),
+    ("mp4", "video/mp4"),
+    ("webm", "video/webm"),
+    ("mov", "video/quicktime"),
+    ("mp3", "audio/mpeg"),
+    ("m4a", "audio/mp4"),
+    ("wav", "audio/wav"),
+    ("pdf", "application/pdf"),
+];
+
+/// A vault file embedded in a note (image, video, audio or PDF), returned
+/// base64-encoded because the webview has no direct file access.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct VaultAsset {
+    /// MIME type inferred from the file extension.
+    pub mime: String,
+    /// File content, standard base64.
+    pub data_base64: String,
+    /// File size in bytes.
+    pub byte_len: u64,
+}
+
+/// MIME type of an allowed asset extension (case-insensitive), `None` for
+/// every other file type.
+pub fn asset_mime(path: &Path) -> Option<&'static str> {
+    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
+    ASSET_TYPES
+        .iter()
+        .find(|(e, _)| *e == ext)
+        .map(|(_, mime)| *mime)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VaultNote {
@@ -77,8 +122,15 @@ pub struct VaultConfig {
     pub vault_path: Option<String>,
 }
 
+/// How long an auto-detected (not configured) vault location is reused
+/// before the home folders are scanned again.
+const DETECT_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(5);
+
 pub struct VaultReader {
     config_dir: PathBuf,
+    /// Last result of the home-folder scan used when no vault is configured,
+    /// so per-note calls (reads in indexing loops) do not rescan each time.
+    detected: std::sync::Mutex<Option<(std::time::Instant, Option<String>)>>,
 }
 
 impl VaultReader {
@@ -86,6 +138,7 @@ impl VaultReader {
         std::fs::create_dir_all(config_dir)?;
         Ok(Self {
             config_dir: config_dir.to_path_buf(),
+            detected: std::sync::Mutex::new(None),
         })
     }
 
@@ -126,16 +179,22 @@ impl VaultReader {
             }
         }
 
-        if let Some(home) = dirs_home_checked() {
-            for dir in &["Documents", "Desktop", "Downloads"] {
-                let base = format!("{home}/{dir}");
-                if let Some(found) = scan_for_vault(&base, 2) {
-                    return Some(found);
-                }
+        let mut cache = self
+            .detected
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((at, found)) = cache.as_ref() {
+            if at.elapsed() < DETECT_CACHE_TTL {
+                return found.clone();
             }
         }
-
-        None
+        let found = dirs_home_checked().and_then(|home| {
+            ["Documents", "Desktop", "Downloads"]
+                .iter()
+                .find_map(|dir| scan_for_vault(&format!("{home}/{dir}"), 2))
+        });
+        *cache = Some((std::time::Instant::now(), found.clone()));
+        found
     }
 
     pub fn scan_vault(&self, vault_path: &str) -> Result<Vec<VaultNote>, AetherError> {
@@ -191,21 +250,38 @@ impl VaultReader {
         Ok(notes)
     }
 
+    /// Canonical root of the configured vault.
+    pub fn vault_root(&self) -> Result<PathBuf, AetherError> {
+        let vault_path = self
+            .detect_vault_path()
+            .ok_or_else(|| AetherError::Vault("no vault path configured".into()))?;
+        std::fs::canonicalize(&vault_path)
+            .map_err(|e| AetherError::Vault(format!("vault canonicalize: {e}")))
+    }
+
+    /// Read a note. The path must resolve (symlinks included) to a file
+    /// inside the vault root; anything else is rejected.
     pub fn read_note(&self, note_path: &str) -> Result<String, AetherError> {
-        std::fs::read_to_string(note_path)
+        let root = self.vault_root()?;
+        let canonical = std::fs::canonicalize(note_path)
+            .map_err(|e| AetherError::Vault(format!("failed to read {note_path}: {e}")))?;
+        if !canonical.starts_with(&root) {
+            return Err(AetherError::Vault(format!(
+                "refusing to read outside vault: {note_path}"
+            )));
+        }
+        std::fs::read_to_string(&canonical)
             .map_err(|e| AetherError::Vault(format!("failed to read {note_path}: {e}")))
     }
 
     /// Write note content. The path must resolve inside the vault root —
     /// anything else is rejected to keep writes scoped to the vault.
     pub fn write_note(&self, note_path: &str, content: &str) -> Result<(), AetherError> {
-        let vault_path = self
-            .detect_vault_path()
-            .ok_or_else(|| AetherError::Vault("no vault path configured".into()))?;
-        let root = std::fs::canonicalize(&vault_path)
-            .map_err(|e| AetherError::Vault(format!("vault canonicalize: {e}")))?;
+        let root = self.vault_root()?;
         let path = Path::new(note_path);
-        let canonical = if path.exists() {
+        // `symlink_metadata` also sees dangling links: those must be
+        // resolved (and fail) instead of being written through.
+        let canonical = if std::fs::symlink_metadata(path).is_ok() {
             std::fs::canonicalize(path)
                 .map_err(|e| AetherError::Vault(format!("note canonicalize: {e}")))?
         } else {
@@ -225,8 +301,76 @@ impl VaultReader {
                 "refusing to write outside vault: {note_path}"
             )));
         }
+        if canonical
+            .strip_prefix(&root)
+            .is_ok_and(fs_guard::has_git_component)
+        {
+            return Err(AetherError::Vault(format!(
+                "refusing to write into the vault's .git folder: {note_path}"
+            )));
+        }
         std::fs::write(&canonical, content)?;
         Ok(())
+    }
+
+    /// Read an asset embedded in a note. `path` is vault-relative or
+    /// absolute; either way it must canonicalize (symlinks resolved) to a
+    /// regular file inside the vault, outside `.git`, with an allowed
+    /// extension (see [`asset_mime`]) and at most [`MAX_ASSET_BYTES`].
+    pub fn read_asset(&self, path: &str) -> Result<VaultAsset, AetherError> {
+        use base64::Engine as _;
+        use std::io::Read as _;
+
+        let trimmed = path.trim();
+        if trimmed.is_empty() || trimmed.contains('\0') {
+            return Err(AetherError::InvalidInput("asset path is empty".into()));
+        }
+        let root = self.vault_root()?;
+        let requested = Path::new(trimmed);
+        let candidate = if requested.is_absolute() {
+            requested.to_path_buf()
+        } else {
+            root.join(requested)
+        };
+        let canonical = std::fs::canonicalize(&candidate)
+            .map_err(|_| AetherError::InvalidInput(format!("asset not found: {trimmed}")))?;
+        let rel = canonical.strip_prefix(&root).map_err(|_| {
+            AetherError::InvalidInput(format!("asset is outside the vault: {trimmed}"))
+        })?;
+        if fs_guard::has_git_component(rel) {
+            return Err(AetherError::InvalidInput(format!(
+                "assets inside .git are not served: {trimmed}"
+            )));
+        }
+        let mime = asset_mime(&canonical).ok_or_else(|| {
+            AetherError::InvalidInput(format!("not an image, video, audio or PDF file: {trimmed}"))
+        })?;
+        let file = std::fs::File::open(&canonical)?;
+        let meta = file.metadata()?;
+        if !meta.is_file() {
+            return Err(AetherError::InvalidInput(format!(
+                "asset is not a file: {trimmed}"
+            )));
+        }
+        if meta.len() > MAX_ASSET_BYTES {
+            return Err(AetherError::InvalidInput(format!(
+                "asset is larger than {} MB: {trimmed}",
+                MAX_ASSET_BYTES / 1024 / 1024
+            )));
+        }
+        let mut bytes = Vec::with_capacity(meta.len() as usize);
+        file.take(MAX_ASSET_BYTES + 1).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > MAX_ASSET_BYTES {
+            return Err(AetherError::InvalidInput(format!(
+                "asset grew beyond {} MB: {trimmed}",
+                MAX_ASSET_BYTES / 1024 / 1024
+            )));
+        }
+        Ok(VaultAsset {
+            mime: mime.to_owned(),
+            byte_len: bytes.len() as u64,
+            data_base64: base64::engine::general_purpose::STANDARD.encode(&bytes),
+        })
     }
 
     /// Create a new note inside the vault. `rel_path` is relative to the
@@ -236,9 +380,13 @@ impl VaultReader {
             .detect_vault_path()
             .ok_or_else(|| AetherError::Vault("no vault path configured".into()))?;
         let rel = sanitize_rel_path(rel_path)?;
+        let root = std::fs::canonicalize(&vault_path)
+            .map_err(|e| AetherError::Vault(format!("vault canonicalize: {e}")))?;
         let abs = Path::new(&vault_path).join(&rel);
         if let Some(parent) = abs.parent() {
-            std::fs::create_dir_all(parent)?;
+            // Refuses symlinked folders that lead out of the vault before
+            // anything is created.
+            fs_guard::create_dir_all_within(&root, parent)?;
         }
         // Avoid clobbering an existing note — append a counter if needed.
         let abs = unique_path(&abs);
@@ -292,16 +440,39 @@ impl VaultReader {
         Ok(backlinks)
     }
 
-    /// Path of today's daily note inside the vault: `daily/YYYY-MM-DD.md`.
-    /// Creates the file (with a heading) and its folder if missing.
+    /// Daily-note preferences from `<config_dir>/vault_prefs.json` (written
+    /// by onboarding / Settings → Vault); `daily/YYYY-MM-DD` when unset.
+    pub fn daily_note_prefs(&self) -> Result<VaultPrefs, AetherError> {
+        read_vault_prefs(&self.config_dir)
+    }
+
+    /// Absolute path of the daily note for `date` (`YYYY-MM-DD`) inside the
+    /// vault, following the configured folder and file name pattern
+    /// (default `daily/YYYY-MM-DD.md`). Creates the file (with a heading)
+    /// and any missing folders.
     pub fn get_or_create_daily_note(&self, date: &str) -> Result<String, AetherError> {
+        let day = chrono::NaiveDate::parse_from_str(date.trim(), "%Y-%m-%d").map_err(|_| {
+            AetherError::InvalidInput(format!(
+                "invalid daily note date {date:?}; expected YYYY-MM-DD"
+            ))
+        })?;
+        self.daily_note_for(day)
+    }
+
+    fn daily_note_for(&self, day: chrono::NaiveDate) -> Result<String, AetherError> {
         let vault_path = self
             .detect_vault_path()
             .ok_or_else(|| AetherError::Vault("no vault path configured".into()))?;
-        let rel = format!("daily/{date}.md");
+        let prefs = self.daily_note_prefs()?;
+        let rel = prefs
+            .daily_rel_path(day)
+            .to_string_lossy()
+            .replace('\\', "/");
+        let rel = sanitize_rel_path(&rel)?;
         let abs = Path::new(&vault_path).join(&rel);
         if !abs.exists() {
-            self.create_note(&rel, &format!("# {date}\n\n"))?;
+            let heading = day.format("%Y-%m-%d");
+            self.create_note(&rel, &format!("# {heading}\n\n"))?;
         }
         Ok(abs.to_string_lossy().to_string())
     }
@@ -309,9 +480,8 @@ impl VaultReader {
     /// Append a timestamped bullet to today's daily note.
     pub fn append_daily_note(&self, text: &str) -> Result<String, AetherError> {
         let now = chrono::Local::now();
-        let date = now.format("%Y-%m-%d").to_string();
         let time = now.format("%H:%M").to_string();
-        let path = self.get_or_create_daily_note(&date)?;
+        let path = self.daily_note_for(now.date_naive())?;
         let line = format!("- **{time}** — {}", text.trim());
         self.append_note(&path, &line)?;
         Ok(path)
@@ -440,6 +610,33 @@ pub struct Backlink {
     pub context: String,
 }
 
+/// Validate a vault folder chosen in Settings: an absolute path to an
+/// existing directory that is not a filesystem root or an OS system
+/// folder. Returns the trimmed path in the user's spelling.
+pub fn validate_vault_dir(path: &str) -> Result<String, AetherError> {
+    let trimmed = path.trim();
+    let candidate = Path::new(trimmed);
+    if trimmed.is_empty() || trimmed.contains('\0') || !candidate.is_absolute() {
+        return Err(AetherError::InvalidInput(format!(
+            "the vault folder must be an absolute path (got \"{trimmed}\")"
+        )));
+    }
+    let canonical = std::fs::canonicalize(candidate).map_err(|_| {
+        AetherError::InvalidInput(format!("the vault folder does not exist: {trimmed}"))
+    })?;
+    if !canonical.is_dir() {
+        return Err(AetherError::InvalidInput(format!(
+            "the vault path is not a folder: {trimmed}"
+        )));
+    }
+    if fs_guard::is_system_location(&canonical) {
+        return Err(AetherError::InvalidInput(format!(
+            "a filesystem root or system folder cannot be the vault: {trimmed}"
+        )));
+    }
+    Ok(trimmed.to_owned())
+}
+
 /// Validate a vault-relative path: no traversal, no absolute components,
 /// always ends in .md.
 fn sanitize_rel_path(rel: &str) -> Result<String, AetherError> {
@@ -463,9 +660,15 @@ fn sanitize_rel_path(rel: &str) -> Result<String, AetherError> {
     }
 }
 
-/// If `path` already exists, append " 2", " 3", … before the extension.
+/// `path` exists, or is a (possibly dangling) symbolic link.
+fn is_taken(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok()
+}
+
+/// If `path` already exists (or is a symlink), append " 2", " 3", … before
+/// the extension.
 fn unique_path(path: &Path) -> PathBuf {
-    if !path.exists() {
+    if !is_taken(path) {
         return path.to_path_buf();
     }
     let stem = path
@@ -479,7 +682,7 @@ fn unique_path(path: &Path) -> PathBuf {
     let parent = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
     for i in 2..1000 {
         let candidate = parent.join(format!("{stem} {i}.{ext}"));
-        if !candidate.exists() {
+        if !is_taken(&candidate) {
             return candidate;
         }
     }
@@ -572,8 +775,160 @@ mod tests {
 
         let config_dir = tempdir().expect("config dir");
         let reader = VaultReader::new(config_dir.path()).expect("reader");
+        reader
+            .set_vault_path(dir.path().to_str().unwrap())
+            .expect("set vault");
         let content = reader.read_note(path.to_str().unwrap()).expect("read");
         assert_eq!(content, "# Test content");
+    }
+
+    /// Table: a note inside the vault, a `..` path out of it, an absolute
+    /// outside path and a symlink escaping the vault.
+    #[test]
+    fn read_note_stays_inside_the_vault() {
+        let (vault, _config, reader) = reader_with_vault();
+        let outside = tempdir().expect("outside");
+        fs::write(vault.path().join("inside.md"), "ok").expect("write");
+        fs::write(outside.path().join("secret.md"), "secret").expect("write");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(outside.path(), vault.path().join("link")).expect("symlink");
+
+        let dotdot = format!(
+            "{}/../{}/secret.md",
+            vault.path().display(),
+            outside.path().file_name().unwrap().to_string_lossy()
+        );
+        let mut cases = vec![
+            (vault.path().join("inside.md").display().to_string(), true),
+            (dotdot, false),
+            (
+                outside.path().join("secret.md").display().to_string(),
+                false,
+            ),
+        ];
+        #[cfg(unix)]
+        cases.push((
+            vault.path().join("link/secret.md").display().to_string(),
+            false,
+        ));
+        for (path, ok) in cases {
+            assert_eq!(reader.read_note(&path).is_ok(), ok, "{path}");
+        }
+    }
+
+    #[test]
+    fn write_note_refuses_git_internals_and_dangling_links() {
+        let (vault, _config, reader) = reader_with_vault();
+        fs::create_dir(vault.path().join(".git")).expect("mkdir");
+        let config = vault.path().join(".git/config");
+        assert!(reader
+            .write_note(config.to_str().unwrap(), "[core]")
+            .is_err());
+        assert!(!config.exists());
+
+        #[cfg(unix)]
+        {
+            let outside = tempdir().expect("outside");
+            let target = outside.path().join("created.md");
+            let link = vault.path().join("dangling.md");
+            std::os::unix::fs::symlink(&target, &link).expect("symlink");
+            assert!(reader.write_note(link.to_str().unwrap(), "x").is_err());
+            assert!(
+                !target.exists(),
+                "a dangling link must not be written through"
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn create_note_refuses_symlinked_folders_out_of_the_vault() {
+        let (vault, _config, reader) = reader_with_vault();
+        let outside = tempdir().expect("outside");
+        std::os::unix::fs::symlink(outside.path(), vault.path().join("clips")).expect("symlink");
+        assert!(reader.create_note("clips/new/Article", "x").is_err());
+        assert!(!outside.path().join("new").exists());
+
+        // A dangling link with the note's name is never written through.
+        let target = outside.path().join("target.md");
+        std::os::unix::fs::symlink(&target, vault.path().join("Note.md")).expect("symlink");
+        let created = reader.create_note("Note", "x").expect("create");
+        assert!(created.ends_with("Note 2.md"));
+        assert!(!target.exists());
+    }
+
+    #[test]
+    fn vault_dirs_are_validated() {
+        let dir = tempdir().expect("dir");
+        let file = dir.path().join("file.md");
+        fs::write(&file, "x").expect("write");
+        assert!(validate_vault_dir(dir.path().to_str().unwrap()).is_ok());
+        assert!(validate_vault_dir("relative/vault").is_err());
+        assert!(validate_vault_dir("").is_err());
+        assert!(validate_vault_dir("/").is_err());
+        assert!(validate_vault_dir("/usr").is_err());
+        assert!(validate_vault_dir(file.to_str().unwrap()).is_err());
+        assert!(validate_vault_dir("/definitely/not/here/xyz").is_err());
+    }
+
+    #[test]
+    fn read_asset_table() {
+        use base64::Engine as _;
+        let (vault, _config, reader) = reader_with_vault();
+        let outside = tempdir().expect("outside");
+        fs::create_dir(vault.path().join("attachments")).expect("mkdir");
+        fs::write(vault.path().join("attachments/pic.png"), b"\x89PNG").expect("write");
+        fs::write(vault.path().join("attachments/doc.PDF"), b"%PDF").expect("write");
+        fs::write(vault.path().join("script.sh"), b"echo").expect("write");
+        fs::write(outside.path().join("out.png"), b"png").expect("write");
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(outside.path(), vault.path().join("link")).expect("symlink");
+
+        let asset = reader.read_asset("attachments/pic.png").expect("relative");
+        assert_eq!(asset.mime, "image/png");
+        assert_eq!(asset.byte_len, 4);
+        assert_eq!(
+            base64::engine::general_purpose::STANDARD
+                .decode(&asset.data_base64)
+                .expect("base64"),
+            b"\x89PNG"
+        );
+        let abs = vault.path().join("attachments/doc.PDF");
+        assert_eq!(
+            reader
+                .read_asset(abs.to_str().unwrap())
+                .expect("absolute")
+                .mime,
+            "application/pdf"
+        );
+
+        let escape = format!(
+            "../{}/out.png",
+            outside.path().file_name().unwrap().to_string_lossy()
+        );
+        let mut rejected = vec![
+            escape,
+            outside.path().join("out.png").display().to_string(),
+            "script.sh".to_owned(),
+            "attachments/missing.png".to_owned(),
+            "attachments".to_owned(),
+            String::new(),
+        ];
+        #[cfg(unix)]
+        rejected.push("link/out.png".to_owned());
+        for path in rejected {
+            assert!(reader.read_asset(&path).is_err(), "{path} must be rejected");
+        }
+    }
+
+    #[test]
+    fn read_asset_enforces_the_size_cap() {
+        let (vault, _config, reader) = reader_with_vault();
+        let big = vault.path().join("big.mp4");
+        let file = fs::File::create(&big).expect("create");
+        file.set_len(MAX_ASSET_BYTES + 1).expect("sparse file");
+        let err = reader.read_asset("big.mp4").expect_err("oversize");
+        assert!(err.to_string().contains("larger than"));
     }
 
     #[test]
@@ -778,5 +1133,74 @@ mod tests {
         let daily = fs::read_to_string(&appended).expect("read daily");
         assert!(daily.contains("hello world"));
         assert!(daily.contains("- **"));
+    }
+
+    fn set_daily_prefs(config: &Path, folder: &str, pattern: &str) {
+        crate::engine::onboarding::OnboardingEngine::new(config)
+            .expect("onboarding")
+            .set_vault_prefs(VaultPrefs {
+                daily_folder: folder.to_owned(),
+                daily_filename_pattern: pattern.to_owned(),
+            })
+            .expect("prefs");
+    }
+
+    #[test]
+    fn daily_note_defaults_to_daily_folder_without_prefs() {
+        let (vault, config, reader) = reader_with_vault();
+        assert!(!config.path().join("vault_prefs.json").exists());
+        let path = reader
+            .get_or_create_daily_note("2026-09-23")
+            .expect("daily");
+        assert_eq!(
+            Path::new(&path),
+            vault.path().join("daily").join("2026-09-23.md")
+        );
+        assert!(reader.get_or_create_daily_note("23.09.2026").is_err());
+    }
+
+    #[test]
+    fn daily_note_uses_the_configured_folder_and_pattern() {
+        let (vault, config, reader) = reader_with_vault();
+        set_daily_prefs(config.path(), "Journal/Daily", "DD.MM.YYYY");
+        let path = reader
+            .get_or_create_daily_note("2026-09-02")
+            .expect("daily");
+        let expected = vault
+            .path()
+            .join("Journal")
+            .join("Daily")
+            .join("02.09.2026.md");
+        assert_eq!(Path::new(&path), expected);
+        assert!(fs::read_to_string(&expected)
+            .expect("read")
+            .starts_with("# 2026-09-02"));
+
+        let appended = reader.append_daily_note("captured").expect("append");
+        let today = chrono::Local::now().format("%d.%m.%Y").to_string();
+        assert_eq!(
+            Path::new(&appended),
+            vault
+                .path()
+                .join("Journal")
+                .join("Daily")
+                .join(format!("{today}.md"))
+        );
+        assert!(fs::read_to_string(&appended)
+            .expect("read")
+            .contains("captured"));
+    }
+
+    #[test]
+    fn nested_daily_pattern_creates_the_folders() {
+        let (vault, config, reader) = reader_with_vault();
+        set_daily_prefs(config.path(), "", "YYYY/MM/YYYY-MM-DD");
+        let path = reader
+            .get_or_create_daily_note("2026-01-05")
+            .expect("daily");
+        let expected = vault.path().join("2026").join("01").join("2026-01-05.md");
+        assert_eq!(Path::new(&path), expected);
+        assert!(vault.path().join("2026").join("01").is_dir());
+        assert!(expected.is_file());
     }
 }

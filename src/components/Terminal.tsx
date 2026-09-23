@@ -534,7 +534,7 @@ export function Terminal({ defaultCwd }: TerminalProps = {}) {
             className={`terminal-tab${activeClientId === tab.clientId ? " terminal-tab-active" : ""}`}
             onClick={() => setActiveClientId(tab.clientId)}
           >
-            <TerminalSquare size={12} />
+            <TerminalSquare size={14} />
             <span className="terminal-tab-title">{tab.title}</span>
             <button
               className="terminal-tab-close"
@@ -543,7 +543,7 @@ export function Terminal({ defaultCwd }: TerminalProps = {}) {
                 void closeTab(tab.clientId);
               }}
             >
-              <X size={12} />
+              <X size={14} />
             </button>
           </div>
         ))}
@@ -557,7 +557,7 @@ export function Terminal({ defaultCwd }: TerminalProps = {}) {
           title="Reset terminal (clears screen if display gets corrupted)"
           disabled={!activeClientId}
         >
-          <RotateCcw size={13} />
+          <RotateCcw size={14} />
         </button>
       </div>
       <div className="terminal-container">

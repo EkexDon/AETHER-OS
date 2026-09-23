@@ -51,7 +51,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
         onChange={(e) => onChange(e.target.checked, e)}
       />
       <span className="ui-checkbox-box" aria-hidden="true">
-        {indeterminate ? <Minus size={12} strokeWidth={3} /> : checked ? <Check size={12} strokeWidth={3} /> : null}
+        {indeterminate ? <Minus size={14} strokeWidth={3} /> : checked ? <Check size={14} strokeWidth={3} /> : null}
       </span>
       {(label || description) && (
         <span className="ui-checkbox-text">

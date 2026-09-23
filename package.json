@@ -1,7 +1,7 @@
 {
   "name": "aether-os",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -47,6 +47,7 @@
     "codemirror": "^6.0.2",
     "date-fns": "^3.6.0",
     "lucide-react": "^0.468.0",
+    "markdown-it": "^14.3.0",
     "mermaid": "^11.16.0",
     "monaco-editor": "^0.52.2",
     "react": "^18.3.1",
@@ -63,6 +64,7 @@
     "@tauri-apps/cli": "^2.11.4",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.1.0",
+    "@types/markdown-it": "^14.1.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/turndown": "^5.0.6",

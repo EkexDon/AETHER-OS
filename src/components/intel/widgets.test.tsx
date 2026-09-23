@@ -87,6 +87,31 @@ describe("ActionRunList", () => {
     { id: "4", action: { action: "move_note", from: "/v/a.md", to: "b/" }, risk: "confirm", status: "awaiting" },
   ];
 
+  it("shows Rust's truncation marker as a notice, not as output", () => {
+    const truncated: ActionRun = {
+      id: "t",
+      action: { action: "run_command", command: "yes", cwd: "/w" },
+      risk: "dangerous",
+      status: "done",
+      output: {
+        command: "yes",
+        cwd: "/w",
+        exit_code: 0,
+        stdout: "y\ny\n[… output truncated at 64 KiB]",
+        stderr: "",
+        timed_out: false,
+        duration_ms: 5,
+        truncated: true,
+      },
+    };
+    render(<ActionRunList runs={[truncated]} />);
+    fireEvent.click(screen.getByRole("button", { name: /Output · exit 0 · 5 ms · truncated/ }));
+    const output = screen.getByLabelText("Command output");
+    expect(output.textContent).not.toContain("[…");
+    expect(screen.getByRole("note")).toHaveTextContent("Output truncated at 64 KiB. The full output was not kept.");
+    expect(screen.getByRole("note")).toHaveClass("intel-terminal-truncated");
+  });
+
   it("renders nothing without runs", () => {
     const { container } = render(<ActionRunList runs={[]} />);
     expect(container).toBeEmptyDOMElement();

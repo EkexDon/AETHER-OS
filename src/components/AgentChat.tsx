@@ -314,18 +314,18 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     <div className="agent-chat" style={{ width, minWidth: width }}>
       <div className="agent-header">
         <span className="agent-avatar" aria-hidden="true">
-          <Bot size={15} />
+          <Bot size={16} />
         </span>
         <span className="agent-title">AETHER Agent</span>
         <span className={cx("agent-status", (busy || compacting) && "agent-busy")} role="status">
           <span className="agent-status-dot" aria-hidden="true" />
-          {busy ? "Thinking..." : compacting ? "Compacting..." : "Ready"}
+          {busy ? "Thinking…" : compacting ? "Compacting…" : "Ready"}
         </span>
         <span className="agent-header-actions">
           <IconButton
             label="Compact conversation now"
             size="sm"
-            icon={compacting ? <Spinner size={12} /> : <FoldVertical size={14} />}
+            icon={compacting ? <Spinner size={14} /> : <FoldVertical size={14} />}
             onClick={() => void runCompaction(false)}
             disabled={!compactable}
             tooltipPlacement="bottom"
@@ -363,19 +363,19 @@ export function AgentChat({ width = 340 }: { width?: number }) {
           className="agent-provider-select"
           value={provider}
           onChange={(e) => setProvider(e.target.value as AiProvider)}
-          title="AI provider"
+          title={provider === "ollama" ? "AI provider: Ollama, runs on this machine" : "AI provider: OpenRouter, cloud models"}
           aria-label="AI provider"
-          iconLeft={provider === "ollama" ? <HardDrive size={12} /> : <Cloud size={12} />}
+          iconLeft={provider === "ollama" ? <HardDrive size={14} /> : <Cloud size={14} />}
         >
-          <option value="ollama">Ollama · Local</option>
-          <option value="openrouter">OpenRouter · Cloud</option>
+          <option value="ollama">Ollama</option>
+          <option value="openrouter">OpenRouter</option>
         </Select>
         <Select
           size="sm"
           className="agent-model-select"
           value={currentModel}
           onChange={(e) => handleModelChange(e.target.value)}
-          title="Model"
+          title={`Model: ${currentModel}`}
           aria-label="Model"
         >
           {providerModels.map((model) => (
@@ -384,37 +384,45 @@ export function AgentChat({ width = 340 }: { width?: number }) {
             </option>
           ))}
         </Select>
-        <TokenMeter
-          tokens={windowTokens}
-          threshold={settings.compact_threshold_tokens}
-          autoCompact={settings.auto_compact}
-          compacting={compacting}
-          onCompact={compactable ? () => void runCompaction(false) : undefined}
-        />
-        {provider === "ollama" ? (
-          <span
-            className={`engine-badge ${health?.ollama_online ? "engine-online" : "engine-offline"}`}
-            title={health?.ollama_online ? "Ollama is running locally" : "Ollama is offline"}
-          >
-            <span className="engine-dot" aria-hidden="true" />
-            {health?.ollama_online ? "connected" : "offline"}
-          </span>
-        ) : (
-          <span
-            className={`engine-badge ${health?.openrouter_configured ? "engine-online" : "engine-offline"}`}
-            title={health?.openrouter_configured ? "OpenRouter API key configured" : "Add your OpenRouter key in Settings"}
-          >
-            <span className="engine-dot" aria-hidden="true" />
-            {health?.openrouter_configured ? "connected" : "no key"}
-          </span>
+        {(windowTokens > 0 || compacting) && (
+          <TokenMeter
+            tokens={windowTokens}
+            threshold={settings.compact_threshold_tokens}
+            autoCompact={settings.auto_compact}
+            compacting={compacting}
+            onCompact={compactable ? () => void runCompaction(false) : undefined}
+          />
         )}
+        {(() => {
+          const online = provider === "ollama" ? !!health?.ollama_online : !!health?.openrouter_configured;
+          const tip =
+            provider === "ollama"
+              ? online
+                ? "Ollama is running locally"
+                : "Ollama is offline — start it with `ollama serve`"
+              : online
+                ? "OpenRouter API key configured"
+                : "Add your OpenRouter key in Settings → AI providers";
+          // Connected is the normal state: a quiet dot. Problems get words.
+          return (
+            <span
+              className={cx("engine-badge", online ? "engine-online is-dot" : "engine-offline")}
+              title={tip}
+              role="status"
+              aria-label={tip}
+            >
+              <span className="engine-dot" aria-hidden="true" />
+              {!online && (provider === "ollama" ? "offline" : "no key")}
+            </span>
+          );
+        })()}
       </div>
       {!supportsAgentActions(currentModel, provider) && (
         <div
           className="agent-engine-warning"
           title="This model may not emit tool calls reliably. Actions will still be parsed from the reply if present."
         >
-          <Zap size={11} />
+          <Zap size={14} />
           <span>tools: unreliable — this model may not emit tool calls</span>
         </div>
       )}
@@ -431,7 +439,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
                 onClick={() => loadConversation(c.id)}
                 title={isCompactionSummary(c.summary) ? "Compacted conversation" : undefined}
               >
-                {isCompactionSummary(c.summary) && <Archive size={11} className="context-note-icon" aria-hidden="true" />}
+                {isCompactionSummary(c.summary) && <Archive size={14} className="context-note-icon" aria-hidden="true" />}
                 <span className="agent-history-summary">{conversationTitle(c.summary)}</span>
                 <span className="agent-history-time">{new Date(c.timestamp * 1000).toLocaleDateString()}</span>
                 <button
@@ -440,7 +448,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
                   aria-label="Delete conversation"
                   onClick={(e) => void handleDeleteConversation(c.id, e)}
                 >
-                  <X size={12} />
+                  <X size={14} />
                 </button>
               </div>
             ))
@@ -456,7 +464,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
           title="Select context notes"
           aria-expanded={showContextPicker}
         >
-          <Layers size={13} />
+          <Layers size={14} />
           <span className="agent-context-label">
             {allNotesInContext
               ? `All notes (${vaultNotes.length})`
@@ -468,7 +476,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
             label="Reset to all notes"
             size="sm"
             className="agent-context-reset"
-            icon={<RotateCcw size={12} />}
+            icon={<RotateCcw size={14} />}
             onClick={resetContextToAll}
           />
         )}
@@ -478,7 +486,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
       {showContextPicker && (
         <div className="context-picker">
           <div className="context-picker-header">
-            <span className="context-picker-title">Context Notes</span>
+            <span className="context-picker-title">Context notes</span>
             <IconButton
               label="Close"
               size="sm"
@@ -490,7 +498,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
           <div className="context-picker-search">
             <input
               type="text"
-              placeholder="Filter notes..."
+              placeholder="Filter notes…"
               value={contextSearch}
               onChange={(e) => setContextSearch(e.target.value)}
               className="settings-input context-picker-filter"
@@ -516,7 +524,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
                   <span className="context-check-wrapper">
                     {isSelected && <Check size={14} className="context-check" />}
                   </span>
-                  <FileText size={12} className="context-note-icon" />
+                  <FileText size={14} className="context-note-icon" />
                   <span className="context-note-name">{note.name.replace(/\.md$/i, "")}</span>
                 </div>
               );
@@ -609,7 +617,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
       <div className="agent-input-row">
         <textarea
           className="agent-input"
-          placeholder="Ask about your notes... (/model to switch)"
+          placeholder="Ask about your notes… (/model to switch)"
           aria-label="Message the agent"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -659,7 +667,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
             aria-label="Send"
             title="Send (Enter)"
           >
-            {busy ? <Spinner size={14} /> : <ArrowUp size={15} strokeWidth={2.4} />}
+            {busy ? <Spinner size={14} /> : <ArrowUp size={16} strokeWidth={2.4} />}
           </button>
         </div>
       </div>

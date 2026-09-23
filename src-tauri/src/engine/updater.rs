@@ -19,7 +19,11 @@ pub const LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/EkexDon/AETHER-OS/releases/latest";
 /// Human-facing releases page, used when no release has been published yet.
 pub const RELEASES_PAGE_URL: &str = "https://github.com/EkexDon/AETHER-OS/releases";
+/// Path prefix every release link from the API must start with.
+const REPO_PATH_PREFIX: &str = "/EkexDon/AETHER-OS/";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(8);
+/// Largest release response read from the API (release notes included).
+pub const MAX_RESPONSE_BYTES: usize = 1024 * 1024;
 
 /// Result of an update check.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -201,6 +205,26 @@ impl fmt::Display for Version {
     }
 }
 
+/// The release link from the API response, if it is a plain
+/// `https://github.com/EkexDon/AETHER-OS/…` URL (exact host, no
+/// credentials, no custom port, the project's path prefix). The UI opens
+/// this URL in the browser, so anything else falls back to the releases
+/// page.
+pub fn trusted_release_url(raw: &str) -> Option<String> {
+    let url = url::Url::parse(raw.trim()).ok()?;
+    let prefix_ok = url
+        .path()
+        .get(..REPO_PATH_PREFIX.len())
+        .is_some_and(|p| p.eq_ignore_ascii_case(REPO_PATH_PREFIX));
+    (url.scheme() == "https"
+        && url.host_str() == Some("github.com")
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.port().is_none()
+        && prefix_ok)
+        .then(|| url.to_string())
+}
+
 /// Compare `current` with a GitHub release and build the [`UpdateInfo`].
 pub fn evaluate_release(current: &str, release: &GithubRelease) -> Result<UpdateInfo, AetherError> {
     let current_version = Version::parse(current)?;
@@ -211,8 +235,8 @@ pub fn evaluate_release(current: &str, release: &GithubRelease) -> Result<Update
         update_available: latest_version > current_version,
         url: release
             .html_url
-            .clone()
-            .filter(|u| u.starts_with("https://github.com/"))
+            .as_deref()
+            .and_then(trusted_release_url)
             .unwrap_or_else(|| RELEASES_PAGE_URL.to_owned()),
         notes: release.body.clone().unwrap_or_default(),
         published_at: release.published_at.clone(),
@@ -286,9 +310,26 @@ pub async fn check_for_updates_at(
         )));
     }
 
-    let release: GithubRelease = response
-        .json()
+    let too_large = || AetherError::Network("the update response is unexpectedly large".to_owned());
+    if response
+        .content_length()
+        .is_some_and(|len| len > MAX_RESPONSE_BYTES as u64)
+    {
+        return Err(too_large());
+    }
+    let mut response = response;
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
         .await
+        .map_err(|e| AetherError::Network(format!("unexpected update response: {e}")))?
+    {
+        body.extend_from_slice(&chunk);
+        if body.len() > MAX_RESPONSE_BYTES {
+            return Err(too_large());
+        }
+    }
+    let release: GithubRelease = serde_json::from_slice(&body)
         .map_err(|e| AetherError::Network(format!("unexpected update response: {e}")))?;
     evaluate_release(&current_version.to_string(), &release)
 }
@@ -402,11 +443,28 @@ mod tests {
 
     #[test]
     fn untrusted_release_urls_fall_back_to_the_releases_page() {
-        let mut r = release("v9.0.0");
-        r.html_url = Some("https://evil.example/phish".to_owned());
+        for bad in [
+            "https://evil.example/phish",
+            "https://github.com/someone-else/AETHER-OS/releases/tag/v9",
+            "https://github.com/EkexDon/AETHER-OS-fake/releases",
+            "https://github.com.evil.example/EkexDon/AETHER-OS/releases",
+            "https://user@github.com/EkexDon/AETHER-OS/releases",
+            "https://github.com:8443/EkexDon/AETHER-OS/releases",
+            "http://github.com/EkexDon/AETHER-OS/releases",
+            "javascript:alert(1)//github.com/EkexDon/AETHER-OS/",
+        ] {
+            let mut r = release("v9.0.0");
+            r.html_url = Some(bad.to_owned());
+            assert_eq!(
+                evaluate_release("0.1.0", &r).expect("eval").url,
+                RELEASES_PAGE_URL,
+                "{bad}"
+            );
+        }
         assert_eq!(
-            evaluate_release("0.1.0", &r).expect("eval").url,
-            RELEASES_PAGE_URL
+            trusted_release_url("https://github.com/EkexDon/AETHER-OS/releases/tag/v0.2.0")
+                .as_deref(),
+            Some("https://github.com/EkexDon/AETHER-OS/releases/tag/v0.2.0")
         );
     }
 
@@ -418,6 +476,10 @@ mod tests {
 
     /// Serve exactly one canned HTTP response on a random local port.
     fn serve_once(status_line: &'static str, body: &'static str) -> String {
+        serve_once_owned(status_line, body.to_owned())
+    }
+
+    fn serve_once_owned(status_line: &'static str, body: String) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
         let addr = listener.local_addr().expect("addr");
         std::thread::spawn(move || {
@@ -444,6 +506,19 @@ mod tests {
         assert!(info.update_available);
         assert_eq!(info.latest, "0.3.1");
         assert_eq!(info.published_at.as_deref(), Some("2026-09-20T08:00:00Z"));
+    }
+
+    #[tokio::test]
+    async fn oversized_responses_are_refused() {
+        let notes = "x".repeat(MAX_RESPONSE_BYTES + 1);
+        let url = serve_once_owned(
+            "200 OK",
+            format!(r#"{{"tag_name":"v0.3.1","body":"{notes}"}}"#),
+        );
+        let err = check_for_updates_at(&url, "0.1.0")
+            .await
+            .expect_err("too large");
+        assert!(err.to_string().contains("unexpectedly large"), "{err}");
     }
 
     #[tokio::test]

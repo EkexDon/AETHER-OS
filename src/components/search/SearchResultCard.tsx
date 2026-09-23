@@ -72,7 +72,7 @@ export const SearchResultCard = memo(function SearchResultCard({
           <HighlightedText className="usearch-card-title" text={hit.title} positions={matchPositions(query, hit.title)} />
           <span className="usearch-card-kind">{meta.singular}</span>
           {semantic && (
-            <Badge size="sm" variant="accent" icon={<Sparkles size={10} />} title="Found by meaning (semantic search)">
+            <Badge size="sm" variant="accent" icon={<Sparkles size={14} />} title="Found by meaning (semantic search)">
               Semantic
             </Badge>
           )}

@@ -14,8 +14,8 @@ export interface CommandContext {
   view: ViewMode;
   setView: (mode: ViewMode) => void;
   openSettings: (sectionId?: string) => void;
-  toggleCommandBar: () => void;
-  closeCommandBar: () => void;
+  toggleLauncher: () => void;
+  closeLauncher: () => void;
   openQuickCapture: () => void;
   openWebClipper: () => void;
   openShortcuts: () => void;
@@ -36,13 +36,13 @@ export function createCommandContext(): CommandContext {
     view: aether.view,
     setView: (mode) => {
       useAetherStore.getState().setView(mode);
-      useShellStore.getState().setCommandBarOpen(false);
+      useShellStore.getState().setLauncherOpen(false);
     },
     openSettings: (sectionId) => shell.openSettings(sectionId ?? null),
-    toggleCommandBar: () => useShellStore.getState().toggleCommandBar(),
-    closeCommandBar: () => useShellStore.getState().setCommandBarOpen(false),
+    toggleLauncher: () => useShellStore.getState().toggleLauncher(),
+    closeLauncher: () => useShellStore.getState().setLauncherOpen(false),
     openQuickCapture: () => {
-      useShellStore.getState().setCommandBarOpen(false);
+      useShellStore.getState().setLauncherOpen(false);
       useAetherStore.getState().setShowQuickCapture(true);
     },
     openWebClipper: () => useShellStore.getState().setWebClipperOpen(true),

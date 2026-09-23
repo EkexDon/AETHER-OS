@@ -104,7 +104,7 @@ export function WebClipper({ onClose }: { onClose: () => void }) {
       {clipped && (
         <div className="web-clipper-result">
           <div className="web-clipper-result-header">
-            <FileText size={15} />
+            <FileText size={16} />
             <span className="web-clipper-result-title">{clipped.title}</span>
           </div>
           <div className="web-clipper-result-url">{clipped.url}</div>

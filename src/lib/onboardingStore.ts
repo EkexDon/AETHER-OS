@@ -1,11 +1,13 @@
 import { create } from "zustand";
-import type { OnboardingState, PullOutcome, UpdateInfo } from "../types";
+import type { GeneralPrefs, OnboardingState, PullOutcome, UpdateInfo } from "../types";
 import {
   cancelOllamaPull,
   checkForUpdates,
+  getGeneralPrefs,
   listLocalModels,
   onOllamaPullProgress,
   pullOllamaModel,
+  setGeneralPrefs,
   setOnboardingState,
   type UnlistenFn,
 } from "./ipc";
@@ -21,8 +23,13 @@ import { DEFAULT_VIEW, type ViewMode } from "../views/modes";
  * owns (start view, agent panel on start, automatic update check, editor
  * typography). Preferences persist in localStorage under
  * {@link PREFS_STORAGE_KEY}; the wizard state itself lives in Rust
- * (`<data_dir>/onboarding.json`).
+ * (`<data_dir>/onboarding.json`), and so do the {@link GeneralPrefs} the
+ * backend acts on itself (`<data_dir>/general_prefs.json`, e.g. whether
+ * quitting with running terminals asks first).
  */
+
+/** Defaults of {@link GeneralPrefs} (mirror `GeneralPrefs::default()` in Rust). */
+export const DEFAULT_GENERAL_PREFS: GeneralPrefs = { confirm_quit_with_terminals: true };
 
 /** localStorage key of {@link OnboardingPrefs}. */
 export const PREFS_STORAGE_KEY = "aether-onboarding-prefs";
@@ -134,6 +141,13 @@ interface OnboardingStore {
   prefs: OnboardingPrefs;
   setPrefs: (patch: Partial<OnboardingPrefs>) => void;
 
+  /** Backend-owned general preferences (`null` until loaded). */
+  generalPrefs: GeneralPrefs | null;
+  /** Load {@link GeneralPrefs}; failures keep the defaults visible and rethrow. */
+  loadGeneralPrefs: () => Promise<GeneralPrefs>;
+  /** Persist a change (optimistic; rolled back and rethrown on failure). */
+  updateGeneralPrefs: (patch: Partial<GeneralPrefs>) => Promise<GeneralPrefs>;
+
   /** Wizard state from the backend (`null` until loaded). */
   onboarding: OnboardingState | null;
   setOnboarding: (state: OnboardingState) => void;
@@ -206,6 +220,30 @@ export const useOnboardingStore = create<OnboardingStore>((set, get) => ({
     savePrefs(prefs);
     if ("editorFontSize" in patch || "editorLineWidth" in patch) applyEditorPrefs(prefs);
     set({ prefs });
+  },
+
+  generalPrefs: null,
+  loadGeneralPrefs: async () => {
+    try {
+      const prefs = await getGeneralPrefs();
+      set({ generalPrefs: prefs });
+      return prefs;
+    } catch (e) {
+      throw new Error(message(e));
+    }
+  },
+  updateGeneralPrefs: async (patch) => {
+    const before = get().generalPrefs;
+    const next = { ...DEFAULT_GENERAL_PREFS, ...before, ...patch };
+    set({ generalPrefs: next });
+    try {
+      const stored = await setGeneralPrefs(next);
+      set({ generalPrefs: stored });
+      return stored;
+    } catch (e) {
+      set({ generalPrefs: before });
+      throw new Error(message(e));
+    }
   },
 
   onboarding: null,

@@ -32,7 +32,6 @@ import { copyText } from "../../lib/onboarding/clipboard";
 import { formatBytes } from "../../lib/onboarding/models";
 import { Badge, Button, Checkbox, EmptyState, IconButton, Input, ListRow, Modal, Spinner, Switch, useToast } from "../../ui";
 import { SettingsGroup, SettingsPage, SettingsRow } from "../layout";
-import "../../styles/views/onboarding.css";
 
 /** Word the user types to confirm a reset. */
 export const RESET_CONFIRM_WORD = "RESET";
@@ -286,7 +285,7 @@ export function DataPrivacySettings() {
           label="Your notes"
           hint={vaultPath ?? "No vault connected."}
           control={
-            <Button size="sm" variant="ghost" iconLeft={<SquareArrowOutUpRight size={13} />} disabled={!vaultPath} onClick={() => void act("Could not reveal the vault", revealVault)}>
+            <Button size="sm" variant="ghost" iconLeft={<SquareArrowOutUpRight size={14} />} disabled={!vaultPath} onClick={() => void act("Could not reveal the vault", revealVault)}>
               Reveal
             </Button>
           }
@@ -295,7 +294,7 @@ export function DataPrivacySettings() {
           label="App data"
           hint={info ? `${info.data_dir} · ${formatBytes(totalSize)}` : loadError ?? "Loading…"}
           control={
-            <Button size="sm" variant="secondary" iconLeft={<FolderOpen size={13} />} onClick={() => void act("Could not open the data folder", openAppDataDir)}>
+            <Button size="sm" variant="secondary" iconLeft={<FolderOpen size={14} />} onClick={() => void act("Could not open the data folder", openAppDataDir)}>
               Open folder
             </Button>
           }
@@ -388,8 +387,8 @@ export function DataPrivacySettings() {
                   description={`${formatWhen(r.created_at)} · ${r.kind} · ${formatBytes(r.size)}`}
                   actions={
                     <>
-                      <IconButton size="sm" label="View crash report" icon={<Eye size={13} />} onClick={() => void view(r.id)} />
-                      <IconButton size="sm" label="Copy crash report" icon={<ClipboardCopy size={13} />} onClick={() => void copyReport(r.id)} />
+                      <IconButton size="sm" label="View crash report" icon={<Eye size={14} />} onClick={() => void view(r.id)} />
+                      <IconButton size="sm" label="Copy crash report" icon={<ClipboardCopy size={14} />} onClick={() => void copyReport(r.id)} />
                     </>
                   }
                   onClick={() => void view(r.id)}
@@ -399,7 +398,7 @@ export function DataPrivacySettings() {
             <SettingsRow
               label={`${reports.length} ${reports.length === 1 ? "report" : "reports"}`}
               control={
-                <Button size="sm" variant="danger" iconLeft={<Trash2 size={13} />} onClick={() => void clearReports()}>
+                <Button size="sm" variant="danger" iconLeft={<Trash2 size={14} />} onClick={() => void clearReports()}>
                   Delete all
                 </Button>
               }
@@ -415,11 +414,11 @@ export function DataPrivacySettings() {
           control={
             <div className="obs-inline">
               <Switch checked={frontendOnly} onChange={setFrontendOnly} aria-label="Frontend errors only" />
-              <IconButton size="sm" label="Reload log" icon={<RefreshCw size={13} />} loading={logBusy} onClick={() => void loadLog()} />
+              <IconButton size="sm" label="Reload log" icon={<RefreshCw size={14} />} loading={logBusy} onClick={() => void loadLog()} />
               <IconButton
                 size="sm"
                 label="Copy log"
-                icon={<ClipboardCopy size={13} />}
+                icon={<ClipboardCopy size={14} />}
                 disabled={!shownLog}
                 onClick={() => void act("Could not copy the log", () => copyText(shownLog), "Log copied")}
               />
@@ -465,7 +464,7 @@ export function DataPrivacySettings() {
         footer={
           <Button
             variant="primary"
-            iconLeft={<ClipboardCopy size={13} />}
+            iconLeft={<ClipboardCopy size={14} />}
             onClick={() => viewing && void act("Could not copy the crash report", () => copyText(viewing.content), "Crash report copied")}
           >
             Copy

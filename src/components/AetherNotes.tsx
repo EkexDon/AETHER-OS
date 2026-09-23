@@ -68,13 +68,13 @@ export function AetherNotes() {
                 <IconButton
                   label="Delete note"
                   variant="danger"
-                  icon={<Trash2 size={15} />}
+                  icon={<Trash2 size={16} />}
                   onClick={() => void handleDelete(selectedNote.id)}
                 />
               </header>
               {selectedNote.source_query && (
                 <div className="note-source">
-                  <MessageSquareQuote size={13} />
+                  <MessageSquareQuote size={14} />
                   <span>{selectedNote.source_query}</span>
                 </div>
               )}

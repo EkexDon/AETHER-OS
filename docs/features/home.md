@@ -71,7 +71,8 @@ whenever Home is opened.
   closes it; it is non-modal, so the app stays usable.
 
 `PinsPanel` (`src/components/home/PinsPanel.tsx`, `variant="compact" |
-"full"`) is exported so the vault sidebar can host it as well.
+"full"`) is also mounted in the vault sidebar as a collapsible "Pinned"
+section above the note tree (hidden while there are no pins).
 
 ### Pomodoro & Focus Mode
 
@@ -176,13 +177,12 @@ a live streak and validates exactly like the Rust engine
 
 ## Limitations
 
-- Opening a pinned or recent **conversation** opens the agent panel; loading
-  that specific conversation needs an API on `AgentChat` (not owned by this
-  feature).
-- `PinsPanel` is exported for the vault sidebar but not mounted there yet
-  (`VaultSidebar.tsx` is owned elsewhere).
-- "Last indexed" is recorded for runs started from Home; the status bar's
-  *Index* item does not report its runs.
+- Resolved in v0.2 (Wave 3): opening a pinned or recent **conversation**
+  loads exactly that chat into the agent panel via `openConversation(id)`
+  (`src/lib/agentChatBus.ts`); `PinsPanel` is mounted as a collapsible
+  "Pinned" section at the top of the vault sidebar (`VaultSidebar.tsx`,
+  hidden without pins); the status bar's *Index* item runs Home's
+  `runIndex`, so "Last indexed" is recorded for both.
 - Desktop notifications exist only in the Tauri app; the browser preview uses
   in-app toasts.
 - The timer ticks while the status bar is mounted (always, in the app shell).

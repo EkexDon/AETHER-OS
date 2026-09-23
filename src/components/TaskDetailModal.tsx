@@ -16,11 +16,11 @@ export const TASK_STATUSES: { id: TaskStatus; label: string; color: string }[] =
 ];
 
 export const TASK_PRIORITIES: { id: TaskPriority; label: string; color: string; icon: React.ReactNode }[] = [
-  { id: "none", label: "None", color: "var(--color-fg-tertiary)", icon: <Circle size={12} /> },
-  { id: "low", label: "Low", color: "var(--color-info)", icon: <ArrowUpCircle size={12} /> },
-  { id: "medium", label: "Medium", color: "var(--color-warning)", icon: <AlertCircle size={12} /> },
-  { id: "high", label: "High", color: "var(--color-cat-4)", icon: <AlertCircle size={12} /> },
-  { id: "urgent", label: "Urgent", color: "var(--color-danger)", icon: <Flame size={12} /> },
+  { id: "none", label: "None", color: "var(--color-fg-tertiary)", icon: <Circle size={14} /> },
+  { id: "low", label: "Low", color: "var(--color-info)", icon: <ArrowUpCircle size={14} /> },
+  { id: "medium", label: "Medium", color: "var(--color-warning)", icon: <AlertCircle size={14} /> },
+  { id: "high", label: "High", color: "var(--color-cat-4)", icon: <AlertCircle size={14} /> },
+  { id: "urgent", label: "Urgent", color: "var(--color-danger)", icon: <Flame size={14} /> },
 ];
 
 export function TaskDetailModal({
@@ -199,7 +199,7 @@ export function TaskDetailModal({
             onClick={() => void handleDelete()}
             disabled={saving}
           >
-            <Trash2 size={13} /> {confirmingDelete ? "Confirm delete" : "Delete task"}
+            <Trash2 size={14} /> {confirmingDelete ? "Confirm delete" : "Delete task"}
           </button>
         )
       }
@@ -282,9 +282,9 @@ export function TaskDetailModal({
           {/* Due date & Labels */}
           <div className="task-detail-meta-grid" style={{ marginTop: 8 }}>
             <label className="event-editor-field">
-              <span className="event-editor-field-label">Due Date</span>
+              <span className="event-editor-field-label">Due date</span>
               <div className="event-editor-field-row">
-                <CalendarIcon size={12} className="text-tertiary" />
+                <CalendarIcon size={14} className="text-tertiary" />
                 <input
                   className="settings-input"
                   type="date"
@@ -308,14 +308,14 @@ export function TaskDetailModal({
               <div className="task-label-chips-wrap">
                 {labels.map((l) => (
                   <span key={l} className="task-label-chip">
-                    <Tag size={10} />
+                    <Tag size={14} />
                     <span>{l}</span>
                     <button
                       type="button"
                       onClick={() => removeLabel(l)}
                       aria-label={`Remove label ${l}`}
                     >
-                      <X size={10} />
+                      <X size={14} />
                     </button>
                   </span>
                 ))}
@@ -368,7 +368,7 @@ export function TaskDetailModal({
             <input
               className="settings-input task-checklist-input"
               type="text"
-              placeholder="+ Add checklist item..."
+              placeholder="Add checklist item…"
               value={newChecklistText}
               onChange={(e) => setNewChecklistText(e.target.value)}
               onKeyDown={(e) => {
@@ -384,7 +384,7 @@ export function TaskDetailModal({
                 className="btn btn-secondary btn-sm"
                 onClick={addChecklistItem}
               >
-                <Plus size={12} /> Add
+                <Plus size={14} /> Add
               </button>
             )}
           </div>
@@ -395,7 +395,7 @@ export function TaskDetailModal({
             <textarea
               className="settings-input"
               rows={5}
-              placeholder="Add details, notes, or use - [ ] for checklists..."
+              placeholder="Add details, notes, or use - [ ] for checklists…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />

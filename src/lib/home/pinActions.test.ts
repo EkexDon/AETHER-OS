@@ -11,7 +11,7 @@ function deps(overrides: Partial<PinOpenDeps> = {}): PinOpenDeps {
     setView: vi.fn(),
     setIdeRoot: vi.fn(),
     runCommand: vi.fn().mockResolvedValue(true),
-    openChat: vi.fn(),
+    openConversation: vi.fn(async () => undefined),
     openUrl: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -51,7 +51,7 @@ describe("openPin", () => {
   it("opens the chat for conversations and the browser for URLs", async () => {
     const d = deps();
     await openPin(pin("conversation", "c1"), d);
-    expect(d.openChat).toHaveBeenCalled();
+    expect(d.openConversation).toHaveBeenCalledWith("c1");
     await openPin(pin("url", "example.com/docs"), d);
     expect(d.openUrl).toHaveBeenCalledWith("https://example.com/docs");
     await expect(openPin(pin("url", "javascript:alert(1)"), d)).rejects.toThrow(/not a valid web address/);

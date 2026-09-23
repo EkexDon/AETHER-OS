@@ -16,6 +16,7 @@ import { StatusBar } from "./shell/StatusBar";
 import { ViewHost } from "./shell/ViewHost";
 import { ShortcutsOverlay } from "./shell/ShortcutsOverlay";
 import { NewNoteDialog } from "./shell/NewNoteDialog";
+import { FeatureHosts } from "./shell/FeatureHosts";
 import { useShellStore } from "./shell/shellStore";
 import { useGlobalShortcuts } from "./shell/useGlobalShortcuts";
 import { ShellErrorBoundary } from "./shell/ErrorBoundary";
@@ -183,11 +184,12 @@ export function App() {
             onSectionChange={shell.setSettingsSection}
           />
         )}
-        <Launcher open={shell.commandBarOpen} onClose={() => shell.setCommandBarOpen(false)} />
+        <Launcher open={shell.launcherOpen} onClose={() => shell.setLauncherOpen(false)} />
         {showQuickCapture && <QuickCapture />}
         {shell.webClipperOpen && <WebClipper onClose={() => shell.setWebClipperOpen(false)} />}
         <ShortcutsOverlay open={shell.shortcutsOpen} onClose={() => shell.setShortcutsOpen(false)} />
         <NewNoteDialog open={shell.newNoteOpen} onClose={() => shell.setNewNoteOpen(false)} />
+        <FeatureHosts />
       </div>
     </ToastProvider>
   );

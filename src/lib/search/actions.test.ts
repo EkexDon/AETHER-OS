@@ -18,6 +18,7 @@ import { useIdeStore } from "../ideStore";
 import { useShellStore } from "../../shell/shellStore";
 import { useSearchStore } from "../searchStore";
 import { useToastStore } from "../../ui/Toast";
+import { useIntelStore } from "../intelStore";
 import { editorLabel, openBookmark, openHit, openInIde } from "./actions";
 
 const search = (q: string, kinds: string[]) =>
@@ -27,7 +28,7 @@ beforeEach(() => {
   setMockLatency(0);
   resetMockState();
   useToastStore.getState().clear();
-  useShellStore.setState({ commandBarOpen: true });
+  useShellStore.setState({ launcherOpen: true });
   useAetherStore.setState({
     view: "dashboard",
     vaultPath: "/Users/demo/Documents/Second-Brain",
@@ -45,7 +46,7 @@ describe("openHit", () => {
     await openHit(project);
     expect(useIdeStore.getState().rootPath).toBe(project.path);
     expect(useAetherStore.getState().view).toBe("ide");
-    expect(useShellStore.getState().commandBarOpen).toBe(false);
+    expect(useShellStore.getState().launcherOpen).toBe(false);
 
     const [file] = await search("readme", ["file"]);
     await openHit(file);
@@ -86,6 +87,25 @@ describe("openHit", () => {
     expect(useAetherStore.getState().view).toBe("search");
   });
 
+  it("loads conversations into the agent panel, or shows the transcript with mod+Enter", async () => {
+    const [conversation] = await search("lifetimes", ["conversation"]);
+    expect(conversation.kind).toBe("conversation");
+    const id = conversation.extra?.conversation_id as string;
+    await openHit(conversation);
+    expect(useAetherStore.getState().chatOpen).toBe(true);
+    expect(useIntelStore.getState().session.conversationId).toBe(id);
+    expect(useAetherStore.getState().view).toBe("dashboard");
+
+    useAetherStore.setState({ chatOpen: false });
+    await openHit(conversation, { alternate: true });
+    expect(useSearchStore.getState()).toMatchObject({ viewSelectedId: conversation.id, viewTab: "conversation" });
+    expect(useAetherStore.getState()).toMatchObject({ view: "search", chatOpen: false });
+
+    const gone: SearchHit = { ...conversation, id: "conversation:missing", title: "Gone", extra: { conversation_id: "missing" } };
+    await expect(openHit(gone)).rejects.toThrow(/no longer exists/);
+    expect(useToastStore.getState().toasts.some((t) => t.title === "Could not open Gone")).toBe(true);
+  });
+
   it("launches apps and surfaces failures as toasts", async () => {
     const [zed] = await search("zed", ["app"]);
     await expect(openHit(zed)).resolves.toBeUndefined();
@@ -109,5 +129,9 @@ describe("openHit", () => {
     expect(useToastStore.getState().toasts.filter((t) => t.kind === "error")).toEqual([]);
     expect(editorLabel("code")).toBe("VS Code");
     expect(editorLabel("zed")).toBe("zed");
+    expect(editorLabel("Sublime Text")).toBe("Sublime Text");
+    expect(editorLabel("cursor")).toBe("Cursor");
+    expect(editorLabel("/Applications/Nova.app")).toBe("Nova");
+    expect(editorLabel("  ")).toBe("your editor");
   });
 });

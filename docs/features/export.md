@@ -89,6 +89,10 @@ flagged.
   ```` ```mermaid ```` becomes `<pre class="mermaid">`.
 - Raw HTML in notes passes an allowlist sanitizer: `<script>`, `<style>`,
   `<iframe>`, event handlers and `javascript:` URLs never reach an export.
+  Links keep only `http`, `https`, `mailto` and `tel`; app schemes such as
+  `obsidian:` or `vscode:` are dropped (in a published page they would let
+  a visitor's local app act on the link), and `data:` URLs are allowed only
+  as `data:image/…` image sources.
 
 ### Static site layout
 
@@ -138,7 +142,10 @@ longer exist; a non-empty folder that is not an AETHER-OS site is refused.
 `ExportOptions` (all optional, snake_case): `include_attachments`,
 `convert_wikilinks`, `include_backlinks`, `include_frontmatter`,
 `theme: auto|light|dark`, `site_title`, `site_description`, `base_path`,
-`cname`, `include_mermaid_script`, `allow_inside_vault`. Event
+`cname`, `include_mermaid_script`, `allow_inside_vault`, `overwrite` (replace
+an existing HTML file or bundle; off by default, so a file export never
+replaces an existing file unless that was confirmed — otherwise it fails with
+"… already exists. Choose another name or confirm replacing it"). Event
 `export-progress`: `{ done, total, current, phase }`.
 
 Security: note/folder paths must resolve inside the vault (canonicalised;

@@ -331,6 +331,16 @@
   color: var(--color-fg-tertiary);
 }
 
+/* Rust cut the stream at 64 KiB: a notice, not the command's own last line. */
+.intel-terminal-truncated {
+  display: block;
+  margin-top: var(--space-1-5);
+  padding-top: var(--space-1-5);
+  border-top: 1px dashed var(--color-border);
+  color: var(--color-warning);
+  font-style: italic;
+}
+
 /* Approval dialog */
 .intel-approval {
   display: flex;
@@ -401,6 +411,26 @@
   white-space: pre-wrap;
   word-break: break-all;
   color: var(--color-fg-primary);
+  max-height: 240px;
+  overflow: auto;
+}
+
+.intel-path {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* An invisible character made visible (see lib/intel/hidden.ts). */
+.intel-hidden-char {
+  display: inline-block;
+  margin: 0 1px;
+  padding: 0 3px;
+  border-radius: var(--radius-xs);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1.4;
 }
 
 .intel-path {

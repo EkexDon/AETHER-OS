@@ -1,8 +1,8 @@
 /**
  * Stateful in-memory vault shared by the vault, notes, AI, agent-action and
  * IDE mocks. It mirrors `engine/vault_reader.rs`: absolute note paths,
- * sanitised vault-relative creation without clobbering, daily notes under
- * `daily/`, backlinks from live content — and it computes the NoPes index,
+ * sanitised vault-relative creation without clobbering, daily notes following
+ * the Settings → Vault layout (default `daily/YYYY-MM-DD.md`), backlinks from live content — and it computes the NoPes index,
  * graph and stats from the current content so every write stays consistent.
  */
 import type {
@@ -33,10 +33,20 @@ interface StoredFile {
 }
 
 /** The mock vault. Use the shared {@link mockVault} instance. */
+/** Where daily notes go: vault-relative folder + file name pattern (`YYYY`, `MM`, `DD`, `/`). */
+export interface DailyLayout {
+  folder: string;
+  pattern: string;
+}
+
+/** The backend's default daily-note layout. */
+export const DEFAULT_DAILY_LAYOUT: DailyLayout = { folder: "daily", pattern: "YYYY-MM-DD" };
+
 export class MockVault {
   private rootPath: string | null = MOCK_VAULT_ROOT;
   private files = new Map<string, StoredFile>();
   private dirs = new Set<string>();
+  private daily: DailyLayout = { ...DEFAULT_DAILY_LAYOUT };
 
   constructor() {
     this.seed();
@@ -45,6 +55,7 @@ export class MockVault {
   /** Restore the seed notes at the default vault path. */
   seed(now: Date = new Date()): void {
     this.rootPath = MOCK_VAULT_ROOT;
+    this.daily = { ...DEFAULT_DAILY_LAYOUT };
     this.files.clear();
     this.dirs.clear();
     const nowSec = Math.floor(now.getTime() / 1000);
@@ -222,11 +233,24 @@ export class MockVault {
     return out;
   }
 
-  /** Path of the daily note for `date`, created with a heading if missing. */
+  /** Use a validated daily-note layout (set by the onboarding mock's vault prefs). */
+  setDailyLayout(layout: DailyLayout): void {
+    this.daily = { ...layout };
+  }
+
+  /** Vault-relative path of the daily note for `date` (`YYYY-MM-DD`). */
+  dailyRelPath(date: string): string {
+    const [y, m, d] = date.split("-");
+    const name = this.daily.pattern.replace(/YYYY/g, y).replace(/MM/g, m).replace(/DD/g, d);
+    return [this.daily.folder, `${name}.md`].filter(Boolean).join("/");
+  }
+
+  /** Path of the daily note for `date`, created (with folders and a heading) if missing. */
   dailyNote(date: string): string {
     const root = this.requireRoot();
-    const abs = `${root}/daily/${date}.md`;
-    if (!this.files.has(abs)) this.create(`daily/${date}.md`, `# ${date}\n\n`);
+    const rel = this.dailyRelPath(date);
+    const abs = `${root}/${rel}`;
+    if (!this.files.has(abs)) this.create(rel, `# ${date}\n\n`);
     return abs;
   }
 

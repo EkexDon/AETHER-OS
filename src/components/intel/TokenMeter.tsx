@@ -1,7 +1,6 @@
 import { Gauge } from "lucide-react";
 import { Tooltip, cx } from "../../ui";
 import { formatTokens, meterLevel } from "../../lib/intel/tokens";
-import "../../styles/views/intel.css";
 
 export interface TokenMeterProps {
   /** Estimated tokens of the prompt window (summary + recent messages). */
@@ -35,7 +34,7 @@ export function TokenMeter({ tokens, threshold, autoCompact, compacting, onCompa
         disabled={!onCompact || compacting}
         aria-label={`Conversation size: about ${tokens} tokens of ${threshold}`}
       >
-        <Gauge size={11} aria-hidden="true" />
+        <Gauge size={14} aria-hidden="true" />
         <span>{formatTokens(tokens)}</span>
         <span className="intel-meter-limit">/ {formatTokens(threshold)}</span>
         <span className="intel-meter-bar" style={{ width: `${Math.round(ratio * 100)}%` }} aria-hidden="true" />

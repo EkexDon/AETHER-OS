@@ -9,7 +9,6 @@ import { ActivityTimeline } from "./ActivityTimeline";
 import { NoteHistoryPanel } from "./NoteHistoryPanel";
 import { NotePicker } from "./NotePicker";
 import { useElementWidth, useNow } from "./hooks";
-import "../../styles/views/history.css";
 
 /** Three columns at or above this body width, two columns above `MEDIUM`. */
 const WIDE = 980;
@@ -131,7 +130,6 @@ export function HistoryView() {
     <div className="view history-view">
       <ViewHeader
         title="History"
-        icon={History}
         subtitle={subtitle}
         bordered
         actions={

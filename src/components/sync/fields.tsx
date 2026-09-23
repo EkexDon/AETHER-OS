@@ -136,6 +136,7 @@ export function FolderField({
         inputClassName="mono"
         spellCheck={false}
         disabled={disabled}
+        title={value || undefined}
       />
       <Button variant="secondary" onClick={() => void browse()} loading={busy} disabled={disabled}>
         Browse…

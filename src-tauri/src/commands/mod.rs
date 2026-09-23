@@ -18,6 +18,9 @@ pub mod vault_commands;
 pub mod diagnostics_commands;
 pub mod updater_commands;
 
+// Wave 3 integration: app lifecycle (quit confirmation, shutdown).
+pub mod app_commands;
+
 // Feature commands (SWARM-CONTRACT §3): add `pub mod <feature>_commands;`
 // directly above your own anchor. Never reorder or remove anchors.
 pub mod clipboard_commands;

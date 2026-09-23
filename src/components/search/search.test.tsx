@@ -45,7 +45,7 @@ beforeEach(() => {
     reindexing: false,
     progress: [],
   });
-  useShellStore.setState({ commandBarOpen: false });
+  useShellStore.setState({ launcherOpen: false });
 });
 
 describe("UniversalSearch", () => {
@@ -200,7 +200,7 @@ describe("search helpers", () => {
     const byId = (id: string) => searchCommands.find((c) => c.id === id)!;
     const ctx = { setView: vi.fn() } as never;
     await byId("search.goToFile").run(ctx);
-    expect(useShellStore.getState().commandBarOpen).toBe(true);
+    expect(useShellStore.getState().launcherOpen).toBe(true);
     expect(useSearchStore.getState().pendingQuery).toBe("/");
     await byId("search.commandMode").run(ctx);
     expect(useSearchStore.getState().pendingQuery).toBe(">");

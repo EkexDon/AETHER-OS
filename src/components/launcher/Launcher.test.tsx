@@ -50,7 +50,7 @@ beforeEach(() => {
   localStorage.clear();
   useToastStore.getState().clear();
   useAetherStore.setState({ view: "dashboard", selectedNotePath: null, vaultPath: "/Users/demo/Documents/Second-Brain" });
-  useShellStore.setState({ commandBarOpen: true });
+  useShellStore.setState({ launcherOpen: true });
   useSearchStore.setState({ pendingQuery: null });
 });
 
@@ -136,16 +136,16 @@ describe("Launcher", () => {
   });
 
   it("adopts a pending query (Go to file) and opens from the global shortcut event", async () => {
-    useShellStore.setState({ commandBarOpen: false });
-    const { rerender } = render(<Launcher open={useShellStore.getState().commandBarOpen} onClose={() => undefined} />);
+    useShellStore.setState({ launcherOpen: false });
+    const { rerender } = render(<Launcher open={useShellStore.getState().launcherOpen} onClose={() => undefined} />);
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     await act(async () => {
       await new Promise((r) => setTimeout(r, 0));
       mockEvents.emit("launcher-open", null);
     });
-    expect(useShellStore.getState().commandBarOpen).toBe(true);
+    expect(useShellStore.getState().launcherOpen).toBe(true);
     useSearchStore.getState().openLauncher("/");
-    rerender(<Launcher open={useShellStore.getState().commandBarOpen} onClose={() => undefined} />);
+    rerender(<Launcher open={useShellStore.getState().launcherOpen} onClose={() => undefined} />);
     expect(input()).toHaveValue("/");
     expect(useSearchStore.getState().pendingQuery).toBeNull();
   });

@@ -401,6 +401,10 @@ pub fn trash_note(
     ensure_note_inside(root, note)?;
     let trash = root.join(TRASH_DIR);
     std::fs::create_dir_all(&trash)?;
+    // A symlinked `.trash` must not carry notes out of the vault.
+    if !std::fs::canonicalize(&trash)?.starts_with(root) {
+        return Err(outside(&trash));
+    }
     let name = note
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -877,6 +881,39 @@ mod tests {
         );
         // The trashed files are hidden from note resolution.
         assert!(resolve_existing_note(&root, ".trash/20260922-140509-Old idea.md", &[]).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_trash_folder_never_receives_notes() {
+        let (_dir, root) = vault();
+        let (_other, other_root) = vault();
+        std::os::unix::fs::symlink(&other_root, root.join(TRASH_DIR)).expect("symlink");
+        let doomed = note(&root, "inbox/Keep me.md", "keep");
+        assert!(trash_note(&root, &doomed, at()).is_err());
+        assert!(doomed.exists(), "the note stays where it was");
+        assert_eq!(
+            std::fs::read_dir(&other_root).expect("read").count(),
+            0,
+            "nothing lands outside the vault"
+        );
+    }
+
+    #[test]
+    fn audit_lines_stay_one_record_per_line() {
+        let dir = tempfile::tempdir().expect("dir");
+        let log = AuditLog::new(dir.path().join("audit.jsonl"));
+        let action = AgentAction::RunCommand {
+            command: "echo one\n{\"id\":\"forged\"}\r\necho two".to_owned(),
+            cwd: None,
+        };
+        log.record(&action, AuditStatus::Ok, Some("line\nbreak"), None)
+            .expect("record");
+        let raw = std::fs::read_to_string(dir.path().join("audit.jsonl")).expect("read");
+        assert_eq!(raw.lines().count(), 1, "{raw}");
+        let entries = log.list(10).expect("list");
+        assert_eq!(entries.len(), 1);
+        assert_ne!(entries[0].id, "forged");
     }
 
     #[test]

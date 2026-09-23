@@ -34,7 +34,7 @@ export function ClipboardStatusItem() {
         onClick={() => setView("clipboard")}
         aria-label={`Clipboard history: ${label}`}
       >
-        {off || paused ? <ClipboardX size={12} /> : <ClipboardList size={12} />}
+        {off || paused ? <ClipboardX size={14} /> : <ClipboardList size={14} />}
         <span className="statusbar-muted tabular">{label}</span>
       </button>
     </Tooltip>

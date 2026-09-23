@@ -473,7 +473,7 @@ mod tests {
 
     #[test]
     fn parses_import_calendar_ics() {
-        let json = r##"{"action":"import_calendar_ics","path":"/tmp/foo.ics","overwrite_existing":false,"default_color":"#7c3aed"}"##;
+        let json = r##"{"action":"import_calendar_ics","path":"/tmp/foo.ics","overwrite_existing":false,"default_color":"#0f9d8a"}"##;
         let action: AgentAction = serde_json::from_str(json).expect("parse");
         assert!(matches!(action, AgentAction::ImportCalendarIcs { .. }));
     }

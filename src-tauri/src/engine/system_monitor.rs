@@ -97,7 +97,10 @@ impl SystemMonitor {
 
     /// Collect a full snapshot of current system metrics.
     pub fn collect(&self) -> SystemMetrics {
-        let mut sys = self.sys.lock().unwrap();
+        let mut sys = self
+            .sys
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         sys.refresh_cpu_all();
         sys.refresh_memory();
         sys.refresh_processes(sysinfo::ProcessesToUpdate::All);
@@ -136,16 +139,30 @@ impl SystemMonitor {
             .collect();
 
         // Network rates
-        let mut networks = self.networks.lock().unwrap();
+        let mut networks = self
+            .networks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         networks.refresh();
         let now = std::time::Instant::now();
         let elapsed = now
-            .duration_since(*self.prev_ts.lock().unwrap())
+            .duration_since(
+                *self
+                    .prev_ts
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner),
+            )
             .as_secs_f64();
         let elapsed = if elapsed > 0.0 { elapsed } else { 1.0 };
 
-        let mut prev_rx = self.prev_rx.lock().unwrap();
-        let mut prev_tx = self.prev_tx.lock().unwrap();
+        let mut prev_rx = self
+            .prev_rx
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut prev_tx = self
+            .prev_tx
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
 
         let net_info: Vec<NetworkInfo> = networks
             .list()
@@ -176,7 +193,10 @@ impl SystemMonitor {
             })
             .collect();
 
-        *self.prev_ts.lock().unwrap() = now;
+        *self
+            .prev_ts
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = now;
 
         // Top processes by CPU usage
         let mut procs: Vec<ProcessInfo> = sys

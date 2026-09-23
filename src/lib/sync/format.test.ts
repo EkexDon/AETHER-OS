@@ -1,3 +1,4 @@
+import errorRs from "../../../src-tauri/src/engine/error.rs?raw";
 import { describe, expect, it } from "vitest";
 import type { SyncReport, SyncStatus } from "../../types";
 import {
@@ -6,6 +7,7 @@ import {
   displayPath,
   errorText,
   formatBytes,
+  ERROR_CATEGORIES,
   humanizeError,
   intervalLabel,
   progressPercent,
@@ -126,9 +128,27 @@ describe("progress and reports", () => {
   });
 
   it("humanises backend errors", () => {
-    expect(humanizeError("invalid input: wrong passphrase")).toBe("Wrong passphrase");
+    expect(humanizeError("invalid input: choose a sync folder first")).toBe("Choose a sync folder first");
+    expect(humanizeError("crypto error: wrong passphrase")).toBe("Wrong passphrase");
+    expect(humanizeError("sync error: the sync folder is not reachable: /Volumes/x")).toBe(
+      "The sync folder is not reachable: /Volumes/x"
+    );
     expect(humanizeError("I/O error: disk full")).toBe("Disk full");
     expect(errorText(new Error("vault error: no vault"))).toBe("No vault");
     expect(errorText("plain")).toBe("Plain");
+  });
+
+  it("knows every AetherError category from engine/error.rs", () => {
+    const rust = [...errorRs.matchAll(/#\[error\("([^"]+): \{0\}"\)\]/g)].map((m) => m[1]);
+    expect(rust.length).toBeGreaterThanOrEqual(9);
+    expect([...ERROR_CATEGORIES].sort()).toEqual([...rust].sort());
+    for (const category of rust) expect(humanizeError(`${category}: something broke`)).toBe("Something broke");
+  });
+
+  it("strips nested prefixes and leaves unknown text alone", () => {
+    expect(humanizeError("invalid input: invalid input: asset not found: x.png")).toBe("Asset not found: x.png");
+    expect(humanizeError("  vault error:   no vault  ")).toBe("No vault");
+    expect(humanizeError("Error: custom")).toBe("Error: custom");
+    expect(humanizeError("")).toBe("");
   });
 });

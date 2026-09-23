@@ -56,6 +56,28 @@ In the browser console, `window.__AETHER_MOCK__` exposes `handlers`,
 | Calendar, Tasks | `calendar.ts`, `tasks.ts` | ≈12 events across the current month, validation as in Rust, ICS export/import; three task projects with a backlog, end-of-column ordering, cascade delete. |
 | LSP | `lsp.ts` | `cmd_lsp_start` returns a session key but the server never answers, so Monaco keeps its built-in single-file features. |
 | Diagnostics, Updater | `diagnostics.ts`, `updater.ts` | One sample crash report, frontend error log; the update check reports the next minor version after 600 ms. |
+| v0.2 features | `clipboard.ts`, `search.ts`, `history.ts`, `home.ts`, `vaulttasks.ts`, `intel.ts`, `plugins.ts`, `export.ts`, `sync.ts`, `onboarding.ts`, `app.ts` | 40 clips with a live feed; a search index over every mock source and 21 fake apps; a five-week note history; 14 days of focus sessions; tasks parsed from the live mock vault; canned compaction, keyword-based related notes and fake `run_command` output; three bundled plugins; simulated exports; two sync devices with one conflict and four backups (passphrases with "wrong" fail); a first-run wizard state kept in `localStorage` (`aether-mock-onboarding`); quit confirmation via `__AETHER_MOCK__.requestQuit()`. Details in each `docs/features/<feature>.md`. |
+
+**Media in the demo vault.** `cmd_read_vault_asset` serves three files —
+`attachments/sourdough.jpg` (embedded in *Sauerteigbrot Rezept* as
+`![…](attachments/sourdough.jpg)`), `01-Projects/assets/aether-architecture.png`
+(*AETHER-OS*, `![[aether-architecture.png|480]]`) and
+`attachments/garden-sketch.png` (*Garden Planner App*, `![…](garden-sketch.png)`,
+found through the attachment-folder fallback). Whatever the extension, each
+is a small PNG landscape generated from its path (`src/lib/mock/png.ts`,
+`mockPicture`); other paths fail with the Rust error messages.
+
+**Prompts that trigger agent actions** (`pickAction` in `src/lib/mock/ai.ts`,
+English or German): "run `<cmd>`" / "run the tests" → `run_command` in the
+demo app (approval, dangerous); "delete … note" → `delete_note` of
+*Quick Capture* (approval, dangerous); "move … note" → `move_note` of
+*Reading List* to `03-Resources/` (approval, confirm); "remember …" →
+`add_memory_fact`; "create a note …" → `create_note`; "daily" / "today" /
+"todo" → `append_daily`. Without such a phrase, every third answer appends
+to the daily note. The mock LLM emits no `git_commit`, `create_task` or
+`toggle_vault_task` blocks; those handlers are exercised by tests.
+
+To take screenshots without the setup wizard, set `localStorage["aether-mock-onboarding"] = '{"completed_at":"2026-01-01T00:00:00Z","version_seen":"<package.json version>","skipped_steps":[]}'` (and `aether-theme` to `light` or `dark`) before the page loads.
 
 Every store registers a reset function; tests call `resetMockState()` and
 `setMockLatency(0)` in `beforeEach`.

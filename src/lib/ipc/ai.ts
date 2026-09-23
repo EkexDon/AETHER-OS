@@ -25,6 +25,13 @@ export const setOpenRouterKey = (key: string | null) => call<boolean>("cmd_set_o
 export const listCloudModels = () => call<string[]>("cmd_list_cloud_models");
 /** Installed Ollama models. */
 export const listLocalModels = () => call<string[]>("cmd_list_local_models");
+/** The Ollama model that embeds notes for semantic search (default `nomic-embed-text`). */
+export const getEmbeddingModel = () => call<string>("cmd_get_embedding_model");
+/**
+ * Switch the embedding model; resolves to the stored name. Changing it
+ * clears the vector index, so the vault must be indexed again.
+ */
+export const setEmbeddingModel = (model: string) => call<string>("cmd_set_embedding_model", { model });
 /** Ollama / OpenRouter / vault connectivity. */
 export const getHealth = () => call<SystemHealth>("cmd_get_health");
 

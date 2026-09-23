@@ -6,7 +6,8 @@
  * `alternate` is the `mod+Enter` "other context" action:
  * note → raw Markdown in the IDE, project/file → preferred external editor,
  * event → week instead of day, task → board without the detail dialog,
- * memory → Search view preview, conversation → AI agent panel.
+ * memory → Search view preview, conversation → transcript preview in the
+ * Search view (Enter loads the conversation into the agent panel).
  */
 import type { SearchHit } from "../../types";
 import { browserOpen, copyClip, ideReadFile, launchApp, openProject, recordSearchRecent } from "../ipc";
@@ -16,6 +17,8 @@ import { runCommand } from "../commands/registry";
 import { useShellStore } from "../../shell/shellStore";
 import { toast } from "../../ui/Toast";
 import { useSearchStore } from "../searchStore";
+import { openConversation } from "../agentChatBus";
+import { editorLabel } from "../editors";
 
 /** Options for opening a result. */
 export interface OpenOptions {
@@ -23,22 +26,8 @@ export interface OpenOptions {
   alternate?: boolean;
 }
 
-/** Display name of an editor key stored in `preferredEditor`. */
-export function editorLabel(editor: string): string {
-  switch (editor.toLowerCase()) {
-    case "code":
-    case "vscode":
-      return "VS Code";
-    case "cursor":
-      return "Cursor";
-    case "windsurf":
-      return "Windsurf";
-    case "devin":
-      return "Devin";
-    default:
-      return editor;
-  }
-}
+/** Display name of an editor key stored in `preferredEditor` (see `lib/editors.ts`). */
+export { editorLabel };
 
 function extraString(hit: SearchHit, key: string): string | null {
   const value = hit.extra?.[key];
@@ -46,7 +35,7 @@ function extraString(hit: SearchHit, key: string): string | null {
 }
 
 function closeLauncher() {
-  useShellStore.getState().setCommandBarOpen(false);
+  useShellStore.getState().setLauncherOpen(false);
 }
 
 function remember(id: string, kind: string, title: string) {
@@ -145,10 +134,10 @@ export async function openHit(hit: SearchHit, options: OpenOptions = {}): Promis
       }
       case "conversation": {
         if (alternate) {
-          aether.setChatOpen(true);
-        } else {
           useSearchStore.getState().showInSearchView(hit.title, hit.id, "conversation");
           aether.setView("search");
+        } else {
+          await openConversation(extraString(hit, "conversation_id") ?? hit.id.replace(/^conversation:/, ""));
         }
         return;
       }

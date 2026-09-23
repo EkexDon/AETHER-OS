@@ -27,8 +27,6 @@ pub const INDEX_PROGRESS_EVENT: &str = "search-index-progress";
 /// Emitted when a background indexing run finished (payload `IndexReport`).
 pub const INDEX_UPDATED_EVENT: &str = "search-index-updated";
 
-/// Must match the model used by `cmd_index_vault` (`ai_commands.rs`).
-const EMBEDDING_MODEL: &str = "nomic-embed-text";
 /// Semantic neighbours fused into a query.
 const SEMANTIC_TOP_K: usize = 30;
 /// Error returned when semantic search is requested without a vault index.
@@ -195,7 +193,7 @@ pub async fn cmd_search_query(
         }
         let embedding = state
             .ai
-            .generate_embedding(&trimmed, EMBEDDING_MODEL)
+            .generate_embedding(&trimmed, &state.ai_config.embedding_model())
             .await
             .map_err(|e| format!("Semantic search is unavailable: {e}"))?;
         semantic_matches = state

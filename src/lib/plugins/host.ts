@@ -5,10 +5,15 @@
  * Security model
  * - A plugin only runs in a worker created from the hardened bootstrap
  *   (`bootstrap.ts`): no DOM, no Tauri IPC, no network or storage APIs.
- * - Everything it can do goes through {@link PluginHost.handleRequest}:
- *   the method must exist, the permission must be granted, the parameters
- *   are validated (`api.ts`), and privileged work is delegated to Rust
- *   commands that check the permission once more.
+ * - Everything it can do goes through {@link PluginHost.handleRequest},
+ *   in this order and before anything reaches IPC: the call must fit the
+ *   plugin's rate limit, the method must exist, the permission must be
+ *   granted, the payload must fit its size cap (`limits.ts`), the
+ *   parameters are validated (`api.ts`), and privileged work is delegated
+ *   to Rust commands that check the permission once more.
+ * - Worker failures (uncaught errors, unreadable messages, malformed
+ *   protocol traffic) are caught and recorded in that plugin's log, which
+ *   its card on the Plugins page shows.
  * - UI contributions are data: panels are validated view trees, commands
  *   are namespaced (`plugin:<id>:<command>`) and cannot take over an
  *   existing shortcut, toasts are rate-limited and name the plugin.
@@ -48,6 +53,7 @@ import {
   type PluginToastKind,
 } from "./api";
 import { checkFetchUrl, hasAnyFetchPermission, PluginPermissionError, requirePermission } from "./permissions";
+import { CallRateLimiter, MAX_CALLS_PER_SECOND, MAX_PAYLOAD_SIZE, formatLimit, payloadSize } from "./limits";
 import { RpcEndpoint, workerTransport, type RpcLog, type WorkerLike } from "./protocol";
 import { joinVaultPath, noteName, sanitizeVaultPath, toVaultRelative } from "./paths";
 import { sanitizeViewTree } from "./viewTree";
@@ -61,11 +67,15 @@ export const MAX_INFLIGHT_CALLS = 64;
 /** Toasts one plugin may show per {@link TOAST_WINDOW_MS}. */
 export const MAX_TOASTS_PER_WINDOW = 5;
 export const TOAST_WINDOW_MS = 10_000;
+/** Minimum gap between two "rate limited" warnings in a plugin's log. */
+export const RATE_LIMIT_LOG_GAP_MS = 5_000;
 
 /** How the host creates workers (replaced in tests). */
 export interface PluginHostDeps {
   /** Start a module worker running `bootstrap`; returns it plus a cleanup callback. */
   createWorker(bootstrap: string, name: string): { worker: WorkerLike; dispose: () => void };
+  /** Rate limiter for one plugin (tests pass a smaller bucket or a fake clock). */
+  createRateLimiter?: () => CallRateLimiter;
 }
 
 /** Default: a module worker from a blob URL. */
@@ -97,6 +107,9 @@ interface RunningPlugin {
   toastTimes: number[];
   inflight: number;
   active: boolean;
+  limiter: CallRateLimiter;
+  /** When the last "rate limited" warning was logged (epoch ms). */
+  rateLimitLoggedAt: number;
 }
 
 /** Start key: a running plugin is restarted when its code, version or grants change. */
@@ -270,20 +283,27 @@ export class PluginHost {
       toastTimes: [],
       inflight: 0,
       active: false,
+      limiter: this.deps.createRateLimiter?.() ?? new CallRateLimiter(),
+      rateLimitLoggedAt: 0,
     };
     plugin.rpc = new RpcEndpoint(workerTransport(created.worker), {
       onRequest: (method, params) => this.handleRequest(plugin, method, params),
       onLog: (log) => this.handleLog(plugin, log),
-      onInvalid: () => console.warn(`[plugins] ${id} sent a malformed message`),
+      onInvalid: () => this.logFor(id, "warn", "Ignored a malformed message from the plugin worker"),
     });
     created.worker.addEventListener("error", (event: Event) => {
       const detail = (event as ErrorEvent).message || "the worker script could not be loaded";
       event.preventDefault?.();
+      if (this.running.get(id) !== plugin) return;
       if (!plugin.active) {
         void this.stop(id, detail).then(() => this.markFailed(id, key, `Worker error: ${detail}`));
       } else {
         this.logFor(id, "error", `Uncaught error: ${detail}`);
       }
+    });
+    created.worker.addEventListener("messageerror", () => {
+      if (this.running.get(id) !== plugin) return;
+      this.logFor(id, "error", "A message from the plugin worker could not be read (it was not plain data)");
     });
     this.running.set(id, plugin);
 
@@ -382,9 +402,22 @@ export class PluginHost {
 
   // ── Plugin → host ──
 
-  /** Validate, permission-check and execute one API call from a plugin. */
+  /**
+   * Rate-limit, permission-check, size-check, validate and execute one API
+   * call from a plugin. Every check runs before any IPC call is made.
+   */
   private async handleRequest(plugin: RunningPlugin, method: string, params: unknown[]): Promise<unknown> {
     const id = plugin.info.manifest.id;
+    if (!plugin.limiter.tryTake()) {
+      const now = Date.now();
+      if (now - plugin.rateLimitLoggedAt >= RATE_LIMIT_LOG_GAP_MS) {
+        plugin.rateLimitLoggedAt = now;
+        this.logFor(id, "warn", `Rate limited: more than ${MAX_CALLS_PER_SECOND} API calls per second`);
+      }
+      throw new Error(
+        `Too many API calls — at most ${MAX_CALLS_PER_SECOND} per second; retry in ${plugin.limiter.retryAfterMs()} ms`
+      );
+    }
     if (!isPluginMethod(method)) throw new Error(`Unknown API method "${method}"`);
     const spec = PLUGIN_METHODS[method];
     const granted = plugin.info.granted_permissions;
@@ -392,6 +425,10 @@ export class PluginHost {
       if (!hasAnyFetchPermission(granted)) throw new PluginPermissionError(id, "net:fetch:<host>");
     } else if (spec.permission) {
       requirePermission(id, granted, spec.permission);
+    }
+    const maxPayload = spec.maxPayload ?? MAX_PAYLOAD_SIZE;
+    if (payloadSize(params, maxPayload) > maxPayload) {
+      throw new Error(`${method}: the payload is larger than ${formatLimit(maxPayload)}`);
     }
     const args = spec.validate(params);
     if (plugin.inflight >= MAX_INFLIGHT_CALLS) throw new Error("Too many API calls in flight — wait for earlier calls to finish");

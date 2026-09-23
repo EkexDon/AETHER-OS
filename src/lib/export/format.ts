@@ -74,3 +74,14 @@ export function kindLabel(kind: ExportKind): string {
 export function plural(count: number, noun: string, pluralNoun = `${noun}s`): string {
   return `${count.toLocaleString()} ${count === 1 ? noun : pluralNoun}`;
 }
+
+/** `check_output_file` refused because the file exists and `overwrite` was not set. */
+export function isAlreadyExistsError(message: string): boolean {
+  return /\balready exists\b/i.test(message);
+}
+
+/** The existing file named in an "already exists" error, or `null`. */
+export function existingPathFromError(message: string): string | null {
+  const match = /(?:^|: )(\/.*?|[A-Za-z]:\\.*?) already exists/.exec(message);
+  return match ? match[1] : null;
+}

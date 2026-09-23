@@ -142,6 +142,26 @@ fn prepare_out_dir(out: &Path) -> Result<Vec<String>, AetherError> {
     Ok(Vec::new())
 }
 
+/// Make serialized JSON safe to embed in (or load as) a script: `<`, `>`,
+/// `&` and the JS line separators U+2028/U+2029 are written as `\uXXXX`
+/// escapes. They can only occur inside JSON strings, where the escape means
+/// the same character, so the result is still equivalent, valid JSON — but
+/// note text like `</script>` can never close a script element.
+pub fn script_safe_json(json: &str) -> String {
+    let mut out = String::with_capacity(json.len());
+    for c in json.chars() {
+        match c {
+            '<' => out.push_str("\\u003c"),
+            '>' => out.push_str("\\u003e"),
+            '&' => out.push_str("\\u0026"),
+            '\u{2028}' => out.push_str("\\u2028"),
+            '\u{2029}' => out.push_str("\\u2029"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
 /// Remove files of a previous export that were not written this time.
 fn remove_stale(out: &Path, previous: &[String], current: &HashSet<String>) -> usize {
     let mut removed = 0;
@@ -503,8 +523,10 @@ pub fn export_site(
             })
         })
         .collect();
-    let index_json = serde_json::to_string(&index)
-        .map_err(|e| AetherError::InvalidInput(format!("search index: {e}")))?;
+    let index_json = script_safe_json(
+        &serde_json::to_string(&index)
+            .map_err(|e| AetherError::InvalidInput(format!("search index: {e}")))?,
+    );
     writer.write("search-index.json", index_json.as_bytes())?;
     writer.write(
         "search-index.js",
@@ -869,6 +891,7 @@ mod tests {
         let index = std::fs::read_to_string(out.join("search-index.json")).expect("index");
         let parsed: serde_json::Value = serde_json::from_str(&index).expect("json");
         assert_eq!(parsed.as_array().expect("array").len(), 3);
+        assert!(!index.contains('<') && !index.contains('>'));
         let sitemap = std::fs::read_to_string(out.join("sitemap.xml")).expect("sitemap");
         assert!(sitemap.contains("<loc>https://notes.example.com/notes/alpha.html</loc>"));
         assert_eq!(
@@ -929,6 +952,22 @@ mod tests {
         .expect_err("foreign folder");
         assert!(err.to_string().contains("not empty"));
         assert!(foreign.join("keep.txt").exists());
+    }
+
+    #[test]
+    fn search_json_cannot_break_out_of_a_script() {
+        let raw = serde_json::to_string(&serde_json::json!({
+            "t": "</script><script>alert(1)</script> & \u{2028}"
+        }))
+        .expect("json");
+        let safe = script_safe_json(&raw);
+        assert!(!safe.contains("</script>"));
+        assert!(!safe.contains('<') && !safe.contains('&') && !safe.contains('\u{2028}'));
+        let back: serde_json::Value = serde_json::from_str(&safe).expect("still json");
+        assert_eq!(
+            back["t"], "</script><script>alert(1)</script> & \u{2028}",
+            "the escapes decode to the same text"
+        );
     }
 
     #[test]

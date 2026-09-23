@@ -5,7 +5,7 @@
   "description": "Adds an \"Open random note\" command for rediscovering old ideas in your vault.",
   "author": "AETHER-OS",
   "main": "main.js",
-  "minAppVersion": "0.1.0",
+  "minAppVersion": "0.2.0",
   "permissions": ["vault:read", "ui:commands"],
   "settings": [
     {

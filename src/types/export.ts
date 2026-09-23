@@ -39,6 +39,12 @@ export interface ExportOptions {
   include_mermaid_script: boolean;
   /** Allow the destination to lie inside the vault. */
   allow_inside_vault: boolean;
+  /**
+   * Replace an existing HTML page / bundle file. Rust refuses to overwrite
+   * without it ("… already exists"); the wizard sends it only after the
+   * user confirmed (native save dialog or the "Replace existing file?" prompt).
+   */
+  overwrite?: boolean;
 }
 
 /** `export-progress` event payload. */

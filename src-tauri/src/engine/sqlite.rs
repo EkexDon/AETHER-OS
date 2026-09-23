@@ -7,11 +7,6 @@
 //! Schema evolution goes through [`migrate`], which records the applied
 //! version in a one-row `schema_version` table and applies each pending
 //! migration inside its own transaction.
-//!
-//! The helpers are shared infrastructure for the Wave 2 feature engines
-//! (`clipboard`, `search`); until the first of them is wired into
-//! `AppState` the lib target has no caller, hence the dead-code allowance.
-#![allow(dead_code)]
 
 use std::path::Path;
 use std::time::Duration;

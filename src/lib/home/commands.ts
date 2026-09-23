@@ -93,7 +93,7 @@ export const homeCommands: CommandContribution[] = [
     shortcut: "mod+alt+b",
     keywords: ["bookmarks", "favorites", "pinned", "drawer"],
     run: (ctx) => {
-      ctx.closeCommandBar();
+      ctx.closeLauncher();
       useHomeStore.getState().togglePinsDrawer();
     },
   },
@@ -105,7 +105,7 @@ export const homeCommands: CommandContribution[] = [
     shortcut: "mod+shift+f",
     keywords: ["zen", "distraction free", "concentrate", "hide"],
     run: (ctx) => {
-      ctx.closeCommandBar();
+      ctx.closeLauncher();
       const focus = useFocusStore.getState();
       focus.toggleFocusMode();
       if (useFocusStore.getState().focusMode) {
@@ -121,7 +121,7 @@ export const homeCommands: CommandContribution[] = [
     shortcut: "mod+alt+t",
     keywords: ["pomodoro", "timer", "focus", "start", "pause", "resume"],
     run: (ctx) => {
-      ctx.closeCommandBar();
+      ctx.closeLauncher();
       useFocusStore.getState().toggle();
     },
   },

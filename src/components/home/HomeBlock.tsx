@@ -48,12 +48,12 @@ export function HomeBlock({
           </span>
           {title}
           {count !== undefined && count > 0 && <Badge className="home-block-count">{count}</Badge>}
-          {loading && <Spinner size={12} label={`Loading ${title.toLowerCase()}`} />}
+          {loading && <Spinner size={14} label={`Loading ${title.toLowerCase()}`} />}
         </h2>
         <div className="home-block-actions">
           {controls}
           {actionLabel && onAction && (
-            <Button variant="ghost" size="sm" iconRight={<ArrowUpRight size={13} />} onClick={onAction}>
+            <Button variant="ghost" size="sm" iconRight={<ArrowUpRight size={14} />} onClick={onAction}>
               {actionLabel}
             </Button>
           )}

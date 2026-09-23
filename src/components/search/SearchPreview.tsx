@@ -62,7 +62,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** A note: frontmatter as a compact field list, then the rendered body. */
-function NotePreview({ content }: { content: string }) {
+function NotePreview({ content, notePath }: { content: string; notePath: string | null }) {
   const { body, fields } = splitNote(content);
   return (
     <>
@@ -75,7 +75,7 @@ function NotePreview({ content }: { content: string }) {
           ))}
         </dl>
       )}
-      <MarkdownRenderer content={body} />
+      <MarkdownRenderer content={body} notePath={notePath} remoteMedia />
     </>
   );
 }
@@ -96,7 +96,7 @@ function openLabels(hit: SearchHit, editor: string): { primary: string; alternat
     case "memory":
       return { primary: "Open Memory", alternate: null };
     case "conversation":
-      return { primary: "Open AI agent", alternate: null };
+      return { primary: "Open conversation", alternate: null };
   }
 }
 
@@ -146,9 +146,9 @@ export function SearchPreview({
 
   const meta = SECTION_META[hit.kind];
   const Icon = meta.icon;
-  // Conversations open in the agent panel from here (the preview already shows them).
+  // The transcript is already shown here, so conversations only offer
+  // "Open conversation" (loads it into the agent panel).
   const labels = openLabels(hit, preferredEditor);
-  const primaryAlternate = hit.kind === "conversation";
 
   return (
     <div className="usearch-preview-inner">
@@ -162,11 +162,11 @@ export function SearchPreview({
         </div>
       </header>
       <div className="usearch-preview-actions">
-        <Button variant="primary" size="sm" onClick={() => onOpen(hit, primaryAlternate)}>
+        <Button variant="primary" size="sm" onClick={() => onOpen(hit, false)}>
           {labels.primary}
         </Button>
         {labels.alternate && (
-          <Button size="sm" iconLeft={<ExternalLink size={13} />} onClick={() => onOpen(hit, true)}>
+          <Button size="sm" iconLeft={<ExternalLink size={14} />} onClick={() => onOpen(hit, true)}>
             {labels.alternate}
           </Button>
         )}
@@ -182,7 +182,7 @@ export function SearchPreview({
             <Spinner size={16} label="Loading preview" />
           </div>
         ) : loaded.kind === "markdown" ? (
-          <NotePreview content={loaded.content} />
+          <NotePreview content={loaded.content} notePath={hit.kind === "note" ? (hit.path ?? null) : null} />
         ) : loaded.kind === "code" ? (
           <>
             <pre className="usearch-preview-code mono">{loaded.content}</pre>

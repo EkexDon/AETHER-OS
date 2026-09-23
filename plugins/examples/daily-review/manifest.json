@@ -5,7 +5,7 @@
   "description": "Adds a \"Daily review\" command that asks the AI to summarise today's daily note and writes the summary under ## Review.",
   "author": "AETHER-OS",
   "main": "main.js",
-  "minAppVersion": "0.1.0",
+  "minAppVersion": "0.2.0",
   "permissions": ["vault:read", "vault:write", "ai:query", "ui:commands"],
   "settings": [
     {

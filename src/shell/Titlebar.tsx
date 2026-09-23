@@ -16,7 +16,7 @@ export function Titlebar() {
   const chatOpen = useAetherStore((s) => s.chatOpen);
   const setChatOpen = useAetherStore((s) => s.setChatOpen);
   const setShowQuickCapture = useAetherStore((s) => s.setShowQuickCapture);
-  const toggleCommandBar = useShellStore((s) => s.toggleCommandBar);
+  const toggleLauncher = useShellStore((s) => s.toggleLauncher);
   const setWebClipperOpen = useShellStore((s) => s.setWebClipperOpen);
   const current = getView(view);
 
@@ -37,8 +37,8 @@ export function Titlebar() {
         )}
       </div>
 
-      <button type="button" className="titlebar-command" onClick={toggleCommandBar} aria-label="Open command palette">
-        <Search size={13} />
+      <button type="button" className="titlebar-command" onClick={toggleLauncher} aria-label="Open command palette">
+        <Search size={14} />
         <span className="titlebar-command-text">Search notes, files, apps and commands</span>
         <Kbd shortcut="mod+k" />
       </button>
@@ -66,7 +66,7 @@ export function Titlebar() {
           shortcut="mod+j"
           size="sm"
           active={chatOpen}
-          icon={<Bot size={15} />}
+          icon={<Bot size={16} />}
           tooltipPlacement="bottom"
           onClick={() => setChatOpen(!chatOpen)}
         />

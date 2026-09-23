@@ -4,8 +4,17 @@ import { groupCommands, runCommand, useCommands } from "../lib/commands/registry
 import { scoreFields } from "../lib/commands/fuzzy";
 import { EmptyState, Kbd, Modal, SearchField } from "../ui";
 
-/** Shortcuts owned by individual editors (not global commands). */
-const CONTEXT_SHORTCUTS: { group: string; items: { title: string; shortcut: string }[] }[] = [
+/** A titled group of shortcuts handled inside one editor or panel. */
+export interface ContextShortcutGroup {
+  group: string;
+  items: { title: string; shortcut: string }[];
+}
+
+/**
+ * Shortcuts owned by individual editors (not global commands). The single
+ * source for this overlay, Settings → Shortcuts and the exported cheat sheet.
+ */
+export const CONTEXT_SHORTCUTS: ContextShortcutGroup[] = [
   {
     group: "Notes editor",
     items: [

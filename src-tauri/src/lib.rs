@@ -69,15 +69,23 @@ pub struct AppState {
 }
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // ⌘Q must go through a cancellable exit so running terminals can be
+    // confirmed (see `commands::app_commands`).
+    #[cfg(target_os = "macos")]
+    let builder = builder.menu(commands::app_commands::app_menu);
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .manage(commands::app_commands::QuitGuard::default())
+        .on_menu_event(commands::app_commands::on_menu_event)
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
             // First, so panics in any later engine start-up are captured.
             let diagnostics = Arc::new(Diagnostics::new(&data_dir)?);
-            let vault = VaultReader::new(&data_dir)?;
+            // One reader for every engine that needs the vault location.
+            let vault = Arc::new(VaultReader::new(&data_dir)?);
             let vectors =
                 tauri::async_runtime::block_on(VectorEngine::new(&data_dir.join("vectors")))?;
             let ai = LocalAiEngine::new()?;
@@ -100,17 +108,18 @@ pub fn run() {
             // @anchor:state-init:clipboard
             let search = commands::search_commands::init(app, &data_dir)?;
             // @anchor:state-init:search
-            let history = commands::history_commands::start_note_history(app.handle(), &data_dir)?;
+            let history = commands::history_commands::start_note_history(
+                app.handle(),
+                &data_dir,
+                Arc::clone(&vault),
+            )?;
             // @anchor:state-init:history
             let focus_log = Arc::new(engine::focus_log::FocusLog::new(&data_dir.join("focus"))?);
             // @anchor:state-init:home
             let vaulttasks_dir = data_dir.join("vaulttasks");
             let vaulttasks = Arc::new(engine::vault_tasks::VaultTasksEngine::new(&vaulttasks_dir)?);
             // @anchor:state-init:vaulttasks
-            let intel = Arc::new(engine::intel::IntelEngine::new(
-                &data_dir.join("intel"),
-                &data_dir.join("memory"),
-            )?);
+            let intel = Arc::new(engine::intel::IntelEngine::new(&data_dir.join("intel"))?);
             // @anchor:state-init:intel
             let plugins = Arc::new(engine::plugins::PluginManager::new(
                 &data_dir.join("plugins"),
@@ -118,12 +127,13 @@ pub fn run() {
             // @anchor:state-init:plugins
             let export = Arc::new(engine::export::ExportEngine::new(&data_dir.join("export"))?);
             // @anchor:state-init:export
-            let sync = commands::sync_commands::init_sync(app.handle(), &data_dir)?;
+            let sync =
+                commands::sync_commands::init_sync(app.handle(), &data_dir, Arc::clone(&vault))?;
             // @anchor:state-init:sync
             let onboarding = Arc::new(engine::onboarding::OnboardingEngine::new(&data_dir)?);
             // @anchor:state-init:onboarding
             app.manage(AppState {
-                vault: Arc::new(vault),
+                vault,
                 vectors: Arc::new(vectors),
                 ai: Arc::new(ai),
                 cloud_ai: Arc::new(cloud_ai),
@@ -173,11 +183,14 @@ pub fn run() {
             commands::vault_commands::cmd_get_vault_index,
             commands::vault_commands::cmd_get_vault_graph,
             commands::vault_commands::cmd_get_vault_stats,
+            commands::vault_commands::cmd_read_vault_asset,
             commands::ai_commands::cmd_index_vault,
             commands::ai_commands::cmd_semantic_search,
             commands::ai_commands::cmd_agent_query,
             commands::ai_commands::cmd_agent_query_with_notes,
             commands::ai_commands::cmd_set_openrouter_key,
+            commands::ai_commands::cmd_get_embedding_model,
+            commands::ai_commands::cmd_set_embedding_model,
             commands::ai_commands::cmd_list_cloud_models,
             commands::ai_commands::cmd_list_local_models,
             commands::ai_commands::cmd_get_health,
@@ -278,6 +291,7 @@ pub fn run() {
             commands::diagnostics_commands::cmd_open_app_data_dir,
             commands::diagnostics_commands::cmd_get_app_info,
             commands::updater_commands::cmd_check_for_updates,
+            commands::app_commands::cmd_quit_confirmed,
             // Feature commands: add `commands::<feature>_commands::cmd_…,`
             // lines directly above your own anchor.
             commands::clipboard_commands::cmd_clipboard_list,
@@ -403,6 +417,8 @@ pub fn run() {
             commands::onboarding_commands::cmd_onboarding_cancel_pull,
             commands::onboarding_commands::cmd_onboarding_get_vault_prefs,
             commands::onboarding_commands::cmd_onboarding_set_vault_prefs,
+            commands::onboarding_commands::cmd_onboarding_get_general_prefs,
+            commands::onboarding_commands::cmd_onboarding_set_general_prefs,
             commands::onboarding_commands::cmd_onboarding_reveal_vault,
             commands::onboarding_commands::cmd_onboarding_data_locations,
             commands::onboarding_commands::cmd_onboarding_read_app_log,
@@ -412,12 +428,31 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("failed to build AETHER-OS")
-        .run(|app_handle, event| {
-            // Language servers are child processes; without this they would
-            // outlive the app and hold ports/files until killed manually.
-            if let tauri::RunEvent::Exit = event {
-                use tauri::Manager;
-                app_handle.state::<AppState>().lsp.stop_all();
+        .run(|app_handle, event| match event {
+            // Closing the main window quits the app: confirm while terminals
+            // run (`intercept_quit` emits `quit-requested` when it holds).
+            tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::CloseRequested { api, .. },
+                ..
+            } if label == "main" && commands::app_commands::intercept_quit(app_handle) => {
+                api.prevent_close();
             }
+            // ⌘Q (custom menu item) and other `AppHandle::exit` calls.
+            tauri::RunEvent::ExitRequested { code, api, .. }
+                if commands::app_commands::exit_request_can_prompt(code)
+                    && commands::app_commands::intercept_quit(app_handle) =>
+            {
+                api.prevent_exit();
+            }
+            // Language servers are child processes; without this they would
+            // outlive the app and hold ports/files until killed manually. The
+            // sync key is wiped and the history watcher stopped as well.
+            tauri::RunEvent::Exit => {
+                if let Some(state) = app_handle.try_state::<AppState>() {
+                    commands::app_commands::shutdown_engines(&state);
+                }
+            }
+            _ => {}
         });
 }

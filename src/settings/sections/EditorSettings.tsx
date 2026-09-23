@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { useAetherStore } from "../../lib/store";
+import { editorNameProblem } from "../../lib/editors";
 import { EDITOR_FONT_SIZE, EDITOR_LINE_WIDTH, useOnboardingStore } from "../../lib/onboardingStore";
 import { Button, IconButton, Input, Select } from "../../ui";
 import { SettingsGroup, SettingsPage, SettingsRow } from "../layout";
-import "../../styles/views/onboarding.css";
 
 const KNOWN_EDITORS = [
   { value: "devin", label: "Devin" },
@@ -57,7 +57,7 @@ function RangeControl({
       <IconButton
         size="sm"
         label={`Reset ${label}`}
-        icon={<RotateCcw size={13} />}
+        icon={<RotateCcw size={14} />}
         disabled={value === defaultValue}
         onClick={() => onChange(defaultValue)}
       />
@@ -76,9 +76,10 @@ export function EditorSettings() {
   const known = isKnown(preferredEditor);
   const showCustom = !known || customMode;
 
+  const customProblem = customEditor.trim() ? editorNameProblem(customEditor) : null;
   const applyCustom = () => {
     const name = customEditor.trim();
-    if (!name) return;
+    if (!name || editorNameProblem(name)) return;
     setPreferredEditor(name);
     setCustomMode(false);
   };
@@ -148,12 +149,20 @@ export function EditorSettings() {
           }
         />
         {showCustom && (
-          <SettingsRow label="Custom app" hint="The exact macOS application name, e.g. Zed." stacked htmlFor="settings-editor-custom">
+          <SettingsRow
+            label="Custom app"
+            hint="The app's name exactly as it appears in Applications, e.g. Zed or Sublime Text — not a path. AETHER-OS opens it with “open -a”."
+            stacked
+            htmlFor="settings-editor-custom"
+          >
             <div className="ui-field-row">
               <Input
                 id="settings-editor-custom"
                 placeholder="Zed"
                 value={customEditor}
+                invalid={!!customProblem}
+                aria-invalid={customProblem ? true : undefined}
+                aria-describedby={customProblem ? "settings-editor-custom-error" : undefined}
                 onChange={(e) => setCustomEditor(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") applyCustom();
@@ -161,12 +170,17 @@ export function EditorSettings() {
               />
               <Button
                 variant="primary"
-                disabled={!customEditor.trim() || customEditor.trim() === preferredEditor}
+                disabled={!customEditor.trim() || !!customProblem || customEditor.trim() === preferredEditor}
                 onClick={applyCustom}
               >
                 Use
               </Button>
             </div>
+            {customProblem && (
+              <span className="ui-field-error" id="settings-editor-custom-error" role="alert">
+                {customProblem}
+              </span>
+            )}
           </SettingsRow>
         )}
       </SettingsGroup>

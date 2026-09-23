@@ -129,7 +129,7 @@ beforeEach(() => {
   useHomeStore.setState({ boardTasks: [], taskProjects: [], noteTasks: null, conversations: [], focusStats: null, errors: {}, loading: {}, lastIndex: null, pinsDrawerOpen: false });
   usePinsStore.setState({ groups: defaultPinGroups() });
   useFocusStore.setState({ settings: { ...DEFAULT_POMODORO_SETTINGS }, timer: initialTimer(), focusMode: false, statsVersion: 0 });
-  useShellStore.setState({ newNoteOpen: false, commandBarOpen: false, settingsOpen: false });
+  useShellStore.setState({ newNoteOpen: false, launcherOpen: false, settingsOpen: false });
 });
 
 describe("Home dashboard", () => {

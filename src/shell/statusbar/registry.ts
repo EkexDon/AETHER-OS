@@ -8,7 +8,7 @@ import { HistoryStatusItem } from "../../components/history/HistoryStatusItem";
 // @anchor:status-import:history
 import { FocusStatusItem, PinsStatusItem } from "../../components/home/statusItems";
 // @anchor:status-import:home
-import { VaultTasksQuickAddHost, VaultTasksStatusItem } from "../../components/vaulttasks/VaultTasksStatusItem";
+import { VaultTasksStatusItem } from "../../components/vaulttasks/VaultTasksStatusItem";
 // @anchor:status-import:vaulttasks
 import { RelatedStatusItem } from "../../components/intel/RelatedStatusItem";
 // @anchor:status-import:intel
@@ -18,7 +18,6 @@ import { PluginStatusItems } from "../../components/plugins/PluginStatusItems";
 import { SyncStatusItem } from "../../components/sync/SyncStatusItem";
 // @anchor:status-import:sync
 import { OllamaStatusItem } from "../../components/onboarding/OllamaStatusItem";
-import { OnboardingHost } from "../../components/onboarding/OnboardingHost";
 // @anchor:status-import:onboarding
 
 /**
@@ -77,6 +76,8 @@ export function useStatusItems(align: "left" | "right" = "left"): StatusItem[] {
 // ── Built-in items ──────────────────────────────────────────────
 // Orders: 100s vault, 200s AI, 300+ features. Feature agents add a
 // `registerStatusItem({ ... });` line directly above their anchor.
+// Items must render something visible (or null); invisible, always-mounted
+// hosts belong in `src/shell/FeatureHosts.tsx`.
 registerStatusItem({ id: "core.vault", order: 100, component: VaultStatusItem });
 registerStatusItem({ id: "core.indexing", order: 110, component: IndexingStatusItem });
 registerStatusItem({ id: "core.providers", order: 200, component: ProvidersStatusItem });
@@ -89,7 +90,6 @@ registerStatusItem({ id: "home.focus", order: 300, component: FocusStatusItem, a
 registerStatusItem({ id: "home.pins", order: 310, component: PinsStatusItem, align: "right" });
 // @anchor:status:home
 registerStatusItem({ id: "vaulttasks.due", order: 330, component: VaultTasksStatusItem });
-registerStatusItem({ id: "vaulttasks.quickAdd", order: 331, component: VaultTasksQuickAddHost });
 // @anchor:status:vaulttasks
 registerStatusItem({ id: "intel.related", order: 340, component: RelatedStatusItem, align: "right" });
 // @anchor:status:intel
@@ -99,5 +99,4 @@ registerStatusItem({ id: "plugins", order: 400, component: PluginStatusItems, al
 registerStatusItem({ id: "sync", order: 350, component: SyncStatusItem });
 // @anchor:status:sync
 registerStatusItem({ id: "onboarding.ollama", order: 210, component: OllamaStatusItem });
-registerStatusItem({ id: "onboarding.host", order: 10_000, component: OnboardingHost, align: "right" });
 // @anchor:status:onboarding

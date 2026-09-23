@@ -37,7 +37,7 @@ function Shortcuts() {
 beforeEach(() => {
   localStorage.clear();
   useAetherStore.setState({ view: "dashboard", vaultPath: "/vault/Second-Brain", vaultNotes: [], health: null });
-  useShellStore.setState({ commandBarOpen: false, settingsOpen: false, shortcutsOpen: false, newNoteOpen: false });
+  useShellStore.setState({ launcherOpen: false, settingsOpen: false, shortcutsOpen: false, newNoteOpen: false });
   useAppearanceStore.setState({ railExpanded: false });
   useThemeStore.setState({ preference: "dark", resolved: "dark" });
 });
@@ -88,7 +88,7 @@ describe("StatusBar", () => {
   it("opens the command palette and shortcuts overlay", () => {
     render(<StatusBar />);
     fireEvent.click(screen.getByRole("button", { name: /Commands/ }));
-    expect(useShellStore.getState().commandBarOpen).toBe(true);
+    expect(useShellStore.getState().launcherOpen).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Keyboard shortcuts" }));
     expect(useShellStore.getState().shortcutsOpen).toBe(true);
   });
@@ -99,7 +99,7 @@ describe("global shortcuts", () => {
     render(<Shortcuts />);
     modKey("k");
     await act(async () => undefined);
-    expect(useShellStore.getState().commandBarOpen).toBe(true);
+    expect(useShellStore.getState().launcherOpen).toBe(true);
     modKey("/");
     await act(async () => undefined);
     expect(useShellStore.getState().shortcutsOpen).toBe(true);
@@ -118,14 +118,14 @@ describe("global shortcuts", () => {
     ev.preventDefault();
     window.dispatchEvent(ev);
     await act(async () => undefined);
-    expect(useShellStore.getState().commandBarOpen).toBe(false);
+    expect(useShellStore.getState().launcherOpen).toBe(false);
   });
 
   it("ignores plain keys", async () => {
     render(<Shortcuts />);
     fireEvent.keyDown(window, { key: "k" });
     await act(async () => undefined);
-    expect(useShellStore.getState().commandBarOpen).toBe(false);
+    expect(useShellStore.getState().launcherOpen).toBe(false);
   });
 });
 

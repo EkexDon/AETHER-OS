@@ -53,7 +53,7 @@ export function EmbeddingsStep() {
     <div className="ob-step-stack">
       <div className="ob-example">
         <div className="ob-example-query">
-          <Search size={13} /> “ideas about sleep”
+          <Search size={14} /> “ideas about sleep”
         </div>
         <div className="ob-example-arrow" aria-hidden="true" />
         <div className="ob-example-hit">
@@ -84,7 +84,7 @@ export function EmbeddingsStep() {
           {result ? (
             <Badge variant="success">Indexed</Badge>
           ) : (
-            <Button size="sm" variant="primary" iconLeft={<Database size={13} />} loading={indexing} disabled={!!blocker} onClick={() => void runIndex()}>
+            <Button size="sm" variant="primary" iconLeft={<Database size={14} />} loading={indexing} disabled={!!blocker} onClick={() => void runIndex()}>
               Index now
             </Button>
           )}

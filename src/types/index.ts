@@ -18,6 +18,7 @@ export * from "./tasks";
 export * from "./agentActions";
 export * from "./diagnostics";
 export * from "./updater";
+export * from "./app";
 export * from "./clipboard";
 // @anchor:types:clipboard
 export * from "./search";

@@ -243,11 +243,11 @@ pub struct RestoreReport {
 }
 
 fn zip_err(e: zip::result::ZipError) -> AetherError {
-    AetherError::InvalidInput(format!("backup archive error: {e}"))
+    AetherError::Sync(format!("backup archive error: {e}"))
 }
 
 fn serialize_err(e: serde_json::Error) -> AetherError {
-    AetherError::InvalidInput(format!("serialize: {e}"))
+    AetherError::Sync(format!("serialize: {e}"))
 }
 
 fn file_mtime(path: &Path) -> i64 {
@@ -416,18 +416,18 @@ pub fn create_backup(
 }
 
 fn read_entry(zip: &mut ZipArchive<File>, name: &str, max: u64) -> Result<Vec<u8>, AetherError> {
-    let entry = zip.by_name(name).map_err(|_| {
-        AetherError::InvalidInput(format!("backup is incomplete: {name} is missing"))
-    })?;
+    let entry = zip
+        .by_name(name)
+        .map_err(|_| AetherError::Sync(format!("backup is incomplete: {name} is missing")))?;
     if entry.size() > max {
-        return Err(AetherError::InvalidInput(format!(
+        return Err(AetherError::Sync(format!(
             "backup entry {name} is too large"
         )));
     }
     let mut bytes = Vec::with_capacity(entry.size() as usize);
     entry.take(max + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > max {
-        return Err(AetherError::InvalidInput(format!(
+        return Err(AetherError::Sync(format!(
             "backup entry {name} is too large"
         )));
     }
@@ -437,14 +437,14 @@ fn read_entry(zip: &mut ZipArchive<File>, name: &str, max: u64) -> Result<Vec<u8
 fn open_archive(path: &Path) -> Result<ZipArchive<File>, AetherError> {
     let file = File::open(path)?;
     ZipArchive::new(file)
-        .map_err(|e| AetherError::InvalidInput(format!("not a readable AETHER backup: {e}")))
+        .map_err(|e| AetherError::Sync(format!("not a readable AETHER backup: {e}")))
 }
 
 fn parse_manifest(bytes: &[u8]) -> Result<BackupManifest, AetherError> {
     let manifest: BackupManifest = serde_json::from_slice(bytes)
-        .map_err(|e| AetherError::InvalidInput(format!("backup manifest is corrupt: {e}")))?;
+        .map_err(|e| AetherError::Sync(format!("backup manifest is corrupt: {e}")))?;
     if manifest.format != BACKUP_FORMAT || manifest.v != 1 {
-        return Err(AetherError::InvalidInput(
+        return Err(AetherError::Sync(
             "unsupported backup format or version".into(),
         ));
     }
@@ -479,12 +479,12 @@ impl OpenedBackup {
         )?;
         let (header, plaintext) = self.keys.open(EnvelopeKind::BackupBlob, &bytes)?;
         if header.content_hash.as_deref() != Some(blob_id.as_str()) {
-            return Err(AetherError::InvalidInput(
+            return Err(AetherError::Sync(
                 "backup blob was swapped: header names different content".into(),
             ));
         }
         if crypto::content_hash(&plaintext) != entry.content_hash {
-            return Err(AetherError::InvalidInput(
+            return Err(AetherError::Sync(
                 "backup content does not match its index".into(),
             ));
         }
@@ -501,26 +501,27 @@ pub fn open_backup(path: &Path, passphrase: &str) -> Result<OpenedBackup, Aether
     let salt = crypto::parse_salt(&manifest.salt)?;
     let keys = KeySet::derive(passphrase, salt, manifest.kdf)?;
     if !keys.matches_verifier(&manifest.verifier) {
-        return Err(AetherError::InvalidInput(
+        return Err(AetherError::Crypto(
             "wrong passphrase for this backup".into(),
         ));
     }
     let index_bytes = read_entry(&mut archive, INDEX_NAME, MAX_INDEX_BYTES)?;
     let (header, plaintext) = keys.open(EnvelopeKind::BackupIndex, &index_bytes)?;
     if header.content_hash.as_deref() != Some(crypto::content_hash(&manifest_bytes).as_str()) {
-        return Err(AetherError::InvalidInput(
+        return Err(AetherError::Sync(
             "the backup manifest was modified after the backup was made".into(),
         ));
     }
     let payload: BackupIndexPayload = serde_json::from_slice(&plaintext)
-        .map_err(|e| AetherError::InvalidInput(format!("backup index is corrupt: {e}")))?;
-    if payload
-        .files
-        .iter()
-        .any(|f| split_virtual(&f.path).is_err() || f.content_hash.len() != 64)
-    {
-        return Err(AetherError::InvalidInput(
-            "backup index contains an invalid path".into(),
+        .map_err(|e| AetherError::Sync(format!("backup index is corrupt: {e}")))?;
+    if payload.files.iter().any(|f| {
+        split_virtual(&f.path).is_err()
+            || f.content_hash.len() != 64
+            || !f.content_hash.bytes().all(|b| b.is_ascii_hexdigit())
+            || f.size > MAX_FILE_BYTES
+    }) {
+        return Err(AetherError::Sync(
+            "backup index contains an invalid path or entry".into(),
         ));
     }
     Ok(OpenedBackup {
@@ -674,10 +675,10 @@ fn move_aside(path: &Path, stamp: &str) -> Result<PathBuf, AetherError> {
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
-        .ok_or_else(|| AetherError::InvalidInput("cannot move a root folder aside".into()))?;
+        .ok_or_else(|| AetherError::Sync("cannot move a root folder aside".into()))?;
     let parent = path
         .parent()
-        .ok_or_else(|| AetherError::InvalidInput("cannot move a root folder aside".into()))?;
+        .ok_or_else(|| AetherError::Sync("cannot move a root folder aside".into()))?;
     for n in 1..1000u32 {
         let suffix = if n == 1 {
             String::new()
@@ -690,7 +691,7 @@ fn move_aside(path: &Path, stamp: &str) -> Result<PathBuf, AetherError> {
             return Ok(candidate);
         }
     }
-    Err(AetherError::InvalidInput(
+    Err(AetherError::Sync(
         "no free name to move the existing folder aside".into(),
     ))
 }
@@ -811,6 +812,16 @@ pub fn restore_backup(
                 continue;
             }
         };
+        // The same exclusions as sync: nothing is ever restored into
+        // `.git`, `.trash` or other tool folders, and app data only into
+        // the synced app-data files.
+        if !roots.in_scope(&file.path) {
+            report.issues.push(SyncIssue {
+                path: file.path.clone(),
+                message: "this path is never restored (excluded folder or file type)".into(),
+            });
+            continue;
+        }
         let bytes = match opened.read_file(file) {
             Ok(b) => b,
             Err(e) => {
@@ -1026,6 +1037,57 @@ mod tests {
             std::fs::read_to_string(target.join("Projects/Plan.md")).unwrap(),
             "# Plan\n\nship it"
         );
+    }
+
+    #[test]
+    fn restore_never_writes_excluded_paths() {
+        let f = fixture();
+        let roots = roots(&f, false);
+        std::fs::create_dir_all(f.vault.join(".git/hooks")).unwrap();
+        std::fs::write(f.vault.join(".git/hooks/post-commit"), "#!/bin/sh\n").unwrap();
+        std::fs::create_dir_all(f.vault.join(".trash")).unwrap();
+        std::fs::write(f.vault.join(".trash/old.md"), "old").unwrap();
+        let (mut files, _) = backup_files(&roots, &BTreeMap::new());
+        // A crafted backup lists excluded paths next to the normal files.
+        for rel in [".git/hooks/post-commit", ".trash/old.md"] {
+            let bytes = std::fs::read(f.vault.join(rel)).unwrap();
+            files.insert(
+                format!("vault/{rel}"),
+                LocalMeta {
+                    content_hash: crypto::content_hash(&bytes),
+                    size: bytes.len() as u64,
+                    mtime: 0,
+                },
+            );
+        }
+        let report = create_backup(
+            &f.out,
+            &f.keys,
+            &roots,
+            &files,
+            &author(),
+            false,
+            &|_, _| {},
+        )
+        .unwrap();
+
+        let target = f.out.join("restored");
+        let restored = restore_backup(
+            Path::new(&report.path),
+            "backup passphrase",
+            &RestoreTarget {
+                target_dir: &target,
+                data_dir: &f.data,
+                vault: None,
+            },
+            RestoreMode::Merge,
+            &|_, _| {},
+        )
+        .unwrap();
+        assert_eq!(restored.restored, 3);
+        assert!(!target.join(".git").exists());
+        assert!(!target.join(".trash").exists());
+        assert_eq!(restored.issues.len(), 2, "{:?}", restored.issues);
     }
 
     #[test]

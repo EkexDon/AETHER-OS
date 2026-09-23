@@ -213,8 +213,8 @@
 }
 
 .ui-tooltip .ui-kbd {
-  background: rgba(255, 253, 248, 0.08);
-  border-color: rgba(255, 253, 248, 0.12);
+  background: var(--color-tooltip-kbd-bg);
+  border-color: var(--color-tooltip-kbd-border);
   color: var(--color-tooltip-fg);
   opacity: 0.75;
 }

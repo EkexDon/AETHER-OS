@@ -115,7 +115,7 @@ export function ExportReport({ result, onOpen }: ExportReportProps) {
         <ul className="export-report-notices">
           {notices.map((n) => (
             <li key={n} className="ui-notice ui-notice-warning">
-              <TriangleAlert size={13} aria-hidden="true" />
+              <TriangleAlert size={14} aria-hidden="true" />
               <span>{n}</span>
             </li>
           ))}

@@ -16,7 +16,6 @@ import { SEARCH_KINDS, SECTION_META } from "../../lib/search/kinds";
 import { Badge, Button, Checkbox, IconButton, Input, Spinner, Switch, useToast } from "../../ui";
 import { SettingsGroup, SettingsPage, SettingsRow } from "../../settings/layout";
 import { relativeAge } from "./SearchResultCard";
-import "../../styles/views/search.css";
 
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -217,7 +216,7 @@ export function SearchSettings() {
                 id="search-shortcut"
                 size="sm"
                 className="search-settings-shortcut"
-                iconLeft={<Keyboard size={13} />}
+                iconLeft={<Keyboard size={14} />}
                 value={shortcutDraft}
                 invalid={!!shortcutError}
                 disabled={!settings.global_shortcut_enabled || saving}
@@ -287,7 +286,7 @@ export function SearchSettings() {
                 <IconButton
                   size="sm"
                   label={`Stop indexing ${root}`}
-                  icon={<X size={13} />}
+                  icon={<X size={14} />}
                   disabled={saving}
                   onClick={() => void save({ ...settings, file_roots: settings.file_roots.filter((r) => r !== root) })}
                 />
@@ -324,7 +323,7 @@ export function SearchSettings() {
               Add
             </Button>
             {isTauriRuntime() && (
-              <Button size="sm" iconLeft={<FolderPlus size={13} />} disabled={saving} onClick={() => void browse()}>
+              <Button size="sm" iconLeft={<FolderPlus size={14} />} disabled={saving} onClick={() => void browse()}>
                 Browse…
               </Button>
             )}
@@ -341,7 +340,7 @@ export function SearchSettings() {
               : "Loading…"
           }
           control={
-            <Button size="sm" iconLeft={<RefreshCw size={13} />} loading={reindexing} onClick={() => void onReindex()}>
+            <Button size="sm" iconLeft={<RefreshCw size={14} />} loading={reindexing} onClick={() => void onReindex()}>
               Reindex now
             </Button>
           }
@@ -350,7 +349,7 @@ export function SearchSettings() {
           label="Recent results"
           hint="The launcher shows recently opened results and ranks frequently used ones higher."
           control={
-            <Button size="sm" variant="ghost" iconLeft={<History size={13} />} onClick={() => void clearRecents()}>
+            <Button size="sm" variant="ghost" iconLeft={<History size={14} />} onClick={() => void clearRecents()}>
               Clear recents
             </Button>
           }

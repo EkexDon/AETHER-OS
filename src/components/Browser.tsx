@@ -21,6 +21,8 @@ import {
 } from "../lib/ipc";
 import type { BrowserInfo } from "../types";
 import { EmptyState, IconButton, Spinner } from "../ui";
+import { resolveBrowserInput } from "../lib/browserUrl";
+import { humanizeError } from "../lib/sync/format";
 
 const BOOKMARKS_KEY = "aether-browser-bookmarks";
 const MAX_HISTORY = 50;
@@ -47,16 +49,6 @@ function saveBookmarks(bm: Bookmark[]) {
   }
 }
 
-function normalizeUrl(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^about:/i.test(trimmed)) return trimmed;
-  if (/\.[a-z]{2,}/i.test(trimmed) && !/\s/.test(trimmed)) {
-    return `https://${trimmed}`;
-  }
-  return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`;
-}
 
 function urlToTitle(url: string): string {
   return url
@@ -121,7 +113,7 @@ export function Browser() {
     if (!isDesktopRuntime()) return;
     void getBrowserInfo()
       .then(setBrowserInfo)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(humanizeError(e instanceof Error ? e.message : String(e))));
     void browserWebviewList()
       .then((wins) => {
         if (wins.length > 0) {
@@ -226,8 +218,13 @@ export function Browser() {
 
   const navigate = useCallback(
     async (rawUrl: string, existingLabel?: string | null) => {
-      const normalized = normalizeUrl(rawUrl);
-      if (!normalized) return;
+      const input = resolveBrowserInput(rawUrl);
+      if (input.kind === "empty") return;
+      if (input.kind === "refused") {
+        setError(input.reason);
+        return;
+      }
+      const normalized = input.url;
       setError(null);
       setLoading(true);
 
@@ -256,7 +253,7 @@ export function Browser() {
         }
         setUrl(normalized);
       } catch (e) {
-        setError(String(e));
+        setError(humanizeError(e instanceof Error ? e.message : String(e)));
         setLoading(false);
       }
     },
@@ -288,7 +285,7 @@ export function Browser() {
     try {
       await browserWebviewBack(activeLabel);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     }
   }, [activeLabel]);
 
@@ -297,7 +294,7 @@ export function Browser() {
     try {
       await browserWebviewForward(activeLabel);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     }
   }, [activeLabel]);
 
@@ -307,7 +304,7 @@ export function Browser() {
     try {
       await browserWebviewReload(activeLabel);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
       setLoading(false);
     }
   }, [activeLabel]);
@@ -328,7 +325,7 @@ export function Browser() {
     try {
       await browserOpenLibreWolf(activeTab.url);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     }
   }, [activeTab]);
 
@@ -337,7 +334,7 @@ export function Browser() {
     try {
       await browserOpen(activeTab.url);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     }
   }, [activeTab]);
 
@@ -374,7 +371,7 @@ export function Browser() {
               setUrl(tab.url);
             }}
           >
-            <Globe size={12} />
+            <Globe size={14} />
             <span className="browser-tab-title">{tab.title}</span>
             <button
               type="button"
@@ -385,7 +382,7 @@ export function Browser() {
                 void closeTab(tab.label);
               }}
             >
-              <X size={12} />
+              <X size={14} />
             </button>
           </div>
         ))}
@@ -416,7 +413,7 @@ export function Browser() {
           disabled={!activeTab || activeTab.historyIndex >= activeTab.history.length - 1}
           tooltipPlacement="bottom"
         />
-        <IconButton label="Reload" icon={<RotateCcw size={15} />} onClick={reload} disabled={!activeTab} tooltipPlacement="bottom" />
+        <IconButton label="Reload" icon={<RotateCcw size={16} />} onClick={reload} disabled={!activeTab} tooltipPlacement="bottom" />
 
         <div className="browser-url-bar">
           <Globe size={14} className="browser-url-icon" />
@@ -478,7 +475,7 @@ export function Browser() {
                 setShowBookmarks(false);
               }}
             >
-              <Globe size={12} />
+              <Globe size={14} />
               <span>{bm.title.slice(0, 30)}</span>
             </button>
           ))}
@@ -489,7 +486,7 @@ export function Browser() {
 
       {browserInfo && (
         <div className="browser-status-bar">
-          <Shield size={11} />
+          <Shield size={14} />
           <span>Embedded native browser — {browserInfo.default_browser} engine</span>
           {browserInfo.librewolf_installed && (
             <span className="browser-librewolf-badge">LibreWolf detected</span>
@@ -501,17 +498,17 @@ export function Browser() {
         {!activeLabel && (
           <div className="browser-home">
             <span className="browser-home-icon">
-              <Globe size={22} />
+              <Globe size={18} />
             </span>
             <h2>AETHER-OS Browser</h2>
-            <p>Enter a URL or search query above to get started.</p>
+            <p>Type an address or a search above and press Enter.</p>
             <p className="browser-home-hint">
-              Pages render in a real browser engine embedded in this window —
-              Google, YouTube, GitHub and all other sites work natively.
+              Pages open in the system web engine embedded in this window. Only http and https pages (and
+              about:blank) are loaded — files, scripts and app links are refused.
             </p>
             {bookmarks.length > 0 && (
               <div className="browser-home-bookmarks">
-                <h3>Quick Access</h3>
+                <h3>Quick access</h3>
                 {bookmarks.map((bm) => (
                   <button
                     key={bm.url}

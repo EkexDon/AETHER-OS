@@ -82,6 +82,11 @@ pub fn encode_frame(body: &[u8]) -> Vec<u8> {
     out
 }
 
+/// Largest JSON-RPC body accepted from a language server.
+pub const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
+/// Largest header block (without its `\r\n\r\n` terminator) that is buffered.
+pub const MAX_HEADER_BYTES: usize = 8 * 1024;
+
 /// Incremental decoder for the stream of incoming framed bodies. Feed it raw
 /// chunks from the server's stdout; it hands back every complete body.
 #[derive(Debug, Default)]
@@ -94,12 +99,21 @@ impl FrameDecoder {
         Self::default()
     }
 
-    /// Extracts `Content-Length` from the buffered header block.
+    /// Extracts `Content-Length` from the buffered header block (at most
+    /// [`MAX_FRAME_BYTES`]; a header without terminator may not grow past
+    /// [`MAX_HEADER_BYTES`]).
     /// Returns `Ok(None)` when the header is not complete yet.
     fn header_length(&self) -> Result<Option<usize>, AetherError> {
         let sep = b"\r\n\r\n";
         let pos = find_subslice(&self.buf, sep);
-        let Some(pos) = pos else { return Ok(None) };
+        let Some(pos) = pos else {
+            if self.buf.len() > MAX_HEADER_BYTES {
+                return Err(AetherError::InvalidInput(
+                    "LSP server sent an oversized frame header".into(),
+                ));
+            }
+            return Ok(None);
+        };
         let header = String::from_utf8_lossy(&self.buf[..pos]);
         let mut length = None;
         for line in header.split("\r\n") {
@@ -115,6 +129,9 @@ impl FrameDecoder {
             }
         }
         match length {
+            Some(n) if n > MAX_FRAME_BYTES => Err(AetherError::InvalidInput(format!(
+                "LSP server announced a {n}-byte frame (limit {MAX_FRAME_BYTES})"
+            ))),
             Some(n) => Ok(Some(n)),
             None => Err(AetherError::InvalidInput(
                 "LSP frame is missing Content-Length".into(),
@@ -128,8 +145,10 @@ impl FrameDecoder {
             return Ok(None);
         };
         const HEADER_TERMINATOR: usize = 4;
-        let header_end = find_subslice(&self.buf, b"\r\n\r\n")
-            .expect("header_length confirmed a terminator exists");
+        let Some(header_end) = find_subslice(&self.buf, b"\r\n\r\n") else {
+            return Ok(None);
+        };
+        // `length` is capped by `header_length`, so this cannot overflow.
         let total = header_end + HEADER_TERMINATOR + length;
         if self.buf.len() < total {
             return Ok(None);
@@ -188,7 +207,10 @@ impl LspManager {
         on_message: impl Fn(&str, Value) + Send + Sync + 'static,
     ) -> Result<(), AetherError> {
         {
-            let processes = self.processes.lock().expect("processes lock");
+            let processes = self
+                .processes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if processes.contains_key(key) {
                 // Already running — idempotent restart requests are fine.
                 return Ok(());
@@ -234,7 +256,7 @@ impl LspManager {
 
         self.processes
             .lock()
-            .expect("processes lock")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(key.to_string(), Arc::clone(&process));
 
         // Reader: decode frames and forward parsed JSON-RPC bodies.
@@ -295,7 +317,10 @@ impl LspManager {
     /// Send one JSON-RPC message to the server behind `key`.
     pub fn send(&self, key: &str, message: &Value) -> Result<(), AetherError> {
         let process = {
-            let processes = self.processes.lock().expect("processes lock");
+            let processes = self
+                .processes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             processes.get(key).cloned()
         };
         let Some(process) = process else {
@@ -310,7 +335,10 @@ impl LspManager {
         }
         let body = serde_json::to_vec(message)
             .map_err(|e| AetherError::Vault(format!("cannot serialize LSP message: {e}")))?;
-        let mut stdin = process.stdin.lock().expect("stdin lock");
+        let mut stdin = process
+            .stdin
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         stdin
             .write_all(&encode_frame(&body))
             .and_then(|_| stdin.flush())
@@ -319,7 +347,11 @@ impl LspManager {
 
     /// Stop one server (kill + forget). Stopping an unknown key is fine.
     pub fn stop(&self, key: &str) {
-        let process = self.processes.lock().expect("processes lock").remove(key);
+        let process = self
+            .processes
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(key);
         if let Some(process) = process {
             process.alive.store(false, Ordering::SeqCst);
             if let Ok(mut child) = process.child.lock() {
@@ -334,7 +366,7 @@ impl LspManager {
         let keys: Vec<String> = self
             .processes
             .lock()
-            .expect("processes lock")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .keys()
             .cloned()
             .collect();
@@ -346,7 +378,7 @@ impl LspManager {
     pub fn running(&self) -> Vec<String> {
         self.processes
             .lock()
-            .expect("processes lock")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .keys()
             .cloned()
             .collect()
@@ -377,6 +409,21 @@ mod tests {
                 body.len()
             )
         );
+    }
+
+    #[test]
+    fn hostile_frame_headers_are_errors_not_panics() {
+        let mut decoder = FrameDecoder::new();
+        let huge = format!("Content-Length: {}\r\n\r\n{{}}", usize::MAX);
+        assert!(decoder.push(huge.as_bytes()).is_err());
+
+        let mut decoder = FrameDecoder::new();
+        let over = format!("Content-Length: {}\r\n\r\n", MAX_FRAME_BYTES + 1);
+        assert!(decoder.push(over.as_bytes()).is_err());
+
+        let mut decoder = FrameDecoder::new();
+        let endless = vec![b'x'; MAX_HEADER_BYTES + 1];
+        assert!(decoder.push(&endless).is_err());
     }
 
     #[test]

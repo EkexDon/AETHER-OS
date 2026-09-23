@@ -147,7 +147,7 @@ impl Default for IcsImportOptions {
     fn default() -> Self {
         Self {
             overwrite_existing: false,
-            default_color: "#7c3aed".to_owned(),
+            default_color: crate::engine::calendar::default_color().to_owned(),
         }
     }
 }
@@ -539,6 +539,23 @@ mod tests {
     fn rejects_empty_input() {
         let err = import_calendar("", &IcsImportOptions::default()).expect_err("must reject");
         assert!(err.to_string().contains("empty"));
+    }
+
+    #[test]
+    fn imports_without_colour_get_the_teal_default_and_keep_their_own() {
+        let ics = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:c1@aether-os.local\r\nDTSTART:20261010T090000Z\r\nDTEND:20261010T100000Z\r\nSUMMARY:No colour\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:c2@aether-os.local\r\nDTSTART:20261011T090000Z\r\nDTEND:20261011T100000Z\r\nSUMMARY:Purple\r\nX-AETHER-COLOR:#7c3aed\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        assert_eq!(IcsImportOptions::default().default_color, "#0f9d8a");
+        let (imported, result) = import_calendar(ics, &IcsImportOptions::default()).expect("parse");
+        assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+        let colour_of = |uid: &str| {
+            imported
+                .iter()
+                .find(|i| i.uid == uid)
+                .map(|i| i.event.color.clone())
+                .expect("event")
+        };
+        assert_eq!(colour_of("c1@aether-os.local"), "#0f9d8a");
+        assert_eq!(colour_of("c2@aether-os.local"), "#7c3aed");
     }
 
     #[test]

@@ -71,7 +71,7 @@ export function VaultBlock({
         <Button
           size="sm"
           variant="secondary"
-          iconLeft={indexing ? undefined : <Sparkles size={13} />}
+          iconLeft={indexing ? undefined : <Sparkles size={14} />}
           loading={indexing}
           onClick={onIndex}
         >
@@ -82,7 +82,7 @@ export function VaultBlock({
             "Embedding notes with the local model…"
           ) : lastIndex ? (
             <>
-              <Database size={12} aria-hidden="true" />
+              <Database size={14} aria-hidden="true" />
               Indexed {relativeTime(lastIndex.at, now)} · {lastIndex.result.indexed} of {lastIndex.result.total} embedded
             </>
           ) : (

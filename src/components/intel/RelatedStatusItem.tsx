@@ -64,7 +64,7 @@ export function RelatedStatusItem() {
             onClick={toggle}
             aria-pressed={open}
           >
-            {entry?.loading ? <Spinner size={11} /> : <Sparkles size={12} />}
+            {entry?.loading ? <Spinner size={14} /> : <Sparkles size={14} />}
             <span className="statusbar-muted tabular">{label}</span>
           </button>
         </Tooltip>

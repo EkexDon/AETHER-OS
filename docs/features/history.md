@@ -134,5 +134,6 @@ by the watcher, a snapshot or a restore. Frontend: `onHistoryCommit()` in
   be restored from the UI.
 - Every save that is followed by ≥ 2 s of quiet becomes its own version;
   there is no automatic squashing or pruning of old versions yet.
-- The editor reloads a note from disk only when it mounts, so a restore
-  while the note is open briefly remounts the editor (one frame).
+- Resolved in v0.2 (Wave 3): a restore while the note is open no longer
+  remounts the editor — `historyStore` calls `requestNoteReload(path)`
+  (`src/lib/noteEditorBus.ts`) and the editor re-reads the note in place.

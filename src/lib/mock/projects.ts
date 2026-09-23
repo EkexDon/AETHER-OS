@@ -4,6 +4,7 @@ import type { Project } from "../../types";
 import { FIXTURE_REPOS, MOCK_PROJECTS_ROOT } from "./fixtures/workspace";
 import { repoLog, repoStatus } from "./git";
 import { argString, argStringArray, isWithin, normalizePath, registerReset, type MockHandlerMap } from "./runtime";
+import { editorNameProblem } from "../editors";
 
 let projectDirs: string[] = [MOCK_PROJECTS_ROOT];
 registerReset(() => {
@@ -56,8 +57,18 @@ const opened = (what: string, path: string) => {
 };
 
 export const projectsHandlers: MockHandlerMap = {
-  cmd_scan_projects: (args) => scanMockProjects(argStringArray(args, "directories")),
-  cmd_open_project: (args) => opened(`open ${String(args.editor ?? "devin")}`, argString(args, "path")),
+  // Like Rust: only directories inside a configured project folder are scanned; others are skipped.
+  cmd_scan_projects: (args) =>
+    scanMockProjects(
+      argStringArray(args, "directories").filter((d) => projectDirs.some((root) => isWithin(normalizePath(d), normalizePath(root))))
+    ),
+  cmd_open_project: (args) => {
+    const editor = typeof args.editor === "string" ? args.editor : "devin";
+    const problem = editorNameProblem(editor);
+    const known = ["devin", "windsurf", "cursor", "code"].includes(editor.trim().toLowerCase());
+    if (!known && problem) throw new Error(`invalid editor application name: ${JSON.stringify(editor)}`);
+    return opened(`open -a ${editor}`, argString(args, "path"));
+  },
   cmd_open_in_terminal: (args) => opened("open Terminal", argString(args, "path")),
   cmd_open_in_finder: (args) => opened("open Finder", argString(args, "path")),
   cmd_get_project_dirs: () => getMockProjectDirs(),

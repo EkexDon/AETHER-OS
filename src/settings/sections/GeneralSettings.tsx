@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Sparkles, WandSparkles } from "lucide-react";
-import { useOnboardingStore, type AgentPanelOnStart } from "../../lib/onboardingStore";
+import { isDesktopRuntime } from "../../lib/ipc";
+import { DEFAULT_GENERAL_PREFS, useOnboardingStore, type AgentPanelOnStart } from "../../lib/onboardingStore";
 import { useShellStore } from "../../shell/shellStore";
 import type { ViewMode } from "../../views/modes";
-import { Badge, Button, SegmentedControl, Select, Switch } from "../../ui";
+import { Badge, Button, SegmentedControl, Select, Switch, useToast } from "../../ui";
 import { SettingsGroup, SettingsPage, SettingsRow } from "../layout";
-import "../../styles/views/onboarding.css";
 
 interface ViewOption {
   mode: ViewMode;
@@ -30,14 +30,33 @@ function useViewOptions(): ViewOption[] | null {
   return views;
 }
 
-/** Start view, agent panel on start, language and the setup wizard. */
+/** Start view, agent panel on start, quitting, language and the setup wizard. */
 export function GeneralSettings() {
+  const toast = useToast();
   const prefs = useOnboardingStore((s) => s.prefs);
   const setPrefs = useOnboardingStore((s) => s.setPrefs);
+  const generalPrefs = useOnboardingStore((s) => s.generalPrefs);
+  const loadGeneralPrefs = useOnboardingStore((s) => s.loadGeneralPrefs);
+  const updateGeneralPrefs = useOnboardingStore((s) => s.updateGeneralPrefs);
   const openWizard = useOnboardingStore((s) => s.openWizard);
   const openWhatsNew = useOnboardingStore((s) => s.openWhatsNew);
   const closeSettings = useShellStore((s) => s.closeSettings);
   const views = useViewOptions();
+  const desktop = isDesktopRuntime();
+  const [generalError, setGeneralError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!desktop) return;
+    loadGeneralPrefs().catch((e: unknown) => setGeneralError(e instanceof Error ? e.message : String(e)));
+  }, [desktop, loadGeneralPrefs]);
+
+  const confirmQuit = (generalPrefs ?? DEFAULT_GENERAL_PREFS).confirm_quit_with_terminals;
+  const setConfirmQuit = (value: boolean) => {
+    setGeneralError(null);
+    updateGeneralPrefs({ confirm_quit_with_terminals: value }).catch((e: unknown) =>
+      toast.error("Could not save the setting", { description: e instanceof Error ? e.message : String(e) })
+    );
+  };
 
   const startOptions = (views ?? []).map((v) => ({ value: v.mode, label: v.label }));
   if (views && !views.some((v) => v.mode === prefs.startView)) {
@@ -80,6 +99,25 @@ export function GeneralSettings() {
         />
       </SettingsGroup>
 
+      <SettingsGroup title="Quitting">
+        <SettingsRow
+          label="Confirm on quit with running terminals"
+          hint={
+            generalError
+              ? `Could not load this setting: ${generalError}`
+              : "Ask before ⌘Q closes AETHER-OS while terminal sessions are still running."
+          }
+          control={
+            <Switch
+              checked={confirmQuit}
+              disabled={!desktop || generalPrefs === null}
+              onChange={setConfirmQuit}
+              aria-label="Confirm on quit with running terminals"
+            />
+          }
+        />
+      </SettingsGroup>
+
       <SettingsGroup title="Language">
         <SettingsRow
           label="Interface language"
@@ -96,7 +134,7 @@ export function GeneralSettings() {
             <Button
               size="sm"
               variant="secondary"
-              iconLeft={<WandSparkles size={13} />}
+              iconLeft={<WandSparkles size={14} />}
               onClick={() => {
                 closeSettings();
                 openWizard({ restart: true });
@@ -114,7 +152,7 @@ export function GeneralSettings() {
               <Button
                 size="sm"
                 variant="ghost"
-                iconLeft={<Sparkles size={13} />}
+                iconLeft={<Sparkles size={14} />}
                 onClick={() => {
                   closeSettings();
                   openWhatsNew();

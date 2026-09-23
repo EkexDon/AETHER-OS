@@ -81,7 +81,7 @@ export function FocusBlock({ stats, today, loading, error, onOpenSettings }: Foc
             <Button
               variant="secondary"
               size="sm"
-              iconLeft={timer.status === "running" ? <Pause size={13} /> : <Play size={13} />}
+              iconLeft={timer.status === "running" ? <Pause size={14} /> : <Play size={14} />}
               onClick={toggle}
             >
               {primaryLabel}
@@ -91,18 +91,18 @@ export function FocusBlock({ stats, today, loading, error, onOpenSettings }: Foc
             <IconButton
               size="sm"
               label={timer.phase === "work" ? "Finish focus and start the break" : "Skip the break"}
-              icon={<SkipForward size={13} />}
+              icon={<SkipForward size={14} />}
               onClick={skip}
             />
           )}
-          {!idle && <IconButton size="sm" label="Stop Pomodoro" icon={<Square size={12} />} onClick={stop} />}
+          {!idle && <IconButton size="sm" label="Stop Pomodoro" icon={<Square size={14} />} onClick={stop} />}
           <span className="home-timer-spacer" />
           <IconButton
             size="sm"
             label={focusMode ? "Exit focus mode" : "Focus mode"}
             shortcut="mod+shift+f"
             active={focusMode}
-            icon={focusMode ? <Focus size={13} /> : <Maximize2 size={13} />}
+            icon={focusMode ? <Focus size={14} /> : <Maximize2 size={14} />}
             onClick={() => {
               toggleFocusMode();
               if (useFocusStore.getState().focusMode) toast.info("Focus mode on", { description: "Press Esc twice to exit." });
@@ -123,7 +123,7 @@ export function FocusBlock({ stats, today, loading, error, onOpenSettings }: Foc
         <div>
           <dt>Streak</dt>
           <dd className="tabular">
-            <Flame size={13} className={cx("home-streak-icon", (stats?.streak_days ?? 0) > 0 && "is-active")} aria-hidden="true" />
+            <Flame size={14} className={cx("home-streak-icon", (stats?.streak_days ?? 0) > 0 && "is-active")} aria-hidden="true" />
             {stats?.streak_days ?? 0} {stats?.streak_days === 1 ? "day" : "days"}
           </dd>
         </div>

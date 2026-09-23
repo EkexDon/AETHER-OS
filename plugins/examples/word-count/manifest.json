@@ -5,7 +5,7 @@
   "description": "Word count and reading time of the open note in the status bar, with a per-heading breakdown in the plugin panel.",
   "author": "AETHER-OS",
   "main": "main.js",
-  "minAppVersion": "0.1.0",
+  "minAppVersion": "0.2.0",
   "permissions": ["vault:read", "ui:statusbar", "ui:panel"],
   "settings": [
     {

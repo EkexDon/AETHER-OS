@@ -33,6 +33,32 @@ pub const SKIP_DIRS: &[&str] = &[
     "__pycache__",
 ];
 
+/// File names that hold credentials and are never indexed, even when they
+/// are not hidden or git-ignored: `.env*`, private keys and certificates
+/// (`*.pem`, `*.key`, `*.p12`, `*.pfx`, keystores), SSH keys (`id_rsa*`,
+/// `id_dsa*`, `id_ecdsa*`, `id_ed25519*`) and credential dot-files.
+pub fn is_sensitive_file_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    const EXACT: &[&str] = &[
+        ".netrc",
+        ".npmrc",
+        ".pypirc",
+        ".pgpass",
+        ".git-credentials",
+        "credentials",
+        "credentials.json",
+    ];
+    const PREFIXES: &[&str] = &[".env", "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519"];
+    const EXTENSIONS: &[&str] = &[
+        "pem", "key", "p12", "pfx", "keystore", "jks", "ppk", "asc", "gpg", "kdbx",
+    ];
+    EXACT.contains(&lower.as_str())
+        || PREFIXES.iter().any(|p| lower.starts_with(p))
+        || lower
+            .rsplit_once('.')
+            .is_some_and(|(stem, ext)| !stem.is_empty() && EXTENSIONS.contains(&ext))
+}
+
 fn clamp_body(text: &str) -> String {
     let stripped = strip_sentinels(text);
     if stripped.chars().count() > MAX_BODY_CHARS {
@@ -214,9 +240,10 @@ pub struct FileWalk {
 }
 
 /// Walk `roots` for project files: `.gitignore` / `.ignore` rules are
-/// honoured (even outside a git repository), hidden entries and
-/// [`SKIP_DIRS`] are skipped, depth ≤ [`MAX_FILE_DEPTH`], at most `max`
-/// files in total. Only paths and names are indexed, never contents.
+/// honoured (even outside a git repository), hidden entries,
+/// [`SKIP_DIRS`] and credential files ([`is_sensitive_file_name`]) are
+/// skipped, depth ≤ [`MAX_FILE_DEPTH`], at most `max` files in total. Only
+/// paths and names are indexed, never contents.
 pub fn walk_files(roots: &[PathBuf], max: usize) -> FileWalk {
     let mut walk = FileWalk::default();
     let mut seen: HashSet<PathBuf> = HashSet::new();
@@ -245,6 +272,9 @@ pub fn walk_files(roots: &[PathBuf], max: usize) -> FileWalk {
             .build();
         for entry in walker.filter_map(Result::ok) {
             if !entry.file_type().map(|t| t.is_file()).unwrap_or(false) {
+                continue;
+            }
+            if is_sensitive_file_name(&entry.file_name().to_string_lossy()) {
                 continue;
             }
             let path = entry.path().to_path_buf();
@@ -512,6 +542,50 @@ mod tests {
         assert_eq!(main.subtitle, "app/src");
         assert_eq!(main.body, "app/src/main.rs");
         assert_eq!(main.extra["rel"], "src/main.rs");
+    }
+
+    #[test]
+    fn credential_files_are_never_indexed() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let root = dir.path().join("app");
+        for rel in [
+            "src/lib.rs",
+            "keys/server.pem",
+            "keys/server.KEY",
+            "keys/id_rsa",
+            "keys/id_ed25519.pub",
+            "deploy/cert.p12",
+            "config/credentials.json",
+            "notes/keyboard.md",
+            "notes/monkey.txt",
+        ] {
+            touch(&root.join(rel));
+        }
+        let walk = walk_files(std::slice::from_ref(&root), MAX_FILES);
+        let mut names: Vec<&str> = walk.docs.iter().map(|d| d.title.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(names, vec!["keyboard.md", "lib.rs", "monkey.txt"]);
+
+        for secret in [
+            ".env",
+            ".env.local",
+            "id_rsa",
+            "ID_DSA.pub",
+            "a.pem",
+            "vault.kdbx",
+        ] {
+            assert!(is_sensitive_file_name(secret), "{secret}");
+        }
+        for plain in [
+            "environment.md",
+            "key.md",
+            "keys.rs",
+            ".pem",
+            "pem",
+            "Keynote.key.md",
+        ] {
+            assert!(!is_sensitive_file_name(plain), "{plain}");
+        }
     }
 
     #[test]

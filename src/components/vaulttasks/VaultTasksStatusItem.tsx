@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import { ListChecks } from "lucide-react";
-import "../../styles/views/vaulttasks.css";
 import { Tooltip } from "../../ui";
 import { isDesktopRuntime } from "../../lib/ipc";
 import { useAetherStore } from "../../lib/store";
@@ -57,7 +56,7 @@ export function VaultTasksStatusItem() {
         className={`statusbar-item vt-status${dueToday === 0 ? " is-overdue" : ""}`}
         onClick={open}
       >
-        <ListChecks size={12} />
+        <ListChecks size={14} />
         <span className="statusbar-muted tabular">{label}</span>
         {dueToday > 0 && overdue > 0 && <span className="vt-status-extra tabular">+{overdue} overdue</span>}
       </button>
@@ -66,8 +65,8 @@ export function VaultTasksStatusItem() {
 }
 
 /**
- * Hosts the ⌘⇧T quick-add dialog. Registered as an (invisible) status bar
- * item because the status bar is mounted for the whole session.
+ * Hosts the ⌘⇧T quick-add dialog. Mounted once for the whole session by
+ * the shell's `FeatureHosts` slot.
  */
 export function VaultTasksQuickAddHost() {
   const register = useVaultTasksStore((s) => s.registerQuickAddHost);

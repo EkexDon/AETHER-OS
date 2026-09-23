@@ -66,6 +66,31 @@ impl VectorEngine {
             .unwrap_or_else(|error| error.into_inner())
     }
 
+    /// Delete every stored vector and release the dimension lock, so the next
+    /// indexing run may use a different embedding model. Returns how many
+    /// vectors were removed.
+    pub fn clear(&self) -> Result<usize, AetherError> {
+        // Hold the lock for the whole wipe so no upsert can re-lock the old
+        // dimension halfway through.
+        let mut dimension = self
+            .dimension
+            .write()
+            .unwrap_or_else(|error| error.into_inner());
+        let mut removed = 0;
+        for entry in std::fs::read_dir(&self.storage_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if entry.file_type()?.is_file()
+                && path.extension().and_then(|e| e.to_str()) == Some("json")
+            {
+                std::fs::remove_file(&path)?;
+                removed += 1;
+            }
+        }
+        *dimension = None;
+        Ok(removed)
+    }
+
     pub async fn upsert_vector(
         &self,
         id: &str,
@@ -212,6 +237,37 @@ mod tests {
             .await
             .expect_err("dimension change must be rejected");
         assert!(error.to_string().contains("re-index"));
+    }
+
+    #[tokio::test]
+    async fn clear_removes_vectors_and_unlocks_the_dimension() {
+        let directory = tempdir().expect("temp directory");
+        let engine = VectorEngine::new(directory.path()).await.expect("engine");
+        engine
+            .upsert_vector("first", vec![0.5; DIMENSION], "first text")
+            .await
+            .expect("insert");
+        engine
+            .upsert_vector("second", vec![0.25; DIMENSION], "second text")
+            .await
+            .expect("insert");
+        assert_eq!(engine.clear().expect("clear"), 2);
+        assert_eq!(engine.dimension(), None);
+        assert!(engine
+            .search_similar(vec![0.5; DIMENSION], 5)
+            .await
+            .expect("search")
+            .is_empty());
+
+        // A model with a different width can index now, also after restart.
+        engine
+            .upsert_vector("first", vec![0.5; 384], "first text")
+            .await
+            .expect("new dimension must be accepted after clear");
+        let reopened = VectorEngine::new(directory.path()).await.expect("reopen");
+        assert_eq!(reopened.dimension(), Some(384));
+        assert_eq!(engine.clear().expect("clear again"), 1);
+        assert_eq!(engine.clear().expect("clear empty"), 0);
     }
 
     #[tokio::test]

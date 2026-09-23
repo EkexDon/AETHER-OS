@@ -101,6 +101,8 @@ lines **directly above your own anchor** and nowhere else.
 | `src/views/registry.tsx` | `// @anchor:view:<feature>` | one `ViewDefinition` entry (see §5) |
 | `src/lib/commands/registry.ts` | `// @anchor:command:<feature>` | command palette contributions (see §5) |
 | `src/settings/registry.tsx` | `// @anchor:settings:<feature>` | a settings section (see §5) |
+| `src/shell/FeatureHosts.tsx` | `FEATURE_HOSTS` list | one `{ id: "<feature>.<name>", component }` for an always-mounted host (overlays, start-up work, event subscriptions) — not an invisible status bar item |
+| `src/styles/index.css` | "Feature views" block | `@import "./views/<feature>.css";` |
 | `src-tauri/Cargo.toml` | `# @anchor:deps:<feature>` | your crate dependencies |
 | `package.json` | (ask orchestrator) | npm deps: run `npm i <pkg>` yourself, it edits package.json/lock atomically; mention it in the report |
 
@@ -116,7 +118,7 @@ Every feature gets its own:
 - `src/types/<feature>.ts`, `src/lib/ipc/<feature>.ts`, `src/lib/mock/<feature>.ts`
 - `src/lib/<feature>Store.ts` (if state is needed) and pure helpers `src/lib/<feature>/*.ts`
 - `src/components/<feature>/*.tsx` (+ `.test.tsx`)
-- `src/styles/views/<feature>.css` imported from your root component
+- `src/styles/views/<feature>.css`, imported once from `src/styles/index.css` (one `@import` line in the "Feature views" block; components never import CSS)
 - `docs/features/<feature>.md`
 
 ## 4. Design system (Wave 1 output — features MUST use it)
@@ -195,3 +197,21 @@ Integration requests: <none | precise list>
 Known limitations: <none | precise list>
 Docs: docs/features/<feature>.md
 ```
+
+## 8. Outcome (v0.2.0, 2026-09-23)
+
+The sections above stay the contract for future waves. What v0.2 produced:
+
+| | Wave 1 | Wave 2 | Wave 3 |
+| --- | --- | --- | --- |
+| Scope | design system, shell, registries + anchors, IPC/type split, mock backend, diagnostics, update check, SQLite helper, CI + release workflows | the ten features of §3 (`clipboard`, `search`, `history`, `home`, `vaulttasks`, `intel`, `plugins`, `export`, `sync`, `onboarding`) | integration (cross-feature settings, quit confirmation, editor properties, fixes), QA, docs |
+| Commit | `5172ea1` | `2836438` | by the orchestrator |
+
+Counts at release (from the sources, not estimates):
+
+- **19 workspaces** in 4 rail groups (Knowledge 8 · Build 3 · Life 3 · System 5), 15 settings sections, 85 built-in palette commands (58 keyboard shortcuts incl. editor-local ones).
+- **237 Tauri commands** in 28 command modules over 34 engine modules; every command has a mock handler (enforced by `src/lib/mock/backend.test.ts`).
+- **671 Rust tests** (`cargo test`) and **1,133 Vitest tests** in 148 files; `cargo fmt --check`, `clippy -D warnings` and `tsc --noEmit` clean (test counts taken at 09:50, lint and type checks at 08:55, end of Wave 3a).
+- Docs: ten `docs/features/*.md`, `docs/PLUGIN-API.md`, `docs/dev/{DESIGN-SYSTEM,MOCK-MODE,CI,RELEASING}.md`; README, TUTORIAL (32 screenshots from mock mode), ARCHITECTURE and CHANGELOG rewritten for 0.2.0.
+
+Cross-feature wiring that a feature could not do inside its own files was listed under *Limitations* in its feature doc and landed in the Wave 3 integration pass: pins in the vault sidebar, the editor scrolling to a note task's line, daily-note preferences honoured by the vault reader, a configurable embedding model and the quit confirmation with running terminals. The same pass added the editor's Properties panel, which also stops the editor from rewriting YAML front matter. Keep that pattern for future waves: record the request in the feature doc, and let an integration wave own the shared files. Always-mounted hosts go into `src/shell/FeatureHosts.tsx`, feature stylesheets into `src/styles/index.css` (see §3).

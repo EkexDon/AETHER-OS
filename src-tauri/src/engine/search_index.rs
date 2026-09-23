@@ -1015,6 +1015,9 @@ mod tests {
         write(&vault.join(".nopes/hidden.md"), "should never be indexed");
         let index = SearchIndex::new(&root.join("data/search")).expect("index");
         let reader = VaultReader::new(&root.join("data")).expect("reader");
+        reader
+            .set_vault_path(&vault.to_string_lossy())
+            .expect("configure vault");
         let memory = MemoryStore::new(&root.join("data/memory")).expect("memory");
         let calendar = Calendar::new(&root.join("data/calendar")).expect("calendar");
         let tasks = TaskBoardEngine::new(&root.join("data/tasks")).expect("tasks");

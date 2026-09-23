@@ -5,7 +5,6 @@ import { Button, toast } from "../../ui";
 import { BrandMark } from "../../shell/BrandMark";
 import { useShellStore } from "../../shell/shellStore";
 import { SettingsGroup, SettingsPage, SettingsRow } from "../layout";
-import "../../styles/views/onboarding.css";
 
 /** The app version, taken from `package.json` at build time. */
 export const APP_VERSION: string = VERSION;
@@ -69,7 +68,7 @@ export function AboutSettings() {
             <Button
               variant="secondary"
               size="sm"
-              iconLeft={<Keyboard size={13} />}
+              iconLeft={<Keyboard size={14} />}
               onClick={() => {
                 closeSettings();
                 setShortcutsOpen(true);
@@ -85,7 +84,7 @@ export function AboutSettings() {
           label="Source code"
           hint="github.com/EkexDon/AETHER-OS"
           control={
-            <Button variant="ghost" size="sm" iconLeft={<Github size={13} />} iconRight={<ArrowUpRight size={12} />} onClick={() => void openLink(REPO_URL)}>
+            <Button variant="ghost" size="sm" iconLeft={<Github size={14} />} iconRight={<ArrowUpRight size={14} />} onClick={() => void openLink(REPO_URL)}>
               GitHub
             </Button>
           }
@@ -94,7 +93,7 @@ export function AboutSettings() {
           label="Releases"
           hint="Release notes and downloads for every version."
           control={
-            <Button variant="ghost" size="sm" iconLeft={<ScrollText size={13} />} iconRight={<ArrowUpRight size={12} />} onClick={() => void openLink(RELEASES_URL)}>
+            <Button variant="ghost" size="sm" iconLeft={<ScrollText size={14} />} iconRight={<ArrowUpRight size={14} />} onClick={() => void openLink(RELEASES_URL)}>
               Releases
             </Button>
           }
@@ -103,7 +102,7 @@ export function AboutSettings() {
           label="Tutorial"
           hint="A guided tour through every workspace."
           control={
-            <Button variant="ghost" size="sm" iconLeft={<BookOpen size={13} />} iconRight={<ArrowUpRight size={12} />} onClick={() => void openLink(DOCS_URL)}>
+            <Button variant="ghost" size="sm" iconLeft={<BookOpen size={14} />} iconRight={<ArrowUpRight size={14} />} onClick={() => void openLink(DOCS_URL)}>
               Open
             </Button>
           }

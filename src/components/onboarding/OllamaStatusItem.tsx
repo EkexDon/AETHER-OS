@@ -3,7 +3,6 @@ import { useAetherStore } from "../../lib/store";
 import { useOnboardingStore } from "../../lib/onboardingStore";
 import { detectOllamaIssue } from "../../lib/onboarding/models";
 import { Tooltip } from "../../ui";
-import "../../styles/views/onboarding.css";
 
 /**
  * Status bar guard: "Ollama offline · fix" or "Model missing · fix" when
@@ -29,7 +28,7 @@ export function OllamaStatusItem() {
   return (
     <Tooltip content={tip} placement="top">
       <button type="button" className="statusbar-item ob-status-warning" onClick={openGuide}>
-        <TriangleAlert size={12} />
+        <TriangleAlert size={14} />
         <span className="statusbar-strong">{label}</span>
         <span className="statusbar-muted">· fix</span>
       </button>

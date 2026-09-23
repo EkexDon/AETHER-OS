@@ -99,7 +99,7 @@ export function BackupScheduleControls({ idPrefix }: { idPrefix: string }) {
     <div className="sync-controls">
       <div className="ui-field">
         <label className="ui-field-label" htmlFor={`${idPrefix}-backup-dir`}>
-          Backup folder
+          Folder for scheduled backups
         </label>
         <FolderField
           id={`${idPrefix}-backup-dir`}

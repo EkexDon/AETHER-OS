@@ -17,6 +17,7 @@
 import { aetherNotesHandlers } from "./aetherNotes";
 import { agentActionsHandlers } from "./agentActions";
 import { aiHandlers } from "./ai";
+import { appHandlers } from "./app";
 import { browserHandlers } from "./browser";
 import { calendarHandlers } from "./calendar";
 import { clipboardHandlers } from "./clipboard";
@@ -65,6 +66,7 @@ export const mockHandlers: MockHandlerMap = {
   ...agentActionsHandlers,
   ...diagnosticsHandlers,
   ...updaterHandlers,
+  ...appHandlers,
   ...clipboardHandlers,
   // @anchor:mock:clipboard
   ...searchHandlers,
@@ -132,6 +134,18 @@ export async function mockInvoke<T>(command: string, args: MockArgs = {}): Promi
   }
 }
 
+/**
+ * Simulate the desktop quit flow (⌘Q with running terminals): emits
+ * `quit-requested` with the number of live mock terminal sessions (at
+ * least `min`, so the dialog can be tried without opening a terminal).
+ */
+export async function requestMockQuit(min = 1): Promise<number> {
+  const sessions = (await mockInvoke<{ alive: boolean }[]>("cmd_terminal_list")) ?? [];
+  const terminals = Math.max(min, sessions.filter((s) => s.alive).length);
+  mockEvents.emit("quit-requested", { terminals });
+  return terminals;
+}
+
 // Handy for manual QA in the browser console: window.__AETHER_MOCK__.
 if (typeof window !== "undefined") {
   (window as unknown as { __AETHER_MOCK__?: unknown }).__AETHER_MOCK__ = {
@@ -139,5 +153,6 @@ if (typeof window !== "undefined") {
     events: mockEvents,
     invoke: mockInvoke,
     reset: resetMockState,
+    requestQuit: requestMockQuit,
   };
 }

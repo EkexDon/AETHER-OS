@@ -93,7 +93,7 @@ describe("ExportView", () => {
   it("opens the HTML wizard to pick a note when printing without one", async () => {
     vi.mocked(ipc.exportListRecent).mockResolvedValue([]);
     renderView();
-    fireEvent.click(screen.getByRole("button", { name: "Print current note" }));
+    fireEvent.click(screen.getByRole("button", { name: "Print / PDF" }));
     expect(await screen.findByRole("dialog", { name: "Export note as HTML" })).toBeInTheDocument();
     expect(ipc.exportPrintDocument).not.toHaveBeenCalled();
   });

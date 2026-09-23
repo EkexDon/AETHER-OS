@@ -118,7 +118,15 @@ Large headings use `--tracking-tight` (-0.02em) or `--tracking-tighter`
 - **Shadows (multi-layer)** — `--shadow-sm` (resting cards/buttons),
   `--shadow-md` (hover), `--shadow-lg` (toasts), `--shadow-pop` (menus,
   modals: hairline + two soft layers). `--shadow-inset-top` adds a 1 px top
-  highlight to raised controls.
+  highlight to raised controls. Theme-independent control shading (same in
+  light and dark, defined on `:root`): `--shadow-accent-raised` (raised
+  accent surfaces: primary button, send), `--shadow-pressed` (pressed
+  controls), `--shadow-knob` (switch knobs), `--shadow-well` (inset wells)
+  and `--shadow-swatch-ring` (colour swatch rings); tooltip kbd chips use
+  `--color-tooltip-kbd-bg` / `--color-tooltip-kbd-border`.
+- **Icons** — `lucide-react` at 14, 16 or 18 px only: 14 for the status
+  bar, rows, buttons and compact controls (the large majority), 16 for view
+  header icons and small empty states, 18 for regular empty states.
 - **Layers** — `--z-titlebar` 40 < `--z-dropdown` 100 < `--z-overlay`
   300 (modal backdrop) < `--z-popover` 400 < `--z-toast` 500 <
   `--z-tooltip` 600.
@@ -228,8 +236,12 @@ The rail, the palette ("Go to Clipboard") and the shortcuts overlay pick
 it up automatically. `mod+1…9` are taken; leave `shortcut` empty or ask
 the orchestrator.
 
-3. Build the view as `.view` → `ViewHeader` → `.view-body`, import your
-   stylesheet `src/styles/views/<feature>.css` from the root component.
+3. Build the view as `.view` → `ViewHeader` → `.view-body`. Put its styles
+   in `src/styles/views/<feature>.css` and add one `@import` line to the
+   "Feature views" block of `src/styles/index.css` — every stylesheet is
+   imported exactly once there (components never import CSS, so styles are
+   present before a lazy view's first render; `src/styles/styles.test.ts`
+   checks it).
 
 ### Add a command
 
@@ -271,9 +283,23 @@ Import above `// @anchor:status-import:<feature>` and register above
 registerStatusItem({ id: "home.focus", order: 300, component: FocusTimerStatus, align: "right" });
 ```
 
-Render a `<button className="statusbar-item">` (icon 12 px +
+Render a `<button className="statusbar-item">` (icon 14 px +
 `.statusbar-muted` text) wrapped in a `Tooltip`. Items are isolated by an
 error boundary.
+
+### Add an always-mounted feature host
+
+Overlays, start-up work and event subscriptions that must live for the
+whole session (the onboarding wizard, the note-task quick-add dialog, the
+plugin host bootstrap, the quit confirmation) go into `FEATURE_HOSTS` in
+`src/shell/FeatureHosts.tsx`:
+
+```ts
+{ id: "onboarding.host", component: OnboardingHost },
+```
+
+`App` renders them once, outside the view host, each in its own error
+boundary. Do not mount them through invisible status bar items.
 
 ### Checklist before shipping UI
 

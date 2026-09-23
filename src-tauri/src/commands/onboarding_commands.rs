@@ -10,8 +10,8 @@ use crate::engine::diagnostics::open_in_file_manager;
 use crate::engine::onboarding::{
     create_starter_vault, data_locations, default_scan_roots, detect_vaults, pull_model_at,
     read_log_tail, reset_app_data, resolve_new_vault_path, suggest_vault_path, system_profile,
-    AppLogTail, DataLocation, OnboardingState, PullOutcome, ResetOutcome, SystemProfile, VaultInfo,
-    VaultPrefs, CHANGELOG, OLLAMA_ENDPOINT, PULL_PROGRESS_EVENT,
+    AppLogTail, DataLocation, GeneralPrefs, OnboardingState, PullOutcome, ResetOutcome,
+    SystemProfile, VaultInfo, VaultPrefs, CHANGELOG, OLLAMA_ENDPOINT, PULL_PROGRESS_EVENT,
 };
 use crate::AppState;
 
@@ -127,7 +127,8 @@ pub async fn cmd_onboarding_cancel_pull(
     Ok(state.onboarding.cancel_pull(&name))
 }
 
-/// Daily-note folder and filename pattern (used for the starter vault).
+/// Daily-note folder and filename pattern (starter vault layout, quick
+/// capture and the agent's "add to today").
 #[tauri::command]
 pub async fn cmd_onboarding_get_vault_prefs(
     state: State<'_, AppState>,
@@ -147,6 +148,29 @@ pub async fn cmd_onboarding_set_vault_prefs(
     state
         .onboarding
         .set_vault_prefs(prefs)
+        .map_err(|e| e.to_string())
+}
+
+/// General preferences (`confirm_quit_with_terminals`, default `true`).
+#[tauri::command]
+pub async fn cmd_onboarding_get_general_prefs(
+    state: State<'_, AppState>,
+) -> Result<GeneralPrefs, String> {
+    state
+        .onboarding
+        .get_general_prefs()
+        .map_err(|e| e.to_string())
+}
+
+/// Store the general preferences; returns what was stored.
+#[tauri::command]
+pub async fn cmd_onboarding_set_general_prefs(
+    state: State<'_, AppState>,
+    prefs: GeneralPrefs,
+) -> Result<GeneralPrefs, String> {
+    state
+        .onboarding
+        .set_general_prefs(prefs)
         .map_err(|e| e.to_string())
 }
 

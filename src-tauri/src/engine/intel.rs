@@ -4,8 +4,9 @@
 //!
 //! - **Conversation compaction** ([`compaction`]): token estimates, a strict
 //!   summarisation prompt, validation of the model output and an extractive
-//!   fallback, plus the conversation archive that stores the summary in the
-//!   memory store's `summary` field.
+//!   fallback. Compacted sessions are archived by the memory store
+//!   ([`MemoryStore::upsert_conversation`](crate::engine::memory_store::MemoryStore::upsert_conversation)),
+//!   with the summary in the record's `summary` field.
 //! - **Related-note suggestions** ([`suggestions`]): a tf-idf-lite keyword
 //!   scorer used when the vector index is empty or Ollama is offline, tag
 //!   ranking by keyword co-occurrence and frontmatter-aware tag insertion.
@@ -89,24 +90,18 @@ impl IntelSettings {
 /// Engine state shared by the `cmd_intel_*` commands.
 pub struct IntelEngine {
     root: PathBuf,
-    conversations_dir: PathBuf,
     settings: Mutex<IntelSettings>,
     audit: approvals::AuditLog,
     doc_cache: Mutex<suggestions::DocCache>,
 }
 
 impl IntelEngine {
-    /// Open (or create) the engine under `root`. `memory_root` is the memory
-    /// store's directory; compacted conversations are written to its
-    /// `conversations/` folder in the same format `MemoryStore` reads.
-    pub fn new(root: &Path, memory_root: &Path) -> Result<Self, AetherError> {
+    /// Open (or create) the engine under `root`.
+    pub fn new(root: &Path) -> Result<Self, AetherError> {
         std::fs::create_dir_all(root)?;
-        let conversations_dir = memory_root.join("conversations");
-        std::fs::create_dir_all(&conversations_dir)?;
         let settings = load_settings(&root.join(SETTINGS_FILE));
         Ok(Self {
             root: root.to_path_buf(),
-            conversations_dir,
             settings: Mutex::new(settings),
             audit: approvals::AuditLog::new(root.join(AUDIT_FILE)),
             doc_cache: Mutex::new(suggestions::DocCache::default()),
@@ -134,11 +129,6 @@ impl IntelEngine {
     /// The append-only agent audit log.
     pub fn audit(&self) -> &approvals::AuditLog {
         &self.audit
-    }
-
-    /// Where conversations (with compaction summaries) are archived.
-    pub fn conversations_dir(&self) -> &Path {
-        &self.conversations_dir
     }
 
     /// Per-note keyword statistics, cached by path + mtime.
@@ -176,8 +166,7 @@ mod tests {
 
     fn engine() -> (tempfile::TempDir, IntelEngine) {
         let dir = tempfile::tempdir().expect("temp dir");
-        let engine = IntelEngine::new(&dir.path().join("intel"), &dir.path().join("memory"))
-            .expect("engine");
+        let engine = IntelEngine::new(&dir.path().join("intel")).expect("engine");
         (dir, engine)
     }
 
@@ -187,20 +176,14 @@ mod tests {
         assert_eq!(engine.settings(), IntelSettings::default());
         assert_eq!(engine.settings().compact_threshold_tokens, 6_000);
         assert!(dir.path().join("intel").is_dir());
-        assert!(dir.path().join("memory/conversations").is_dir());
-        assert_eq!(
-            engine.conversations_dir(),
-            dir.path().join("memory/conversations")
-        );
     }
 
     #[test]
     fn settings_are_normalized_and_persisted() {
         let dir = tempfile::tempdir().expect("temp dir");
         let root = dir.path().join("intel");
-        let memory = dir.path().join("memory");
         {
-            let engine = IntelEngine::new(&root, &memory).expect("engine");
+            let engine = IntelEngine::new(&root).expect("engine");
             let stored = engine
                 .set_settings(IntelSettings {
                     auto_compact: false,
@@ -215,7 +198,7 @@ mod tests {
             assert_eq!(stored.keep_recent_messages, KEEP_RECENT_RANGE.1);
             assert_eq!(stored.command_timeout_secs, TIMEOUT_RANGE_SECS.0);
         }
-        let reopened = IntelEngine::new(&root, &memory).expect("engine");
+        let reopened = IntelEngine::new(&root).expect("engine");
         let settings = reopened.settings();
         assert!(!settings.auto_compact);
         assert!(settings.llm_tag_suggestions);
@@ -228,7 +211,7 @@ mod tests {
         let root = dir.path().join("intel");
         std::fs::create_dir_all(&root).expect("mkdir");
         std::fs::write(root.join(SETTINGS_FILE), "{ not json").expect("write");
-        let engine = IntelEngine::new(&root, &dir.path().join("memory")).expect("engine");
+        let engine = IntelEngine::new(&root).expect("engine");
         assert_eq!(engine.settings(), IntelSettings::default());
     }
 
@@ -238,7 +221,7 @@ mod tests {
         let root = dir.path().join("intel");
         std::fs::create_dir_all(&root).expect("mkdir");
         std::fs::write(root.join(SETTINGS_FILE), r#"{"auto_compact":false}"#).expect("write");
-        let engine = IntelEngine::new(&root, &dir.path().join("memory")).expect("engine");
+        let engine = IntelEngine::new(&root).expect("engine");
         let settings = engine.settings();
         assert!(!settings.auto_compact);
         assert_eq!(settings.keep_recent_messages, 4);

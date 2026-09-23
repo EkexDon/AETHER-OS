@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { formatBytes, formatDuration, formatRelative, kindLabel, phaseLabel, plural, progressPercent } from "./format";
+import {
+  existingPathFromError,
+  formatBytes,
+  formatDuration,
+  formatRelative,
+  isAlreadyExistsError,
+  kindLabel,
+  phaseLabel,
+  plural,
+  progressPercent,
+} from "./format";
 
 describe("export formatting", () => {
   it("formats sizes and durations", () => {
@@ -33,5 +43,14 @@ describe("export formatting", () => {
     expect(kindLabel("site")).toBe("Static site");
     expect(plural(1, "note")).toBe("1 note");
     expect(plural(3, "note")).toBe("3 notes");
+  });
+
+  it("recognises the overwrite refusal and its path", () => {
+    const msg = "/Users/demo/Desktop/a b.html already exists. Choose another name or confirm replacing it (overwrite)";
+    expect(isAlreadyExistsError(`invalid input: ${msg}`)).toBe(true);
+    expect(isAlreadyExistsError("invalid input: the destination is a folder: /x")).toBe(false);
+    expect(existingPathFromError(msg)).toBe("/Users/demo/Desktop/a b.html");
+    expect(existingPathFromError(`invalid input: ${msg}`)).toBe("/Users/demo/Desktop/a b.html");
+    expect(existingPathFromError("something already exists")).toBeNull();
   });
 });

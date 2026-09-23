@@ -122,4 +122,18 @@ describe("export mock", () => {
     await invoke("cmd_export_clear_recent");
     expect(await invoke<RecentExport[]>("cmd_export_list_recent")).toEqual([]);
   });
+
+  it("never replaces an existing HTML page or bundle without overwrite", async () => {
+    const out = "/Users/demo/Desktop/welcome-export.html";
+    await invoke<NoteExportReport>("cmd_export_note_html", { path: WELCOME, outPath: out, options });
+    await expect(invoke("cmd_export_note_html", { path: WELCOME, outPath: out, options })).rejects.toThrow(
+      `invalid input: ${out} already exists. Choose another name or confirm replacing it (overwrite)`
+    );
+    const again = await invoke<NoteExportReport>("cmd_export_note_html", { path: WELCOME, outPath: out, options: { overwrite: true } });
+    expect(again.path).toBe(out);
+    // The seeded bundle on the Desktop exists too; the extension is appended before the check.
+    await expect(
+      invoke("cmd_export_bundle", { scope: { kind: "vault" }, outPath: "/Users/demo/Desktop/masterarbeit-notes", options })
+    ).rejects.toThrow("already exists");
+  });
 });

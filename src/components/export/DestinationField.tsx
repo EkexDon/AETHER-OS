@@ -9,7 +9,11 @@ import type { ExportFlow } from "../../types";
 export interface DestinationFieldProps {
   flow: ExportFlow;
   value: string;
-  onChange: (value: string) => void;
+  /**
+   * New destination. `fromDialog` is true when it was picked in the native
+   * save dialog, which already asked whether to replace an existing file.
+   */
+  onChange: (value: string, fromDialog?: boolean) => void;
   vaultRoot: string | null;
   allowInsideVault: boolean;
   onAllowInsideVault: (allow: boolean) => void;
@@ -46,7 +50,7 @@ export function DestinationField({
           defaultPath: value ? parentDir(value) : undefined,
           title: "Choose the folder for the website",
         });
-        if (typeof dir === "string") onChange(dir);
+        if (typeof dir === "string") onChange(dir, true);
         return;
       }
       const ext = flow === "html" ? "html" : "zip";
@@ -55,7 +59,7 @@ export function DestinationField({
         filters: [{ name: flow === "html" ? "HTML page" : "Zip archive", extensions: [ext] }],
         title: flow === "html" ? "Save the note as HTML" : "Save the Markdown bundle",
       });
-      if (path) onChange(path);
+      if (path) onChange(path, true);
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e));
     }
@@ -79,7 +83,7 @@ export function DestinationField({
             aria-describedby={`${id}-hint`}
           />
           {native && (
-            <Button size="sm" variant="secondary" iconLeft={<FolderOpen size={13} />} onClick={() => void choose()}>
+            <Button size="sm" variant="secondary" iconLeft={<FolderOpen size={14} />} onClick={() => void choose()}>
               Choose…
             </Button>
           )}

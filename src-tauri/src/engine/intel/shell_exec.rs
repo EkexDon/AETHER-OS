@@ -23,6 +23,48 @@ pub const MAX_OUTPUT_BYTES: usize = 64 * 1024;
 /// How long to wait for output pipes after the shell exited before the
 /// process group (background children holding the pipes) is killed.
 const PIPE_GRACE: Duration = Duration::from_secs(2);
+/// `PATH` used when the app itself was started without one.
+const DEFAULT_PATH: &str = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+/// Appended to a stream that exceeded [`MAX_OUTPUT_BYTES`].
+pub const TRUNCATION_MARKER: &str = "\n[… output truncated at 64 KiB]";
+
+/// The complete environment of an agent command: `PATH`, `HOME`, `LANG`,
+/// `TERM` and the `AETHER_AGENT=1` marker. Nothing else is inherited from
+/// the app, so API keys or tokens in the app's environment never reach a
+/// model-proposed command. (A login shell still reads the user's profile.)
+pub fn agent_env() -> Vec<(&'static str, String)> {
+    let var = |name: &str| std::env::var(name).ok().filter(|v| !v.is_empty());
+    let mut env = vec![
+        (
+            "PATH",
+            var("PATH").unwrap_or_else(|| DEFAULT_PATH.to_owned()),
+        ),
+        (
+            "LANG",
+            var("LANG").unwrap_or_else(|| "en_US.UTF-8".to_owned()),
+        ),
+        ("TERM", var("TERM").unwrap_or_else(|| "dumb".to_owned())),
+        ("AETHER_AGENT", "1".to_owned()),
+    ];
+    if let Some(home) = var("HOME") {
+        env.push(("HOME", home));
+    }
+    // `cmd.exe` cannot start without its system variables.
+    #[cfg(windows)]
+    for name in [
+        "SystemRoot",
+        "ComSpec",
+        "PATHEXT",
+        "USERPROFILE",
+        "TEMP",
+        "TMP",
+    ] {
+        if let Some(value) = var(name) {
+            env.push((name, value));
+        }
+    }
+    env
+}
 
 /// Result of a finished (or timed-out) command.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -238,7 +280,13 @@ fn spawn_reader<R: AsyncRead + Unpin + Send + 'static>(stream: Option<R>) -> Opt
 async fn collect(reader: Option<Reader>) -> (String, bool) {
     match reader {
         Some(handle) => match handle.await {
-            Ok((bytes, truncated)) => (String::from_utf8_lossy(&bytes).into_owned(), truncated),
+            Ok((bytes, truncated)) => {
+                let mut text = String::from_utf8_lossy(&bytes).into_owned();
+                if truncated {
+                    text.push_str(TRUNCATION_MARKER);
+                }
+                (text, truncated)
+            }
             Err(_) => (String::new(), false),
         },
         None => (String::new(), false),
@@ -273,7 +321,8 @@ async fn run_shell_with(
     }
     let mut cmd = shell_command(command, login);
     cmd.current_dir(cwd)
-        .env("AETHER_AGENT", "1")
+        .env_clear()
+        .envs(agent_env())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -461,7 +510,55 @@ mod tests {
         .await
         .expect("run");
         assert!(out.truncated);
-        assert_eq!(out.stdout.len(), MAX_OUTPUT_BYTES);
+        assert!(out.stdout.ends_with(TRUNCATION_MARKER));
+        let kept = out.stdout.strip_suffix(TRUNCATION_MARKER).unwrap();
+        assert_eq!(kept.len(), MAX_OUTPUT_BYTES);
+        assert!(kept.bytes().all(|b| b == b'a'));
+    }
+
+    #[tokio::test]
+    async fn commands_get_only_the_minimal_environment() {
+        let dir = tempfile::tempdir().expect("dir");
+        let out = run_shell_with(
+            "env | cut -d= -f1",
+            &canonical(&dir),
+            Duration::from_secs(10),
+            false,
+        )
+        .await
+        .expect("run");
+        let names: Vec<&str> = out.stdout.lines().filter(|l| !l.is_empty()).collect();
+        // Variables the shell sets for itself are fine; nothing else may be
+        // inherited from the app (the test runner has plenty, e.g. CARGO_*).
+        let allowed = [
+            "PATH",
+            "HOME",
+            "LANG",
+            "TERM",
+            "AETHER_AGENT",
+            "PWD",
+            "OLDPWD",
+            "SHLVL",
+            "_",
+        ];
+        for name in &names {
+            assert!(allowed.contains(name), "unexpected variable {name}");
+        }
+        assert!(names.contains(&"PATH") && names.contains(&"AETHER_AGENT"));
+        assert!(!names.iter().any(|n| n.starts_with("CARGO")));
+    }
+
+    #[test]
+    fn symlinked_cwds_that_leave_the_roots_are_rejected() {
+        let vault = tempfile::tempdir().expect("vault");
+        let outside = tempfile::tempdir().expect("outside");
+        let roots = vec![canonical(&vault)];
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(outside.path(), vault.path().join("link")).expect("link");
+            assert!(resolve_cwd(&roots, Some(&roots[0]), Some("link")).is_err());
+        }
+        assert!(resolve_cwd(&roots, Some(&roots[0]), Some("../..")).is_err());
     }
 
     #[tokio::test]

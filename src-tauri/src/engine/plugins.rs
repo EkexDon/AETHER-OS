@@ -847,6 +847,24 @@ pub fn check_fetch_url(granted: &[String], raw: &str) -> Result<url::Url, Aether
     Ok(url)
 }
 
+/// Decide whether a redirect of a plugin fetch may be followed: at most
+/// [`MAX_REDIRECTS`] hops, and every hop must pass [`check_fetch_url`]
+/// (https, no credentials, default port, exactly a granted host) — so a
+/// redirect can never reach a host the plugin was not granted.
+pub fn check_redirect(granted: &[String], next: &url::Url, hops: usize) -> Result<(), String> {
+    if hops >= MAX_REDIRECTS {
+        return Err("too many redirects".to_owned());
+    }
+    check_fetch_url(granted, next.as_str())
+        .map(|_| ())
+        .map_err(|_| {
+            format!(
+                "redirect to a URL that is not granted: {}",
+                next.host_str().unwrap_or_default()
+            )
+        })
+}
+
 // ── Package installation helpers ────────────────────────────────────────
 
 #[derive(Default)]
@@ -1565,13 +1583,9 @@ impl PluginManager {
         let target = check_fetch_url(&granted, url)?;
         let redirect_grants = granted.clone();
         let policy = reqwest::redirect::Policy::custom(move |attempt| {
-            if attempt.previous().len() >= MAX_REDIRECTS {
-                attempt.error("too many redirects")
-            } else if check_fetch_url(&redirect_grants, attempt.url().as_str()).is_ok() {
-                attempt.follow()
-            } else {
-                let host = attempt.url().host_str().unwrap_or_default().to_owned();
-                attempt.error(format!("redirect to a host that is not granted: {host}"))
+            match check_redirect(&redirect_grants, attempt.url(), attempt.previous().len()) {
+                Ok(()) => attempt.follow(),
+                Err(why) => attempt.error(why),
             }
         });
         let client = reqwest::Client::builder()
@@ -2013,6 +2027,51 @@ mod tests {
     }
 
     #[test]
+    fn rejects_zip_archives_beyond_the_size_and_file_limits() {
+        let (tmp, manager) = manager();
+        // Highly compressible: tiny on disk, larger than the cap extracted.
+        let zip_path = tmp.path().join("bomb.zip");
+        let file = fs::File::create(&zip_path).unwrap();
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+        zip.start_file("manifest.json", options).unwrap();
+        zip.write_all(manifest_json("com.example.bomb", &[]).as_bytes())
+            .unwrap();
+        zip.start_file("main.js", options).unwrap();
+        zip.write_all(MAIN_JS.as_bytes()).unwrap();
+        zip.start_file("blob.bin", options).unwrap();
+        let chunk = vec![0u8; 1024 * 1024];
+        for _ in 0..=(MAX_PACKAGE_BYTES / chunk.len() as u64) {
+            zip.write_all(&chunk).unwrap();
+        }
+        zip.finish().unwrap();
+        assert!(fs::metadata(&zip_path).unwrap().len() < MAX_PACKAGE_BYTES / 10);
+        assert_err_contains(
+            manager.install_from_path(zip_path.to_str().unwrap()),
+            "larger than 20 MB",
+        );
+
+        let many = tmp.path().join("many.zip");
+        let names: Vec<String> = (0..=MAX_PACKAGE_FILES)
+            .map(|i| format!("f{i}.txt"))
+            .collect();
+        let manifest = manifest_json("com.example.many", &[]);
+        let mut entries: Vec<(&str, &str)> =
+            vec![("manifest.json", manifest.as_str()), ("main.js", MAIN_JS)];
+        entries.extend(names.iter().map(|n| (n.as_str(), "x")));
+        write_zip(&many, &entries);
+        assert_err_contains(
+            manager.install_from_path(many.to_str().unwrap()),
+            "more than",
+        );
+        assert!(
+            manager.list().unwrap().is_empty(),
+            "nothing may be installed"
+        );
+    }
+
+    #[test]
     fn rejects_invalid_install_sources() {
         let (tmp, manager) = manager();
         assert_err_contains(manager.install_from_path("relative/path"), "absolute");
@@ -2344,6 +2403,23 @@ mod tests {
         ] {
             assert_err_contains(check_fetch_url(&granted, url), why);
         }
+    }
+
+    #[test]
+    fn redirects_are_only_followed_to_granted_https_hosts() {
+        let granted = vec!["net:fetch:api.example.com".to_owned()];
+        let url = |u: &str| url::Url::parse(u).expect("url");
+        assert!(check_redirect(&granted, &url("https://api.example.com/next"), 0).is_ok());
+        for bad in [
+            "https://evil.example.com/",
+            "http://api.example.com/",
+            "https://user@api.example.com/",
+            "https://api.example.com:444/",
+            "https://127.0.0.1/",
+        ] {
+            assert!(check_redirect(&granted, &url(bad), 0).is_err(), "{bad}");
+        }
+        assert!(check_redirect(&granted, &url("https://api.example.com/"), MAX_REDIRECTS).is_err());
     }
 
     #[tokio::test]

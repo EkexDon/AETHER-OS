@@ -160,6 +160,44 @@ describe("ExportWizard", () => {
     );
   });
 
+  it("asks before replacing an existing file and retries with overwrite", async () => {
+    vi.mocked(ipc.exportResolveScope).mockResolvedValue(preview(1));
+    const report = {
+      path: "/Users/demo/Desktop/Alpha.html",
+      title: "Alpha",
+      bytes: 2048,
+      attachments: 0,
+      missing_links: 0,
+      warnings: [],
+      ms: 40,
+    };
+    vi.mocked(ipc.exportNoteHtml).mockImplementation(async (_note, out, options) => {
+      if (!options.overwrite) {
+        throw new Error(`invalid input: ${out} already exists. Choose another name or confirm replacing it (overwrite)`);
+      }
+      return report;
+    });
+    renderWizard("html");
+    const dest = screen.getByLabelText("File") as HTMLInputElement;
+    await waitFor(() => expect(dest.value).toBe("/Users/demo/Desktop/Alpha.html"));
+    fireEvent.click(screen.getByRole("button", { name: "Export HTML" }));
+
+    const confirm = await screen.findByRole("dialog", { name: "Replace existing file?" });
+    expect(confirm).toHaveTextContent("/Users/demo/Desktop/Alpha.html");
+    expect(ipc.exportNoteHtml).toHaveBeenLastCalledWith(NOTE, "/Users/demo/Desktop/Alpha.html", expect.objectContaining({ overwrite: false }));
+    // Keeping the file does nothing (no error, no export).
+    fireEvent.click(screen.getByRole("button", { name: "Keep it" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Replace existing file?" })).toBeNull());
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Export HTML" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Replace" }));
+    await screen.findByText("“Alpha” exported");
+    expect(ipc.exportNoteHtml).toHaveBeenLastCalledWith(NOTE, "/Users/demo/Desktop/Alpha.html", expect.objectContaining({ overwrite: true }));
+    // The confirmation is never remembered for the next export.
+    expect(JSON.parse(window.localStorage.getItem("aether-export-options-html") ?? "{}").overwrite).toBeUndefined();
+  });
+
   it("reports scope errors in the footer", async () => {
     vi.mocked(ipc.exportResolveScope).mockRejectedValue(new Error("invalid input: the export scope contains no notes"));
     renderWizard("site");

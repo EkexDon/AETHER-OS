@@ -27,6 +27,9 @@ function endpointId(v: string | { id: string }): string {
   return typeof v === "object" && v !== null ? v.id : v;
 }
 
+/** Zoom level from which node labels are drawn (and the lowest zoom the auto-fit uses). */
+const LABEL_MIN_SCALE = 0.7;
+
 export function VaultGraph() {
   const { graph, setGraph, selectNote, setNoteContent, setView, setVaultNotes } = useAetherStore();
 
@@ -35,6 +38,8 @@ export function VaultGraph() {
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const clickTimeout = useRef<number>(0);
+  /** The current graph (vault data + tag filter) was already fitted into view once. */
+  const fittedRef = useRef(false);
   const isMounted = useRef(true);
   const tokens = useTokens(GRAPH_TOKENS);
   const palette = useMemo(
@@ -107,6 +112,11 @@ export function VaultGraph() {
     return { nodes, links };
   }, [fgData, activeTag]);
 
+  // A new data set or tag filter is fitted into view once its layout settles.
+  useEffect(() => {
+    fittedRef.current = false;
+  }, [filteredData]);
+
   // Configure D3 force parameters
   useEffect(() => {
     if (!fgRef.current) return;
@@ -177,7 +187,7 @@ export function VaultGraph() {
       ctx.stroke();
 
       // Label
-      if (globalScale >= 0.8 && !isMuted) {
+      if (globalScale >= LABEL_MIN_SCALE && !isMuted) {
         const label = node.label as string;
         const fontSize = 11 / globalScale;
         ctx.font = `500 ${fontSize}px "IBM Plex Sans Variable", -apple-system, sans-serif`;
@@ -224,7 +234,6 @@ export function VaultGraph() {
       <ViewHeader
         compact
         bordered
-        icon={Waypoints}
         title="Knowledge Graph"
         subtitle={
           <span className="graph-stats">
@@ -235,7 +244,15 @@ export function VaultGraph() {
         actions={<span className="graph-hint">Double-click empty space to create note</span>}
         tabs={
           allTags.length > 0 ? (
-            <div className="graph-tag-pills" role="toolbar" aria-label="Filter by tag">
+            <div
+              className="graph-tag-pills"
+              role="toolbar"
+              aria-label="Filter by tag"
+              onWheel={(e) => {
+                // The strip has no visible scrollbar: let a plain mouse wheel scroll it sideways.
+                if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY;
+              }}
+            >
               <button
                 type="button"
                 className={cx("graph-tag-pill", !activeTag && "active")}
@@ -278,6 +295,17 @@ export function VaultGraph() {
           enableZoomInteraction
           width={dimensions.width}
           height={dimensions.height}
+          cooldownTicks={160}
+          onEngineStop={() => {
+            if (fittedRef.current || !fgRef.current?.zoomToFit) return;
+            fittedRef.current = true;
+            const fg = fgRef.current;
+            fg.zoomToFit(400, 56);
+            // Never zoom out so far that the labels disappear: big vaults stay pannable instead.
+            window.setTimeout(() => {
+              if (typeof fg.zoom === "function" && fg.zoom() < LABEL_MIN_SCALE) fg.zoom(LABEL_MIN_SCALE, 300);
+            }, 420);
+          }}
         />
       </div>
     </div>

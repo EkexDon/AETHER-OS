@@ -176,3 +176,11 @@
   font-size: var(--text-xs);
   color: var(--color-fg-tertiary);
 }
+
+.project-status-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}

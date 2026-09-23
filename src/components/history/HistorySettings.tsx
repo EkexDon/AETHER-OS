@@ -8,7 +8,6 @@ import { useAetherStore } from "../../lib/store";
 import { useShellStore } from "../../shell/shellStore";
 import { Badge, Button, Switch, useToast } from "../../ui";
 import { useNow } from "./hooks";
-import "../../styles/views/history.css";
 
 function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);

@@ -140,7 +140,7 @@ function eventTimeRange(event: CalendarEvent): string {
   if (event.all_day) return "All day";
   const s = parseEventStart(event);
   const e = parseEventEnd(event);
-  return `${format(s, "h:mm a")} – ${format(e, "h:mm a")}`;
+  return `${format(s, "HH:mm")} – ${format(e, "HH:mm")}`;
 }
 
 function eventsForDay(events: CalendarEvent[], day: Date): CalendarEvent[] {
@@ -380,9 +380,9 @@ function CalendarToolbar({
     <div className="calendar-toolbar">
       <h1 className="calendar-toolbar-title">{title}</h1>
       <div className="calendar-toolbar-nav">
-        <IconButton label="Previous" size="sm" variant="secondary" icon={<ChevronLeft size={15} />} onClick={() => step(-1)} />
+        <IconButton label="Previous" size="sm" variant="secondary" icon={<ChevronLeft size={16} />} onClick={() => step(-1)} />
         <Button variant="secondary" size="sm" onClick={goToday}>Today</Button>
-        <IconButton label="Next" size="sm" variant="secondary" icon={<ChevronRight size={15} />} onClick={() => step(1)} />
+        <IconButton label="Next" size="sm" variant="secondary" icon={<ChevronRight size={16} />} onClick={() => step(1)} />
       </div>
       <div className="calendar-toolbar-spacer" />
       <SegmentedControl<CalendarViewType>
@@ -397,8 +397,8 @@ function CalendarToolbar({
         className="calendar-view-toggle"
       />
       <div className="calendar-toolbar-actions">
-        <IconButton label="Reminders" icon={<Bell size={15} />} onClick={onOpenReminders} />
-        <IconButton label="Import / Export" icon={<Download size={15} />} onClick={onOpenImportExport} />
+        <IconButton label="Reminders" icon={<Bell size={16} />} onClick={onOpenReminders} />
+        <IconButton label="Import / Export" icon={<Download size={16} />} onClick={onOpenImportExport} />
         <Button variant="primary" size="sm" iconLeft={<Plus size={14} />} onClick={onNewEvent}>
           New event
         </Button>
@@ -647,7 +647,7 @@ function CalendarWeekGrid({
                 {layouts.map((layout) => {
                   const ev = layout.event;
                   const timeDisplay = layout.isCompact
-                    ? format(parseEventStart(ev), "h:mm a")
+                    ? format(parseEventStart(ev), "HH:mm")
                     : eventTimeRange(ev);
                   return (
                     <button
@@ -777,7 +777,7 @@ function CalendarDayGrid({
             {layouts.map((layout) => {
               const ev = layout.event;
               const timeDisplay = layout.isCompact
-                ? format(parseEventStart(ev), "h:mm a")
+                ? format(parseEventStart(ev), "HH:mm")
                 : eventTimeRange(ev);
               return (
                 <button
@@ -841,7 +841,7 @@ function CalendarEventList({
         <div className="calendar-event-list-empty">
           <p>No events for this day</p>
           <button className="btn btn-secondary btn-sm" onClick={onNewEvent}>
-            <Plus size={12} /> New event
+            <Plus size={14} /> New event
           </button>
         </div>
       ) : (
@@ -859,7 +859,7 @@ function CalendarEventList({
                 {ev.location && (
                   <div className="calendar-event-row-meta">
                     <span className="calendar-meta-chip">
-                      <MapPin size={10} /> {ev.location}
+                      <MapPin size={14} /> {ev.location}
                     </span>
                   </div>
                 )}
@@ -867,7 +867,7 @@ function CalendarEventList({
                   <div className="calendar-event-row-meta">
                     {ev.attendees.map((a) => (
                       <span key={a} className="calendar-attendee-chip" title={a}>
-                        <Users size={10} /> {initialsOf(a)}
+                        <Users size={14} /> {initialsOf(a)}
                       </span>
                     ))}
                   </div>
@@ -876,7 +876,7 @@ function CalendarEventList({
                   <div className="calendar-event-row-meta">
                     {ev.tags.map((t) => (
                       <span key={t} className="calendar-tag-chip">
-                        <Tag size={10} /> {t}
+                        <Tag size={14} /> {t}
                       </span>
                     ))}
                   </div>
@@ -891,7 +891,7 @@ function CalendarEventList({
                   }}
                   title="Delete event"
                 >
-                  <Trash2 size={12} />
+                  <Trash2 size={14} />
                 </button>
               </div>
             </li>

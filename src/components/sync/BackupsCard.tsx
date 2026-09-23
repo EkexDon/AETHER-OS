@@ -98,6 +98,9 @@ export function BackupsCard() {
         </div>
       </header>
 
+      <label className="ui-field-label" htmlFor="sync-backups-dir">
+        Backup folder — listed below, “Back up now” writes here
+      </label>
       <div className="sync-backup-controls">
         <FolderField
           id="sync-backups-dir"

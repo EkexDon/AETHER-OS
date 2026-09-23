@@ -55,6 +55,7 @@ const DEFAULTS: ExportOptions = {
   cname: "",
   include_mermaid_script: false,
   allow_inside_vault: false,
+  overwrite: false,
 };
 
 function options(args: Record<string, unknown>): ExportOptions {
@@ -196,6 +197,20 @@ function checkOutput(path: string, opts: ExportOptions, ext?: string): string {
 
 let recents: RecentExport[] = [];
 
+/**
+ * `check_output_file`: an HTML page or bundle that already exists (in the
+ * mock: a previous export to the same path) is only replaced with
+ * `overwrite: true`, with the same message as Rust.
+ */
+function checkOutputFile(path: string, opts: ExportOptions, ext: "html" | "zip"): string {
+  const out = checkOutput(path, opts, ext);
+  const exists = recents.some((r) => r.kind !== "site" && r.exists && r.path === out);
+  if (exists && !opts.overwrite) {
+    throw invalid(`${out} already exists. Choose another name or confirm replacing it (overwrite)`);
+  }
+  return out;
+}
+
 function seedRecents(now = Date.now()): RecentExport[] {
   const iso = (msAgo: number) => new Date(now - msAgo).toISOString();
   return [
@@ -290,7 +305,7 @@ export const exportHandlers: MockHandlerMap = {
   cmd_export_note_html: async (args) => {
     const opts = options(args);
     const note = noteForPath(argString(args, "path"));
-    const out = checkOutput(argString(args, "outPath"), opts, "html");
+    const out = checkOutputFile(argString(args, "outPath"), opts, "html");
     const html = renderDocument(note, opts);
     await sleep(120);
     const title = /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? note.name;
@@ -381,7 +396,7 @@ export const exportHandlers: MockHandlerMap = {
     const opts = options(args);
     const scope = argObject<ExportScope>(args, "scope") as ExportScope;
     const notes = resolveScope(scope);
-    const out = checkOutput(argString(args, "outPath"), opts, "zip");
+    const out = checkOutputFile(argString(args, "outPath"), opts, "zip");
     let converted = 0;
     let unresolved = 0;
     const attachments = new Set<string>();

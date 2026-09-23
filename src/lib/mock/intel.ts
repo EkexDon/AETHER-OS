@@ -513,6 +513,7 @@ export const intelHandlers: MockHandlerMap = {
   },
 
   cmd_intel_run_command: async (args): Promise<CommandOutput> => {
+    const MOCK_OUTPUT_CAP = 64 * 1024;
     const command = argString(args, "command");
     const cwd = argOptString(args, "cwd");
     const action: AgentAction = { action: "run_command", command, cwd };
@@ -524,15 +525,20 @@ export const intelHandlers: MockHandlerMap = {
         const started = Date.now();
         await sleep(MOCK_COMMAND_MS);
         const out = fakeShell(command, dir);
+        // Same 64 KiB cap per stream and marker as `shell_exec.rs`.
+        const cap = (text: string) =>
+          text.length > MOCK_OUTPUT_CAP ? { text: `${text.slice(0, MOCK_OUTPUT_CAP)}\n[… output truncated at 64 KiB]`, cut: true } : { text, cut: false };
+        const stdout = cap(out.stdout);
+        const stderr = cap(out.stderr);
         return {
           command: command.trim(),
           cwd: dir,
           exit_code: out.exit,
-          stdout: out.stdout,
-          stderr: out.stderr,
+          stdout: stdout.text,
+          stderr: stderr.text,
           timed_out: false,
           duration_ms: Date.now() - started,
-          truncated: false,
+          truncated: stdout.cut || stderr.cut,
         };
       },
       (out) => [out.exit_code === 0 ? "ok" : "error", `${out.command} (in ${out.cwd}) → exit ${out.exit_code}`]

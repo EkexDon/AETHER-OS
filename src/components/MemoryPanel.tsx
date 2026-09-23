@@ -62,7 +62,7 @@ export function MemoryPanel() {
           />
           <Input
             className="memory-category-input"
-            iconLeft={<Tag size={13} />}
+            iconLeft={<Tag size={14} />}
             placeholder="category"
             value={newCategory}
             onChange={(e) => setNewCategory(e.target.value)}
@@ -86,7 +86,7 @@ export function MemoryPanel() {
             {Object.entries(byCategory).map(([category, facts]) => (
               <section key={category} className="memory-category">
                 <h3 className="ui-section-label memory-category-header">
-                  <Tag size={11} />
+                  <Tag size={14} />
                   <span>{category}</span>
                   <span className="memory-category-count">{facts.length}</span>
                 </h3>
@@ -102,7 +102,7 @@ export function MemoryPanel() {
                           label="Forget this"
                           size="sm"
                           variant="danger"
-                          icon={<Trash2 size={13} />}
+                          icon={<Trash2 size={14} />}
                           onClick={() => void handleDelete(f.fact)}
                         />
                       }

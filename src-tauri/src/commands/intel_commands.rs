@@ -31,8 +31,6 @@ use crate::engine::task_board::{TaskItem, TaskProject};
 use crate::engine::vault_reader::VaultNote;
 use crate::AppState;
 
-/// Same embedding model as `ai_commands.rs` (the vector index is built with it).
-const EMBEDDING_MODEL: &str = "nomic-embed-text";
 /// Upper bound for one summarisation / tag call.
 const MODEL_TIMEOUT: Duration = Duration::from_secs(120);
 /// Semantic matches below this cosine score are not "related".
@@ -187,13 +185,11 @@ pub async fn cmd_intel_save_conversation(
     context_notes: Vec<String>,
     summary: Option<String>,
 ) -> Result<Conversation, String> {
-    to_string_err(compaction::upsert_conversation(
-        state.intel.conversations_dir(),
-        id.as_deref(),
-        messages,
-        context_notes,
-        summary,
-    ))
+    to_string_err(
+        state
+            .memory
+            .upsert_conversation(id.as_deref(), messages, context_notes, summary),
+    )
 }
 
 // ── Suggestions ───────────────────────────────────────────────────────
@@ -261,7 +257,11 @@ pub async fn cmd_intel_suggest_related(
     let exclude_canonical = exclude.and_then(|p| std::fs::canonicalize(p).ok());
 
     if state.vectors.dimension().is_some() {
-        if let Ok(embedding) = state.ai.generate_embedding(&query, EMBEDDING_MODEL).await {
+        if let Ok(embedding) = state
+            .ai
+            .generate_embedding(&query, &state.ai_config.embedding_model())
+            .await
+        {
             if let Ok(matches) = state.vectors.search_similar(embedding, limit + 4).await {
                 let semantic = semantic_suggestions(
                     matches,

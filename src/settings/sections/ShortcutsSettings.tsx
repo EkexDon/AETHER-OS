@@ -9,7 +9,6 @@ import { APP_VERSION } from "../../lib/onboarding/appVersion";
 import { useShellStore } from "../../shell/shellStore";
 import { Button, EmptyState, Kbd, SearchField, Switch, useToast } from "../../ui";
 import { SettingsGroup, SettingsPage } from "../layout";
-import "../../styles/views/onboarding.css";
 
 /** Vault-relative file name used by "Save as note". */
 export const CHEAT_SHEET_NOTE = "AETHER-OS shortcuts.md";
@@ -80,13 +79,13 @@ export function ShortcutsSettings() {
         <Switch checked={onlyBound} onChange={setOnlyBound} label="Only with a shortcut" size="sm" />
       </div>
       <div className="obs-inline">
-        <Button size="sm" variant="secondary" iconLeft={<ClipboardCopy size={13} />} onClick={() => void copy()}>
+        <Button size="sm" variant="secondary" iconLeft={<ClipboardCopy size={14} />} onClick={() => void copy()}>
           Copy cheat sheet
         </Button>
         <Button
           size="sm"
           variant="ghost"
-          iconLeft={<FilePlus2 size={13} />}
+          iconLeft={<FilePlus2 size={14} />}
           loading={saving}
           disabled={!vaultPath}
           title={vaultPath ? undefined : "Connect a vault first"}

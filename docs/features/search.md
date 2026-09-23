@@ -66,7 +66,7 @@ previous list stays visible while a query runs, so the list never flickers.
 | Event | Calendar, day view on that date | Week view |
 | Task | Task board with its project selected and the task open | Board only |
 | Memory fact | Memory view | Search view, fact selected |
-| Conversation | Search view with the transcript preview | AI agent panel |
+| Conversation | AI agent panel with that chat loaded (`openConversation`) | Search view with the transcript preview |
 | Command | Runs it | — |
 | Bookmark | System browser | — |
 | Clipboard item | Copies it back to the clipboard | Clipboard history view |
@@ -216,7 +216,8 @@ calendar, tasks and 21 fake apps.
 - File contents are not indexed (names and paths only), and the file index is
   refreshed on start-up, on *Reindex* and when the folders change — not live.
 - Semantic results cover vault notes only (the vector index holds notes).
-- Conversations open as a transcript preview; loading one back into the agent
-  chat is not possible from outside the agent panel.
+- Resolved in v0.2 (Wave 3): ↵ on a conversation loads it into the agent chat
+  via `openConversation(id)` (`src/lib/agentChatBus.ts`); ⌘↵ shows the
+  transcript preview in the Search view.
 - The global shortcut is registered from Rust; if another app already owns
   the combination, registration fails and Settings → Search shows why.

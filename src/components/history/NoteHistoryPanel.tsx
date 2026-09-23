@@ -435,7 +435,7 @@ export function NoteHistoryPanel({
                 ) : (
                   "No version selected"
                 )}
-                {diffLoading && diff && <Spinner size={11} label="Updating" />}
+                {diffLoading && diff && <Spinner size={14} label="Updating" />}
               </p>
             </div>
             <div className="history-pane-actions">
@@ -455,8 +455,8 @@ export function NoteHistoryPanel({
                 value={layout}
                 onChange={setLayout}
                 options={[
-                  { value: "unified", label: undefined, icon: <Rows2 size={13} />, "aria-label": "Unified" },
-                  { value: "split", label: undefined, icon: <Columns2 size={13} />, "aria-label": "Side by side" },
+                  { value: "unified", label: undefined, icon: <Rows2 size={14} />, "aria-label": "Unified" },
+                  { value: "split", label: undefined, icon: <Columns2 size={14} />, "aria-label": "Side by side" },
                 ]}
               />
             </div>

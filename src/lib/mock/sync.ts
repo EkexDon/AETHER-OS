@@ -253,7 +253,7 @@ function emitStatus(): void {
 }
 
 function requireUnlocked(): void {
-  if (!state.unlocked) throw new Error("invalid input: sync is locked — unlock it with your passphrase first");
+  if (!state.unlocked) throw new Error("sync error: sync is locked — unlock it with your passphrase first");
 }
 
 function requireFolder(): string {
@@ -263,7 +263,7 @@ function requireFolder(): string {
 }
 
 function checkPassphrase(passphrase: string, message = "wrong passphrase"): void {
-  if (passphrase.length < 8 || /wrong/i.test(passphrase)) throw new Error(`invalid input: ${message}`);
+  if (passphrase.length < 8 || /wrong/i.test(passphrase)) throw new Error(`crypto error: ${message}`);
 }
 
 function checkDir(path: string, label: string): string {
@@ -364,7 +364,7 @@ export const syncHandlers: MockHandlerMap = {
     const folderChanged = next.sync_dir !== state.settings.sync_dir;
     if (typeof patch.remember_key === "boolean") {
       if (patch.remember_key && !state.unlocked && !folderChanged) {
-        throw new Error("invalid input: unlock sync first to remember the key on this device");
+        throw new Error("sync error: unlock sync first to remember the key on this device");
       }
       next.remember_key = patch.remember_key && !folderChanged;
     }
@@ -479,7 +479,7 @@ export const syncHandlers: MockHandlerMap = {
     }
     if (conflict.record.resolved) throw new Error("invalid input: this conflict was already resolved");
     if (keep === "remote") {
-      if (!conflict.record.copy_exists) throw new Error("invalid input: the conflict copy no longer exists on this device");
+      if (!conflict.record.copy_exists) throw new Error("sync error: the conflict copy no longer exists on this device");
       try {
         mockVault.write(`${MOCK_VAULT_ROOT}/${conflict.record.display_path}`, conflict.other);
       } catch {
@@ -515,7 +515,7 @@ export const syncHandlers: MockHandlerMap = {
   },
 
   cmd_sync_devices: () => {
-    if (state.settings.sync_dir && !state.unlocked) throw new Error("invalid input: unlock sync to see the other devices");
+    if (state.settings.sync_dir && !state.unlocked) throw new Error("sync error: unlock sync to see the other devices");
     return state.devices;
   },
 

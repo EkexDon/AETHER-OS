@@ -518,10 +518,12 @@ impl NoteHistory {
                     ))
                 })?;
 
-                // A deleted note may have lost its folder too.
+                // A deleted note may have lost its folder too (recreated only
+                // after checking that no symlinked folder leads out of the
+                // vault).
                 if let Some(parent) = Path::new(&rel).parent() {
                     if !parent.as_os_str().is_empty() {
-                        std::fs::create_dir_all(root.join(parent))?;
+                        crate::engine::fs_guard::create_dir_all_within(root, &root.join(parent))?;
                     }
                 }
                 let target = Path::new(vault_path).join(&rel);
@@ -2003,6 +2005,10 @@ mod tests {
             .last_error
             .as_deref()
             .is_some_and(|e| e.contains("inside another Git repository")));
+        assert!(!vault.join(".git").exists());
+        // Explicit snapshots and restores must not initialise one either.
+        assert!(history.commit_now(&vault_str, None).is_err());
+        assert!(history.commit_now(&vault_str, Some("a.md")).is_err());
         assert!(!vault.join(".git").exists());
     }
 

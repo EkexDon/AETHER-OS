@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { IconButton, useToast } from "../../ui";
 import { copyText } from "../../lib/onboarding/clipboard";
-import "../../styles/views/onboarding.css";
 
 /** A shell command in a code well with a copy button. */
 export function CopyCommand({ command, label }: { command: string; label?: string }) {

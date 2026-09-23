@@ -6,7 +6,6 @@ import { clearAgentAudit, listAgentAudit } from "../../lib/ipc";
 import { useIntelStore } from "../../lib/intelStore";
 import { describeRule } from "../../lib/intel/risk";
 import type { AuditEntry, IntelSettings as Settings } from "../../types";
-import "../../styles/views/intel.css";
 
 const THRESHOLDS = [3_000, 4_000, 6_000, 8_000, 12_000, 16_000, 32_000];
 const KEEP = [2, 4, 6, 8, 12];
@@ -26,20 +25,20 @@ export function relativeTime(iso: string, now: number = Date.now()): string {
 function StatusBadge({ entry }: { entry: AuditEntry }) {
   if (entry.status === "ok") {
     return (
-      <Badge variant="success" icon={<Check size={10} />}>
+      <Badge variant="success" icon={<Check size={14} />}>
         done
       </Badge>
     );
   }
   if (entry.status === "denied") {
     return (
-      <Badge variant="neutral" icon={<Ban size={10} />}>
+      <Badge variant="neutral" icon={<Ban size={14} />}>
         denied
       </Badge>
     );
   }
   return (
-    <Badge variant="danger" icon={<X size={10} />}>
+    <Badge variant="danger" icon={<X size={14} />}>
       failed
     </Badge>
   );
@@ -228,7 +227,7 @@ export function IntelSettings() {
                       </Badge>
                     </span>
                   </span>
-                  <IconButton size="sm" label="Revoke rule" icon={<X size={13} />} onClick={() => removeRule(rule.id)} />
+                  <IconButton size="sm" label="Revoke rule" icon={<X size={14} />} onClick={() => removeRule(rule.id)} />
                 </div>
               ))}
             </div>
@@ -244,7 +243,7 @@ export function IntelSettings() {
           <Button
             size="sm"
             variant="secondary"
-            iconLeft={<RefreshCw size={13} />}
+            iconLeft={<RefreshCw size={14} />}
             onClick={() => void refreshLog()}
             loading={loadingLog}
           >
@@ -253,7 +252,7 @@ export function IntelSettings() {
           <Button
             size="sm"
             variant="danger"
-            iconLeft={<Trash2 size={13} />}
+            iconLeft={<Trash2 size={14} />}
             onClick={() => void clearLog()}
             onBlur={() => setConfirmClear(false)}
             disabled={!entries || entries.length === 0}
@@ -263,7 +262,7 @@ export function IntelSettings() {
         </div>
         {entries === null ? (
           <div className="intel-drawer-state intel-activity-state">
-            <Spinner size={13} /> Loading activity…
+            <Spinner size={14} /> Loading activity…
           </div>
         ) : entries.length === 0 ? (
           <div className="intel-activity-state">

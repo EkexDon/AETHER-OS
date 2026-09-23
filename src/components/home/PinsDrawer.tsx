@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
 import { Bookmark, Pin, X } from "lucide-react";
-import "../../styles/views/home.css";
 import { useHomeStore } from "../../lib/homeStore";
 import { countPins, useIsPinned, usePinsStore } from "../../lib/pinsStore";
 import { useAetherStore } from "../../lib/store";
@@ -78,7 +77,7 @@ export function PinsDrawer() {
               size="sm"
               variant="secondary"
               fullWidth
-              iconLeft={<Pin size={13} />}
+              iconLeft={<Pin size={14} />}
               onClick={() => {
                 const result = pinCurrentNote();
                 if (result?.pinned) toast.success("Pinned", { description: result.label });

@@ -52,6 +52,7 @@ use walkdir::WalkDir;
 use super::conflict::{self, ConflictRecord, ConflictSide};
 use super::crypto::{self, EnvelopeKind, HeaderFields, KdfParams, KeySet};
 use crate::engine::error::AetherError;
+use crate::engine::fs_guard;
 use crate::engine::vault_reader::VaultReader;
 
 /// Top-level folder created inside the user's sync folder.
@@ -92,6 +93,9 @@ const MAX_META_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_KEYINFO_BYTES: u64 = 64 * 1024;
 /// Envelope overhead allowance when reading a blob of known size.
 const ENVELOPE_SLACK: u64 = 64 * 1024;
+/// Highest version counter accepted from a remote index. Real counters grow
+/// by one per edit; the bound keeps `version + 1` from overflowing.
+pub const MAX_VERSION: u64 = 1 << 53;
 
 /// Milliseconds since the Unix epoch.
 pub fn now_ms() -> i64 {
@@ -298,7 +302,7 @@ impl LocalState {
     /// Persist atomically.
     pub fn save(&self, path: &Path) -> Result<(), AetherError> {
         let bytes = serde_json::to_vec(self)
-            .map_err(|e| AetherError::InvalidInput(format!("state serialize: {e}")))?;
+            .map_err(|e| AetherError::Sync(format!("state serialize: {e}")))?;
         write_atomic(path, &bytes, None)
     }
 
@@ -339,7 +343,7 @@ impl KeyInfo {
     /// Reject malformed or hostile key files.
     pub fn validate(&self) -> Result<(), AetherError> {
         if self.v != 1 {
-            return Err(AetherError::InvalidInput(format!(
+            return Err(AetherError::Crypto(format!(
                 "unsupported key file version {}",
                 self.v
             )));
@@ -347,14 +351,10 @@ impl KeyInfo {
         self.kdf.validate()?;
         crypto::parse_salt(&self.salt)?;
         if blake3::Hash::from_hex(self.verifier.trim()).is_err() {
-            return Err(AetherError::InvalidInput(
-                "key file verifier is malformed".into(),
-            ));
+            return Err(AetherError::Crypto("key file verifier is malformed".into()));
         }
         if !is_valid_id(&self.store_id) {
-            return Err(AetherError::InvalidInput(
-                "key file store id is malformed".into(),
-            ));
+            return Err(AetherError::Crypto("key file store id is malformed".into()));
         }
         Ok(())
     }
@@ -371,7 +371,7 @@ impl KeyInfo {
         }
         let bytes = read_limited(path, MAX_KEYINFO_BYTES)?;
         let info: KeyInfo = serde_json::from_slice(&bytes)
-            .map_err(|e| AetherError::InvalidInput(format!("key file is corrupt: {e}")))?;
+            .map_err(|e| AetherError::Crypto(format!("key file is corrupt: {e}")))?;
         info.validate()?;
         Ok(Some(info))
     }
@@ -379,7 +379,7 @@ impl KeyInfo {
     /// Write atomically as pretty JSON.
     pub fn write(&self, path: &Path) -> Result<(), AetherError> {
         let bytes = serde_json::to_vec_pretty(self)
-            .map_err(|e| AetherError::InvalidInput(format!("key file serialize: {e}")))?;
+            .map_err(|e| AetherError::Crypto(format!("key file serialize: {e}")))?;
         write_atomic(path, &bytes, None)
     }
 }
@@ -400,7 +400,7 @@ pub fn read_limited(path: &Path, max: u64) -> Result<Vec<u8>, AetherError> {
     let file = std::fs::File::open(path)?;
     let len = file.metadata()?.len();
     if len > max {
-        return Err(AetherError::InvalidInput(format!(
+        return Err(AetherError::Sync(format!(
             "{} is too large ({len} bytes)",
             path.display()
         )));
@@ -408,7 +408,7 @@ pub fn read_limited(path: &Path, max: u64) -> Result<Vec<u8>, AetherError> {
     let mut bytes = Vec::with_capacity(len as usize);
     file.take(max + 1).read_to_end(&mut bytes)?;
     if bytes.len() as u64 > max {
-        return Err(AetherError::InvalidInput(format!(
+        return Err(AetherError::Sync(format!(
             "{} grew beyond the size limit",
             path.display()
         )));
@@ -421,7 +421,7 @@ pub fn read_limited(path: &Path, max: u64) -> Result<Vec<u8>, AetherError> {
 pub fn write_atomic(path: &Path, bytes: &[u8], mtime_ms: Option<i64>) -> Result<(), AetherError> {
     let parent = path
         .parent()
-        .ok_or_else(|| AetherError::InvalidInput("path has no parent directory".into()))?;
+        .ok_or_else(|| AetherError::Sync("path has no parent directory".into()))?;
     std::fs::create_dir_all(parent)?;
     let name = path
         .file_name()
@@ -469,7 +469,7 @@ fn move_unique(path: &Path, dest: &Path) -> Result<PathBuf, AetherError> {
             return Ok(candidate);
         }
     }
-    Err(AetherError::InvalidInput(format!(
+    Err(AetherError::Sync(format!(
         "no free name to move {} to",
         path.display()
     )))
@@ -479,7 +479,7 @@ fn move_unique(path: &Path, dest: &Path) -> Result<PathBuf, AetherError> {
 
 /// Split and validate a logical path into namespace + components.
 pub fn split_virtual(path: &str) -> Result<(&str, Vec<&str>), AetherError> {
-    let invalid = || AetherError::InvalidInput(format!("invalid sync path: {path}"));
+    let invalid = || AetherError::Sync(format!("invalid sync path: {path}"));
     if path.is_empty() || path.len() > 1024 || path.contains('\0') || path.contains('\\') {
         return Err(invalid());
     }
@@ -499,22 +499,29 @@ pub fn split_virtual(path: &str) -> Result<(&str, Vec<&str>), AetherError> {
     Ok((ns, rest))
 }
 
-/// Is this vault-relative path excluded from sync?
+/// Is this vault-relative path excluded from sync? Names are compared
+/// case-insensitively: on a case-insensitive file system `.GIT` *is* the
+/// repository folder, so a remote entry must not be able to reach it by
+/// spelling it differently.
 pub fn is_excluded_vault_path(components: &[&str]) -> bool {
     for c in components {
+        let lower = c.to_ascii_lowercase();
         if matches!(
-            *c,
-            ".git" | ".trash" | ".nopes" | ".DS_Store" | "Thumbs.db" | "desktop.ini"
-        ) || c.starts_with(".aether")
+            lower.as_str(),
+            ".git" | ".trash" | ".nopes" | ".ds_store" | "thumbs.db" | "desktop.ini"
+        ) || lower.starts_with(".aether")
             || c.contains(TMP_MARKER)
         {
             return true;
         }
     }
-    components.first() == Some(&".obsidian")
-        && components
-            .get(1)
-            .is_some_and(|c| c.starts_with("workspace") || *c == "cache")
+    components
+        .first()
+        .is_some_and(|c| c.eq_ignore_ascii_case(".obsidian"))
+        && components.get(1).is_some_and(|c| {
+            let lower = c.to_ascii_lowercase();
+            lower.starts_with("workspace") || lower == "cache"
+        })
 }
 
 fn is_allowed_app_path(rest: &[&str]) -> bool {
@@ -565,7 +572,7 @@ impl Roots {
     pub fn resolve(&self, path: &str) -> Result<PathBuf, AetherError> {
         let (ns, rest) = split_virtual(path)?;
         if ns == NS_APP && !is_allowed_app_path(&rest) {
-            return Err(AetherError::InvalidInput(format!(
+            return Err(AetherError::Sync(format!(
                 "not a synced app-data file: {path}"
             )));
         }
@@ -577,21 +584,41 @@ impl Roots {
     }
 
     /// Create the parent directory of `abs` and make sure it (after
-    /// resolving symlinks) is still inside the namespace root.
+    /// resolving symlinks) is still inside the namespace root. The deepest
+    /// existing ancestor is checked *before* anything is created, so a
+    /// symlinked folder cannot be used to create directories elsewhere.
     pub fn prepare_parent(&self, path: &str, abs: &Path) -> Result<(), AetherError> {
         let (ns, _) = split_virtual(path)?;
         let root = self.root_of(ns)?;
         std::fs::create_dir_all(&root)?;
         let parent = abs
             .parent()
-            .ok_or_else(|| AetherError::InvalidInput("path has no parent".into()))?;
-        std::fs::create_dir_all(parent)?;
+            .ok_or_else(|| AetherError::Sync("path has no parent".into()))?;
         let canonical_root = std::fs::canonicalize(&root)?;
-        let canonical_parent = std::fs::canonicalize(parent)?;
-        if !canonical_parent.starts_with(&canonical_root) {
-            return Err(AetherError::InvalidInput(format!(
-                "refusing to write outside the sync roots: {path}"
-            )));
+        fs_guard::create_dir_all_within(&canonical_root, parent).map_err(|_| {
+            AetherError::Sync(format!("refusing to write outside the sync roots: {path}"))
+        })?;
+        Ok(())
+    }
+
+    /// Check that the existing local file of `path` really lives inside its
+    /// namespace root: its folder (symlinks resolved) is inside the root
+    /// and the file itself is not a symbolic link.
+    pub fn check_local_inside(&self, path: &str, abs: &Path) -> Result<(), AetherError> {
+        let (ns, _) = split_virtual(path)?;
+        let outside = || {
+            AetherError::Sync(format!(
+                "refusing to touch a file outside the sync roots: {path}"
+            ))
+        };
+        let root = std::fs::canonicalize(self.root_of(ns)?).map_err(|_| outside())?;
+        let parent = abs.parent().ok_or_else(outside)?;
+        let canonical_parent = std::fs::canonicalize(parent).map_err(|_| outside())?;
+        if !canonical_parent.starts_with(&root) {
+            return Err(outside());
+        }
+        if std::fs::symlink_metadata(abs).is_ok_and(|m| m.file_type().is_symlink()) {
+            return Err(outside());
         }
         Ok(())
     }
@@ -867,22 +894,23 @@ pub fn decrypt_index(
 ) -> Result<(DeviceIndex, Vec<SyncIssue>), AetherError> {
     let (header, plaintext) = keys.open(EnvelopeKind::Index, bytes)?;
     if header.device_id != device_id {
-        return Err(AetherError::InvalidInput(
+        return Err(AetherError::Sync(
             "index was written by a different device than its name says".into(),
         ));
     }
     let mut index: DeviceIndex = serde_json::from_slice(&plaintext)
-        .map_err(|e| AetherError::InvalidInput(format!("index payload is corrupt: {e}")))?;
+        .map_err(|e| AetherError::Sync(format!("index payload is corrupt: {e}")))?;
     if index.device_id != device_id {
-        return Err(AetherError::InvalidInput(
+        return Err(AetherError::Sync(
             "index payload belongs to a different device".into(),
         ));
     }
     let mut issues = Vec::new();
     index.entries.retain(|path, entry| {
         let ok = split_virtual(path).is_ok()
-            && (entry.deleted || entry.content_hash.len() == 64)
-            && entry.size <= MAX_FILE_BYTES;
+            && (entry.deleted || is_hex64(&entry.content_hash))
+            && entry.size <= MAX_FILE_BYTES
+            && entry.version <= MAX_VERSION;
         if !ok {
             issues.push(SyncIssue::new(
                 path.clone(),
@@ -1101,6 +1129,7 @@ pub fn plan(
         let b = base.get(path);
         let r = remote.get(path);
         let max_version = b.map_or(0, |e| e.version).max(r.map_or(0, |e| e.version));
+        let next_version = max_version.saturating_add(1);
 
         let local_changed = match (l, b) {
             (Some(l), Some(b)) => b.deleted || b.content_hash != l.content_hash,
@@ -1121,11 +1150,11 @@ pub fn plan(
                 Some(l) => actions.push(Action::Upload {
                     path,
                     local: l.clone(),
-                    version: max_version + 1,
+                    version: next_version,
                 }),
                 None => actions.push(Action::PublishDelete {
                     path,
-                    version: max_version + 1,
+                    version: next_version,
                 }),
             },
             (false, true) => {
@@ -1166,7 +1195,7 @@ pub fn plan(
                     (Some(l), true) => actions.push(Action::Upload {
                         path,
                         local: l.clone(),
-                        version: max_version + 1,
+                        version: next_version,
                     }),
                     (Some(l), false) => {
                         let local_wins = (l.mtime, me) > (r.mtime, r.device.as_str());
@@ -1175,7 +1204,7 @@ pub fn plan(
                             local: l.clone(),
                             remote: r,
                             local_wins,
-                            version: max_version + 1,
+                            version: next_version,
                         });
                     }
                     (None, true) => actions.push(Action::Adopt { path, entry: r }),
@@ -1265,21 +1294,21 @@ impl RoundContext<'_> {
         let blob_id = self.keys.blob_id(&entry.content_hash);
         let path = self.store.blob_path(&blob_id);
         if !path.is_file() {
-            return Err(AetherError::InvalidInput(
+            return Err(AetherError::Sync(
                 "content has not arrived in the sync folder yet".into(),
             ));
         }
         let bytes = read_limited(&path, entry.size + ENVELOPE_SLACK)?;
         let (header, plaintext) = self.keys.open(EnvelopeKind::Blob, &bytes)?;
         if header.content_hash.as_deref() != Some(blob_id.as_str()) {
-            return Err(AetherError::InvalidInput(
+            return Err(AetherError::Sync(
                 "blob was swapped: its header names different content".into(),
             ));
         }
         if crypto::content_hash(&plaintext) != entry.content_hash
             || plaintext.len() as u64 != entry.size
         {
-            return Err(AetherError::InvalidInput(
+            return Err(AetherError::Sync(
                 "blob content does not match the index".into(),
             ));
         }
@@ -1319,20 +1348,32 @@ impl RoundContext<'_> {
         if !abs.exists() {
             return Ok(());
         }
+        self.roots.check_local_inside(path, &abs)?;
         let (ns, rest) = split_virtual(path)?;
-        let dest = if ns == NS_VAULT {
-            let mut dest = self.roots.root_of(NS_VAULT)?.join(".trash");
+        let (trash_root, dest) = if ns == NS_VAULT {
+            let root = self.roots.root_of(NS_VAULT)?;
+            let mut dest = root.join(".trash");
             for c in rest {
                 dest.push(c);
             }
-            dest
+            (root, dest)
         } else {
             let mut dest = self.roots.data_dir.join(APP_TRASH_DIR).join(ns);
             for c in rest {
                 dest.push(c);
             }
-            dest
+            (self.roots.data_dir.clone(), dest)
         };
+        // The trash folder (e.g. a symlinked `.trash`) must not lead out of
+        // the root either.
+        if let Some(parent) = dest.parent() {
+            let canonical_root = std::fs::canonicalize(&trash_root)?;
+            fs_guard::create_dir_all_within(&canonical_root, parent).map_err(|_| {
+                AetherError::Sync(format!(
+                    "refusing to move {path} to a trash folder outside the sync roots"
+                ))
+            })?;
+        }
         move_unique(&abs, &dest)?;
         Ok(())
     }
@@ -1367,7 +1408,7 @@ impl RoundContext<'_> {
     /// Write an encrypted conflict record.
     pub fn write_conflict(&self, record: &ConflictRecord) -> Result<(), AetherError> {
         let json = serde_json::to_vec(record)
-            .map_err(|e| AetherError::InvalidInput(format!("conflict serialize: {e}")))?;
+            .map_err(|e| AetherError::Sync(format!("conflict serialize: {e}")))?;
         let sealed = self.keys.seal(
             EnvelopeKind::Conflict,
             HeaderFields {
@@ -1396,9 +1437,8 @@ pub fn read_conflicts(
             .read_meta(&path)
             .and_then(|bytes| keys.open(EnvelopeKind::Conflict, &bytes))
             .and_then(|(_, plain)| {
-                serde_json::from_slice::<ConflictRecord>(&plain).map_err(|e| {
-                    AetherError::InvalidInput(format!("conflict record is corrupt: {e}"))
-                })
+                serde_json::from_slice::<ConflictRecord>(&plain)
+                    .map_err(|e| AetherError::Sync(format!("conflict record is corrupt: {e}")))
             });
         match parsed {
             Ok(record)
@@ -1433,7 +1473,7 @@ impl Exec<'_, '_> {
             .get(path)
             .map_or(0, |e| e.version)
             .max(self.remote.get(path).map_or(0, |e| e.version))
-            + 1
+            .saturating_add(1)
     }
 
     fn issue(&mut self, path: &str, message: impl Into<String>) {
@@ -1464,7 +1504,7 @@ impl Exec<'_, '_> {
                 return Ok(candidate);
             }
         }
-        Err(AetherError::InvalidInput(format!(
+        Err(AetherError::Sync(format!(
             "no free conflict name for {wanted}"
         )))
     }
@@ -1499,7 +1539,7 @@ impl Exec<'_, '_> {
             }
             Action::Download { path, entry, local } => {
                 if !self.ctx.local_matches(&path, local.as_ref()) {
-                    return Err(AetherError::InvalidInput(
+                    return Err(AetherError::Sync(
                         "changed locally during sync; will retry".into(),
                     ));
                 }
@@ -1512,7 +1552,7 @@ impl Exec<'_, '_> {
             }
             Action::DeleteLocal { path, entry, local } => {
                 if !self.ctx.local_matches(&path, Some(&local)) {
-                    return Err(AetherError::InvalidInput(
+                    return Err(AetherError::Sync(
                         "changed locally during sync; will retry".into(),
                     ));
                 }
@@ -1542,7 +1582,7 @@ impl Exec<'_, '_> {
     ) -> Result<(), AetherError> {
         let remote_bytes = self.ctx.fetch(&remote)?;
         if !self.ctx.local_matches(&path, Some(&local)) {
-            return Err(AetherError::InvalidInput(
+            return Err(AetherError::Sync(
                 "changed locally during sync; will retry".into(),
             ));
         }
@@ -1613,7 +1653,7 @@ fn publish_index(
     entries: BTreeMap<String, IndexEntry>,
 ) -> Result<bool, AetherError> {
     let entries_json = serde_json::to_vec(&entries)
-        .map_err(|e| AetherError::InvalidInput(format!("index serialize: {e}")))?;
+        .map_err(|e| AetherError::Sync(format!("index serialize: {e}")))?;
     let digest = format!(
         "{}:{}",
         ctx.keys.salt_hex(),
@@ -1631,7 +1671,7 @@ fn publish_index(
         entries,
     };
     let json = serde_json::to_vec(&index)
-        .map_err(|e| AetherError::InvalidInput(format!("index serialize: {e}")))?;
+        .map_err(|e| AetherError::Sync(format!("index serialize: {e}")))?;
     let sealed = ctx.keys.seal(
         EnvelopeKind::Index,
         HeaderFields {
@@ -1661,7 +1701,7 @@ pub fn publish_device(
         file_count,
     };
     let json = serde_json::to_vec(&record)
-        .map_err(|e| AetherError::InvalidInput(format!("device serialize: {e}")))?;
+        .map_err(|e| AetherError::Sync(format!("device serialize: {e}")))?;
     let sealed = ctx.keys.seal(
         EnvelopeKind::Device,
         HeaderFields {
@@ -1685,11 +1725,10 @@ pub fn read_devices(
             .read_meta(&path)
             .and_then(|bytes| keys.open(EnvelopeKind::Device, &bytes))
             .and_then(|(header, plain)| {
-                let record: DeviceRecord = serde_json::from_slice(&plain).map_err(|e| {
-                    AetherError::InvalidInput(format!("device record is corrupt: {e}"))
-                })?;
+                let record: DeviceRecord = serde_json::from_slice(&plain)
+                    .map_err(|e| AetherError::Sync(format!("device record is corrupt: {e}")))?;
                 if header.device_id != id || record.device_id != id {
-                    return Err(AetherError::InvalidInput(
+                    return Err(AetherError::Sync(
                         "device record does not match its file name".into(),
                     ));
                 }
@@ -2106,6 +2145,131 @@ mod tests {
         assert!(is_excluded_vault_path(&["notes", ".DS_Store"]));
         assert!(!is_excluded_vault_path(&[".obsidian", "app.json"]));
         assert!(!is_excluded_vault_path(&["notes", "a.md"]));
+    }
+
+    #[test]
+    fn exclusion_rules_are_case_insensitive() {
+        assert!(is_excluded_vault_path(&[".GIT", "config"]));
+        assert!(is_excluded_vault_path(&[
+            "sub",
+            ".Git",
+            "hooks",
+            "pre-commit"
+        ]));
+        assert!(is_excluded_vault_path(&[".Trash", "a.md"]));
+        assert!(is_excluded_vault_path(&[".AETHER-cache", "x"]));
+        assert!(is_excluded_vault_path(&[".Obsidian", "Workspace.json"]));
+        assert!(!is_excluded_vault_path(&[".github", "workflows", "ci.yml"]));
+        let roots = Roots {
+            vault: Some(PathBuf::from("/v")),
+            data_dir: PathBuf::from("/d"),
+            include_app_data: false,
+        };
+        assert!(!roots.in_scope("vault/.GIT/config"));
+        assert!(!roots.in_scope("vault/.TRASH/x.md"));
+    }
+
+    fn sealed_index(keys: &KeySet, device: &str, entries: BTreeMap<String, IndexEntry>) -> Vec<u8> {
+        let index = DeviceIndex {
+            v: 1,
+            device_id: device.to_owned(),
+            device_name: device.to_owned(),
+            generated_at: 0,
+            entries,
+        };
+        keys.seal(
+            EnvelopeKind::Index,
+            HeaderFields {
+                device_id: device.to_owned(),
+                ..HeaderFields::default()
+            },
+            &serde_json::to_vec(&index).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn remote_indexes_drop_hostile_entries() {
+        let keys = KeySet::derive("pass", [7u8; crypto::SALT_LEN], KdfParams::TESTING).unwrap();
+        let hash = "ab".repeat(32);
+        let mut huge_version = entry(&hash, 1, "dev", 1);
+        huge_version.version = MAX_VERSION + 1;
+        let mut huge_size = entry(&hash, 1, "dev", 1);
+        huge_size.size = MAX_FILE_BYTES + 1;
+        let entries = map(&[
+            ("vault/good.md", entry(&hash, 3, "dev", 1)),
+            ("vault/huge-version.md", huge_version),
+            ("vault/huge-size.md", huge_size),
+            ("vault/bad-hash.md", entry(&"zz".repeat(32), 1, "dev", 1)),
+            ("vault/../escape.md", entry(&hash, 1, "dev", 1)),
+            ("/etc/passwd", entry(&hash, 1, "dev", 1)),
+            ("vault/a\0b.md", entry(&hash, 1, "dev", 1)),
+        ]);
+        let (index, issues) =
+            decrypt_index(&keys, "dev", &sealed_index(&keys, "dev", entries)).unwrap();
+        assert_eq!(
+            index.entries.keys().collect::<Vec<_>>(),
+            vec!["vault/good.md"]
+        );
+        assert_eq!(issues.len(), 6);
+    }
+
+    #[test]
+    fn version_counters_never_overflow() {
+        let local = map(&[("vault/x.md", meta("new", 5))]);
+        let mut worn = entry("old", 1, "b", 1);
+        worn.version = u64::MAX;
+        let base = map(&[("vault/x.md", worn)]);
+        let actions = plan("a", &local, &base, &BTreeMap::new(), &all);
+        assert!(matches!(
+            actions.as_slice(),
+            [Action::Upload {
+                version: u64::MAX,
+                ..
+            }]
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn writes_and_trash_moves_never_leave_the_roots() {
+        let dir = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        let vault = dir.path().join("vault");
+        std::fs::create_dir_all(&vault).unwrap();
+        std::os::unix::fs::symlink(outside.path(), vault.join("link")).unwrap();
+        let roots = Roots {
+            vault: Some(vault.clone()),
+            data_dir: dir.path().join("data"),
+            include_app_data: false,
+        };
+
+        // A download below a symlinked folder is refused before any folder
+        // is created outside the vault.
+        let path = "vault/link/new/x.md";
+        let abs = roots.resolve(path).unwrap();
+        assert!(roots.prepare_parent(path, &abs).is_err());
+        assert!(!outside.path().join("new").exists());
+
+        // An inside path is fine.
+        let good = "vault/notes/x.md";
+        assert!(roots
+            .prepare_parent(good, &roots.resolve(good).unwrap())
+            .is_ok());
+
+        // Files reached through a symlinked folder are never touched.
+        std::fs::write(outside.path().join("keep.md"), "keep").unwrap();
+        let reached = roots.resolve("vault/link/keep.md").unwrap();
+        assert!(roots
+            .check_local_inside("vault/link/keep.md", &reached)
+            .is_err());
+        // A symlinked file inside the vault is refused as well.
+        std::os::unix::fs::symlink(outside.path().join("keep.md"), vault.join("alias.md")).unwrap();
+        let alias = roots.resolve("vault/alias.md").unwrap();
+        assert!(roots.check_local_inside("vault/alias.md", &alias).is_err());
+        std::fs::write(vault.join("real.md"), "x").unwrap();
+        let real = roots.resolve("vault/real.md").unwrap();
+        assert!(roots.check_local_inside("vault/real.md", &real).is_ok());
     }
 
     #[test]

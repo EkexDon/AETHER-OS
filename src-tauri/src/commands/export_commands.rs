@@ -4,8 +4,9 @@
 //! always reflect the files on disk. The work runs on the blocking thread
 //! pool; long exports (site, bundle) stream `export-progress` events.
 //! Paths coming from the UI are untrusted: note/folder paths must resolve
-//! inside the vault, output paths are validated by `check_output_path`
-//! and "open" targets are limited to recorded exports.
+//! inside the vault, output paths are validated by `check_output_path` /
+//! `check_output_file` (existing files are only replaced with the
+//! `overwrite` option) and "open" targets are limited to recorded exports.
 
 use std::path::PathBuf;
 use std::time::Instant;
@@ -14,7 +15,7 @@ use tauri::{AppHandle, Emitter, State};
 
 use crate::engine::error::AetherError;
 use crate::engine::export::{
-    bundle, check_output_path, html, open_path, pdf, site, with_extension, BundleReport,
+    bundle, check_output_file, check_output_path, html, open_path, pdf, site, BundleReport,
     ExportKind, ExportOptions, ExportProgress, ExportScope, NoteExportReport, RecentExport,
     ScopeNote, ScopePreview, SiteReport, TagCount, VaultModel, PROGRESS_EVENT,
 };
@@ -92,10 +93,13 @@ pub async fn cmd_export_note_html(
         let started = Instant::now();
         let model = VaultModel::load(&root)?;
         let idx = model.note_for_path(&path)?;
-        let out = with_extension(
-            check_output_path(&out_path, &model.root, options.allow_inside_vault)?,
+        let out = check_output_file(
+            &out_path,
             "html",
-        );
+            &model.root,
+            options.allow_inside_vault,
+            options.overwrite,
+        )?;
         let doc = html::standalone_document(&model, idx, &options)?;
         let tmp = out.with_extension("html.part");
         std::fs::write(&tmp, doc.html.as_bytes())?;
@@ -184,10 +188,13 @@ pub async fn cmd_export_bundle(
     let engine = state.export.clone();
     blocking(move || {
         let model = VaultModel::load(&root)?;
-        let out = with_extension(
-            check_output_path(&out_path, &model.root, options.allow_inside_vault)?,
+        let out = check_output_file(
+            &out_path,
             "zip",
-        );
+            &model.root,
+            options.allow_inside_vault,
+            options.overwrite,
+        )?;
         let emit = |p: ExportProgress| {
             let _ = app.emit(PROGRESS_EVENT, p);
         };

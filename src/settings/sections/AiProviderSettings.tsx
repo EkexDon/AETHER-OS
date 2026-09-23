@@ -1,13 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Cloud, Database, HardDrive, LifeBuoy, RefreshCw } from "lucide-react";
 import { useAetherStore, type AiProvider } from "../../lib/store";
 import { useOnboardingStore } from "../../lib/onboardingStore";
-import { getSystemProfile, indexVault, isDesktopRuntime, listCloudModels, setOpenRouterKey } from "../../lib/ipc";
+import { useHomeStore } from "../../lib/homeStore";
+import {
+  getEmbeddingModel,
+  getSystemProfile,
+  isDesktopRuntime,
+  listCloudModels,
+  setEmbeddingModel,
+  setOpenRouterKey,
+} from "../../lib/ipc";
 import {
   EMBEDDING_MODEL,
   OLLAMA_URL,
+  embeddingModelOptions,
   isModelInstalled,
   isValidModelName,
+  normalizeModelName,
   recommendModel,
   type ModelRecommendation,
 } from "../../lib/onboarding/models";
@@ -15,7 +25,6 @@ import { refreshHealth } from "../../lib/onboarding/vaultActions";
 import { Badge, Button, Input, SegmentedControl, Select, useToast } from "../../ui";
 import { PullModelControl } from "../../components/onboarding/PullModelControl";
 import { SettingsGroup, SettingsPage, SettingsRow } from "../layout";
-import "../../styles/views/onboarding.css";
 
 function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -31,7 +40,7 @@ export function AiProviderSettings() {
   const setModelForProvider = useAetherStore((s) => s.setModelForProvider);
   const vaultPath = useAetherStore((s) => s.vaultPath);
   const indexing = useAetherStore((s) => s.indexing);
-  const setIndexing = useAetherStore((s) => s.setIndexing);
+  const runIndex = useHomeStore((s) => s.runIndex);
   const installed = useOnboardingStore((s) => s.installedModels);
   const refreshModels = useOnboardingStore((s) => s.refreshModels);
   const openGuide = useOnboardingStore((s) => s.openOllamaGuide);
@@ -44,6 +53,10 @@ export function AiProviderSettings() {
   const [checking, setChecking] = useState(false);
   const [pullName, setPullName] = useState("");
   const [recommendation, setRecommendation] = useState<ModelRecommendation>(() => recommendModel(null));
+  const [embeddingModel, setEmbeddingModelState] = useState<string | null>(null);
+  const [embeddingDraft, setEmbeddingDraft] = useState("");
+  const [savingEmbedding, setSavingEmbedding] = useState(false);
+  const [embeddingError, setEmbeddingError] = useState<string | null>(null);
   const desktop = isDesktopRuntime();
 
   const ollama = !!health?.ollama_online;
@@ -56,6 +69,21 @@ export function AiProviderSettings() {
       .then((p) => setRecommendation(recommendModel(p)))
       .catch(() => undefined);
   }, [desktop, refreshModels]);
+
+  useEffect(() => {
+    if (!desktop) return;
+    let alive = true;
+    getEmbeddingModel()
+      .then((m) => {
+        if (!alive) return;
+        setEmbeddingModelState(m);
+        setEmbeddingDraft(m);
+      })
+      .catch((e) => alive && setEmbeddingError(errorText(e)));
+    return () => {
+      alive = false;
+    };
+  }, [desktop]);
 
   useEffect(() => {
     if (!desktop || !openrouter) return;
@@ -128,16 +156,24 @@ export function AiProviderSettings() {
     }
   };
 
-  const runIndex = async () => {
-    if (indexing) return;
-    setIndexing(true);
+  const saveEmbeddingModel = async () => {
+    const wanted = embeddingDraft.trim();
+    if (!wanted || !isValidModelName(wanted) || wanted === embeddingModel) return;
+    setSavingEmbedding(true);
+    setEmbeddingError(null);
     try {
-      const r = await indexVault();
-      toast.success("Vault indexed", { description: `${r.indexed} of ${r.total} notes embedded.` });
+      const stored = await setEmbeddingModel(wanted);
+      setEmbeddingModelState(stored);
+      setEmbeddingDraft(stored);
+      toast.info("Vault must be re-indexed", {
+        description: `Semantic search now uses ${stored}; the previous index was cleared.`,
+        duration: 12_000,
+        action: vaultPath ? { label: "Index now", onClick: () => void runIndex() } : undefined,
+      });
     } catch (e) {
-      toast.error("Indexing failed", { description: errorText(e) });
+      setEmbeddingError(errorText(e));
     } finally {
-      setIndexing(false);
+      setSavingEmbedding(false);
     }
   };
 
@@ -147,8 +183,14 @@ export function AiProviderSettings() {
     ...(installed ?? []).map((m) => ({ value: m, label: m })),
     ...(localInstalled ? [] : [{ value: localModel, label: `${localModel} (not installed)` }]),
   ];
-  const embeddingInstalled = isModelInstalled(installed, EMBEDDING_MODEL);
+  const activeEmbedding = embeddingModel ?? EMBEDDING_MODEL;
+  const embeddingInstalled = isModelInstalled(installed, activeEmbedding);
+  const trimmedEmbedding = embeddingDraft.trim();
+  const embeddingDraftValid = !trimmedEmbedding || isValidModelName(trimmedEmbedding);
+  const embeddingChanged =
+    !!trimmedEmbedding && embeddingModel !== null && normalizeModelName(trimmedEmbedding) !== normalizeModelName(embeddingModel);
   const trimmedPull = pullName.trim();
+  const embeddingOptions = useMemo(() => embeddingModelOptions(installed), [installed]);
   const cloudOptions = cloudModels
     ? [
         ...(cloudModels.includes(modelByProvider.openrouter) ? [] : [modelByProvider.openrouter]),
@@ -171,8 +213,8 @@ export function AiProviderSettings() {
               value={provider}
               onChange={setProvider}
               options={[
-                { value: "ollama", label: "Ollama", icon: <HardDrive size={13} /> },
-                { value: "openrouter", label: "OpenRouter", icon: <Cloud size={13} /> },
+                { value: "ollama", label: "Ollama", icon: <HardDrive size={14} /> },
+                { value: "openrouter", label: "OpenRouter", icon: <Cloud size={14} /> },
               ]}
             />
           }
@@ -185,14 +227,14 @@ export function AiProviderSettings() {
           hint={`AETHER-OS only talks to ${OLLAMA_URL} (fixed). Nothing leaves your computer.`}
           control={
             <div className="obs-inline">
-              <Badge variant={ollama ? "success" : health ? "warning" : "neutral"} dot icon={<HardDrive size={11} />}>
+              <Badge variant={ollama ? "success" : health ? "warning" : "neutral"} dot icon={<HardDrive size={14} />}>
                 {ollama ? "Connected" : health ? "Offline" : "Unknown"}
               </Badge>
-              <Button size="sm" variant="ghost" iconLeft={<RefreshCw size={13} />} loading={checking} onClick={() => void recheck()}>
+              <Button size="sm" variant="ghost" iconLeft={<RefreshCw size={14} />} loading={checking} onClick={() => void recheck()}>
                 Check
               </Button>
               {!ollama && health && (
-                <Button size="sm" variant="secondary" iconLeft={<LifeBuoy size={13} />} onClick={openGuide}>
+                <Button size="sm" variant="secondary" iconLeft={<LifeBuoy size={14} />} onClick={openGuide}>
                   How to fix
                 </Button>
               )}
@@ -260,7 +302,7 @@ export function AiProviderSettings() {
           hint="Your key is stored in the app's private data directory — never in the browser or your vault."
           control={
             <div className="obs-inline">
-              <Badge variant={openrouter ? "success" : "neutral"} dot icon={<Cloud size={11} />}>
+              <Badge variant={openrouter ? "success" : "neutral"} dot icon={<Cloud size={14} />}>
                 {openrouter ? "Key configured" : "No key"}
               </Badge>
               {openrouter && (
@@ -356,13 +398,74 @@ export function AiProviderSettings() {
         <SettingsRow
           label="Embedding model"
           hint={
-            <>
-              <span className="mono">{EMBEDDING_MODEL}</span> (fixed) turns notes into vectors locally. Changing the embedding
-              model would require re-indexing, so it is not configurable yet.
-            </>
+            embeddingError ? (
+              <span className="ui-field-error">{embeddingError}</span>
+            ) : (
+              <>
+                Turns notes into vectors on this machine. Pick an installed Ollama model or type any name — switching clears
+                the index, so the vault has to be indexed again.{" "}
+                {embeddingModel !== null &&
+                  (embeddingInstalled ? (
+                    <>
+                      <span className="mono">{activeEmbedding}</span> is installed.
+                    </>
+                  ) : (
+                    <>
+                      <span className="mono">{activeEmbedding}</span> is not installed yet.
+                    </>
+                  ))}
+              </>
+            )
           }
-          control={<PullModelControl model={EMBEDDING_MODEL} installed={embeddingInstalled} sizeLabel="270 MB" disabled={!ollama} compact />}
-        />
+          htmlFor="settings-embedding-model"
+          stacked
+        >
+          <div className="ui-field-row">
+            <Input
+              id="settings-embedding-model"
+              size="sm"
+              list="settings-embedding-models"
+              value={embeddingDraft}
+              placeholder={EMBEDDING_MODEL}
+              spellCheck={false}
+              autoComplete="off"
+              disabled={!desktop || embeddingModel === null}
+              invalid={!embeddingDraftValid}
+              onChange={(e) => setEmbeddingDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void saveEmbeddingModel();
+                if (e.key === "Escape" && embeddingModel !== null && embeddingDraft !== embeddingModel) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setEmbeddingDraft(embeddingModel);
+                }
+              }}
+            />
+            <datalist id="settings-embedding-models">
+              {embeddingOptions.map((m) => (
+                <option key={m.name} value={m.name} label={m.installed ? "Installed" : "Not installed"} />
+              ))}
+            </datalist>
+            <Button
+              size="sm"
+              variant="secondary"
+              loading={savingEmbedding}
+              disabled={!embeddingChanged || !embeddingDraftValid}
+              onClick={() => void saveEmbeddingModel()}
+            >
+              Save
+            </Button>
+            {embeddingModel !== null && !embeddingInstalled && (
+              <PullModelControl
+                model={activeEmbedding}
+                installed={false}
+                sizeLabel={normalizeModelName(activeEmbedding) === EMBEDDING_MODEL ? "270 MB" : undefined}
+                disabled={!ollama}
+                compact
+              />
+            )}
+          </div>
+        </SettingsRow>
         <SettingsRow
           label="Index vault"
           hint={!vaultPath ? "Connect a vault first." : "Embeds every note on this machine. Run it again after larger changes."}
@@ -370,7 +473,7 @@ export function AiProviderSettings() {
             <Button
               size="sm"
               variant="secondary"
-              iconLeft={<Database size={13} />}
+              iconLeft={<Database size={14} />}
               loading={indexing}
               disabled={!vaultPath || !ollama || !embeddingInstalled}
               onClick={() => void runIndex()}

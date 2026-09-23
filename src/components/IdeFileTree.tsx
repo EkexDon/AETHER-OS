@@ -84,23 +84,23 @@ export function IdeFileTree({ rootPath, activePath, onOpenFile }: IdeFileTreePro
               <>
                 <span className="ide-tree-chevron">
                   {isLoading ? (
-                    <Loader2 size={12} className="spin" />
+                    <Loader2 size={14} className="spin" />
                   ) : isOpen ? (
-                    <ChevronDown size={12} />
+                    <ChevronDown size={14} />
                   ) : (
-                    <ChevronRight size={12} />
+                    <ChevronRight size={14} />
                   )}
                 </span>
                 {isOpen ? (
-                  <FolderOpen size={13} className="ide-tree-icon ide-tree-icon-dir" />
+                  <FolderOpen size={14} className="ide-tree-icon ide-tree-icon-dir" />
                 ) : (
-                  <Folder size={13} className="ide-tree-icon ide-tree-icon-dir" />
+                  <Folder size={14} className="ide-tree-icon ide-tree-icon-dir" />
                 )}
               </>
             ) : (
               <>
                 <span className="ide-tree-chevron" />
-                <File size={13} className="ide-tree-icon" />
+                <File size={14} className="ide-tree-icon" />
               </>
             )}
             <span className="ide-tree-name">{entry.name}</span>
@@ -121,7 +121,7 @@ export function IdeFileTree({ rootPath, activePath, onOpenFile }: IdeFileTreePro
       {error && <div className="ide-tree-error">{error}</div>}
       {loading.has(rootPath) && !children[rootPath] && (
         <div className="ide-tree-loading">
-          <Loader2 size={13} className="spin" /> Loading…
+          <Loader2 size={14} className="spin" /> Loading…
         </div>
       )}
       {renderLevel(rootPath, 0)}

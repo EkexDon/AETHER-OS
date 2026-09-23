@@ -1,5 +1,5 @@
 /** Vault reader commands (`src-tauri/src/commands/vault_commands.rs`). */
-import type { GraphData, VaultIndex, VaultNote, VaultStats } from "../../types";
+import type { GraphData, VaultAsset, VaultIndex, VaultNote, VaultStats } from "../../types";
 import { call } from "./core";
 
 /** Configured or auto-detected vault path, `null` when none is found. */
@@ -16,3 +16,9 @@ export const getVaultIndex = () => call<VaultIndex | null>("cmd_get_vault_index"
 export const getVaultGraph = () => call<GraphData>("cmd_get_vault_graph");
 /** Aggregate note/task/tag/link counters. */
 export const getVaultStats = () => call<VaultStats>("cmd_get_vault_stats");
+/**
+ * An image, video, audio or PDF file referenced by a note, base64-encoded.
+ * `path` is vault-relative (or absolute inside the vault); Rust refuses
+ * paths outside the vault, other file types and files above 25 MB.
+ */
+export const readVaultAsset = (path: string) => call<VaultAsset>("cmd_read_vault_asset", { path });

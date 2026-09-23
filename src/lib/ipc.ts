@@ -25,6 +25,7 @@ export * from "./ipc/tasks";
 export * from "./ipc/agentActions";
 export * from "./ipc/diagnostics";
 export * from "./ipc/updater";
+export * from "./ipc/app";
 export * from "./ipc/clipboard";
 // @anchor:ipc:clipboard
 export * from "./ipc/search";

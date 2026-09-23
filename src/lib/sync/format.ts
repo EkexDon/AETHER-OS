@@ -129,9 +129,36 @@ export function intervalLabel(seconds: number): string {
   return `every ${Math.round(seconds / 3600)} hours`;
 }
 
-/** Remove the Rust error category prefix and capitalise (`invalid input: wrong passphrase` → `Wrong passphrase`). */
+/**
+ * Display prefixes of every `AetherError` variant (`engine/error.rs`); a
+ * parity test fails when Rust gains a category that is missing here.
+ */
+export const ERROR_CATEGORIES = [
+  "invalid input",
+  "vault error",
+  "I/O error",
+  "database error",
+  "network error",
+  "sync error",
+  "crypto error",
+  "AI engine error",
+  "vector engine error",
+] as const;
+
+const CATEGORY_PREFIX = new RegExp(
+  `^(?:${ERROR_CATEGORIES.map((c) => c.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")).join("|")}): `,
+  "i"
+);
+
+/**
+ * Remove the Rust error category prefix and capitalise
+ * (`crypto error: wrong passphrase` → `Wrong passphrase`). Knows every
+ * `AetherError` category ({@link ERROR_CATEGORIES}). A doubled prefix
+ * (`invalid input: invalid input: x`) is stripped once per layer.
+ */
 export function humanizeError(message: string): string {
-  const stripped = message.replace(/^(invalid input|vault error|I\/O error|database error|network error): /i, "").trim();
+  let stripped = message.trim();
+  for (let i = 0; i < 3 && CATEGORY_PREFIX.test(stripped); i++) stripped = stripped.replace(CATEGORY_PREFIX, "").trim();
   return stripped ? stripped.charAt(0).toUpperCase() + stripped.slice(1) : message;
 }
 

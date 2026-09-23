@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { Blocks, FolderOpen, PanelRight, Plus, RotateCw } from "lucide-react";
-import "../../styles/views/plugins.css";
 import { isDesktopRuntime, openPluginsFolder } from "../../lib/ipc";
 import { usePluginsStore } from "../../lib/pluginsStore";
 import { getPluginHost } from "../../lib/plugins/host";
@@ -21,6 +20,7 @@ function PanelsArea() {
   const panels = usePluginsStore((s) => s.panels);
   const activePanelId = usePluginsStore((s) => s.activePanelId);
   const setActivePanel = usePluginsStore((s) => s.setActivePanel);
+  const addLog = usePluginsStore((s) => s.addLog);
 
   const withPanels = useMemo(() => plugins.filter((p) => panels[p.manifest.id]), [plugins, panels]);
   const active = withPanels.find((p) => p.manifest.id === activePanelId) ?? withPanels[0];
@@ -51,6 +51,7 @@ function PanelsArea() {
             label={`${active.manifest.name} panel`}
             nodes={panels[active.manifest.id]}
             onAction={(actionId) => getPluginHost().sendPanelAction(active.manifest.id, actionId)}
+            onError={(problem) => addLog(active.manifest.id, "error", `Panel could not be displayed: ${problem}`)}
           />
         </div>
       ) : (
@@ -150,7 +151,6 @@ export function PluginsView() {
     <div className="view plugins-view">
       <ViewHeader
         title="Plugins"
-        icon={Blocks}
         subtitle={subtitle}
         actions={
           desktop && (

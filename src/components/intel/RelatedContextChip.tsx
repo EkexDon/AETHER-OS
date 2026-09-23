@@ -3,7 +3,6 @@ import { Tooltip, cx } from "../../ui";
 import { useAetherStore } from "../../lib/store";
 import { useIntelStore } from "../../lib/intelStore";
 import { noteNameFromPath } from "../../lib/intel/noteEdits";
-import "../../styles/views/intel.css";
 
 /**
  * Suggestions chip in the agent's context bar: one click focuses the chat
@@ -43,7 +42,7 @@ export function RelatedContextChip() {
         aria-pressed={active}
         aria-label={tip}
       >
-        <Sparkles size={11} aria-hidden="true" />
+        <Sparkles size={14} aria-hidden="true" />
         {related.length} related
       </button>
     </Tooltip>

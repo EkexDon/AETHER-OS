@@ -24,13 +24,14 @@ pub mod site;
 
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
 use crate::engine::error::AetherError;
+use crate::engine::fs_guard;
 
 /// Event name used for progress updates of long-running exports.
 pub const PROGRESS_EVENT: &str = "export-progress";
@@ -117,6 +118,10 @@ pub struct ExportOptions {
     /// Allow the destination to be inside the vault (off by default so an
     /// export never ends up indexed as notes).
     pub allow_inside_vault: bool,
+    /// Replace an existing output file (HTML page, bundle). Off by default:
+    /// a file export never overwrites an existing file unless the user
+    /// explicitly confirmed it.
+    pub overwrite: bool,
 }
 
 impl Default for ExportOptions {
@@ -133,6 +138,7 @@ impl Default for ExportOptions {
             cname: String::new(),
             include_mermaid_script: false,
             allow_inside_vault: false,
+            overwrite: false,
         }
     }
 }
@@ -1357,6 +1363,12 @@ pub fn check_output_path(
     } else {
         resolved
     };
+    if fs_guard::has_git_component(&resolved) || fs_guard::is_system_location(&parent) {
+        return Err(AetherError::InvalidInput(format!(
+            "the destination cannot be inside a .git or system folder: {}",
+            resolved.display()
+        )));
+    }
     let vault = std::fs::canonicalize(vault_root).unwrap_or_else(|_| vault_root.to_path_buf());
     if resolved == vault {
         return Err(AetherError::InvalidInput(
@@ -1375,6 +1387,57 @@ pub fn check_output_path(
         ));
     }
     Ok(resolved)
+}
+
+/// Validate the output *file* of an HTML page or bundle export. `.ext` is
+/// appended first (so the checks see the final name), then
+/// [`check_output_path`] applies; the destination must not contain `.`/`..`,
+/// be a folder or a symbolic link, and an existing file is only replaced
+/// when `overwrite` is set.
+pub fn check_output_file(
+    out: &str,
+    ext: &str,
+    vault_root: &Path,
+    allow_inside_vault: bool,
+    overwrite: bool,
+) -> Result<PathBuf, AetherError> {
+    let trimmed = out.trim();
+    let raw = Path::new(trimmed);
+    if raw
+        .components()
+        .any(|c| matches!(c, Component::ParentDir | Component::CurDir))
+    {
+        return Err(AetherError::InvalidInput(format!(
+            "the destination must not contain '.' or '..': {trimmed}"
+        )));
+    }
+    let wanted = with_extension(raw.to_path_buf(), ext);
+    // Look at the final component itself (check_output_path would follow a
+    // symlink): writing through a link could replace a file elsewhere.
+    if let (Some(parent), Some(name)) = (wanted.parent(), wanted.file_name()) {
+        if let Ok(parent) = std::fs::canonicalize(parent) {
+            if std::fs::symlink_metadata(parent.join(name))
+                .is_ok_and(|m| m.file_type().is_symlink())
+            {
+                return Err(AetherError::InvalidInput(format!(
+                    "the destination is a symbolic link: {}",
+                    wanted.display()
+                )));
+            }
+        }
+    }
+    let resolved = check_output_path(&wanted.to_string_lossy(), vault_root, allow_inside_vault)?;
+    match std::fs::symlink_metadata(&resolved) {
+        Ok(meta) if meta.is_dir() => Err(AetherError::InvalidInput(format!(
+            "the destination is a folder: {}",
+            resolved.display()
+        ))),
+        Ok(_) if !overwrite => Err(AetherError::InvalidInput(format!(
+            "{} already exists. Choose another name or confirm replacing it (overwrite)",
+            resolved.display()
+        ))),
+        _ => Ok(resolved),
+    }
 }
 
 /// Ensure `path` ends with `.ext` (case-insensitive), appending it if not.
@@ -1872,6 +1935,44 @@ mod tests {
         );
     }
 
+    /// Table: good path, existing file without / with `overwrite`, `..`
+    /// path, folder, symlink escape.
+    #[test]
+    fn output_files_never_overwrite_without_the_flag() {
+        let vault = tempdir().expect("vault");
+        let out = tempdir().expect("out");
+        let dir = std::fs::canonicalize(out.path()).expect("canonical");
+        std::fs::write(dir.join("taken.html"), "old").expect("write");
+        std::fs::create_dir(dir.join("folder.html")).expect("mkdir");
+        let check = |p: &Path, overwrite: bool| {
+            check_output_file(&p.to_string_lossy(), "html", vault.path(), false, overwrite)
+        };
+        assert_eq!(
+            check(&dir.join("new"), false).expect("new"),
+            dir.join("new.html")
+        );
+        let err = check(&dir.join("taken.html"), false).expect_err("exists");
+        assert!(err.to_string().contains("already exists"));
+        assert!(
+            check(&dir.join("taken"), false).is_err(),
+            "extension is added first"
+        );
+        assert_eq!(
+            check(&dir.join("taken.html"), true).expect("overwrite"),
+            dir.join("taken.html")
+        );
+        assert!(check(&dir.join("sub/../new.html"), false).is_err());
+        assert!(check(&dir.join("folder.html"), true).is_err());
+        #[cfg(unix)]
+        {
+            let target = vault.path().join("note.md.html");
+            std::fs::write(&target, "keep").expect("write");
+            std::os::unix::fs::symlink(&target, dir.join("link.html")).expect("symlink");
+            assert!(check(&dir.join("link.html"), true).is_err());
+            assert_eq!(std::fs::read_to_string(&target).expect("read"), "keep");
+        }
+    }
+
     #[test]
     fn output_paths_outside_vault_only_by_default() {
         let vault = tempdir().expect("vault");
@@ -1896,6 +1997,9 @@ mod tests {
         let ok = out.path().join("out.html").to_string_lossy().to_string();
         let resolved = check_output_path(&ok, vault.path(), false).expect("ok");
         assert!(resolved.ends_with("out.html"));
+        std::fs::create_dir(out.path().join(".git")).expect("mkdir");
+        let in_git = out.path().join(".git/out").to_string_lossy().to_string();
+        assert!(check_output_path(&in_git, vault.path(), false).is_err());
         assert_eq!(
             with_extension(PathBuf::from("/a/b"), "zip"),
             PathBuf::from("/a/b.zip")

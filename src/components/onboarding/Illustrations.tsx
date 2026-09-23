@@ -52,10 +52,10 @@ function WelcomeIllustration() {
         </div>
         <div className="ob-mini-body">
           <div className="ob-mini-rail">
-            <NotebookPen size={12} />
-            <Waypoints size={12} />
-            <CodeXml size={12} />
-            <CalendarDays size={12} />
+            <NotebookPen size={14} />
+            <Waypoints size={14} />
+            <CodeXml size={14} />
+            <CalendarDays size={14} />
           </div>
           <div className="ob-mini-note">
             <span className="ob-illus-heading" />
@@ -65,7 +65,7 @@ function WelcomeIllustration() {
           <div className="ob-mini-agent">
             <span className="ob-mini-bubble is-user" />
             <span className="ob-mini-bubble">
-              <Sparkles size={11} />
+              <Sparkles size={14} />
             </span>
           </div>
         </div>
@@ -77,11 +77,11 @@ function WelcomeIllustration() {
 /** A folder tree turning into linked notes. */
 function VaultIllustration() {
   const rows: { icon: ReactNode; label: string; depth: number; accent?: boolean }[] = [
-    { icon: <FolderClosed size={12} />, label: "AETHER Vault", depth: 0 },
-    { icon: <FileText size={12} />, label: "Welcome.md", depth: 1, accent: true },
-    { icon: <FolderClosed size={12} />, label: "daily", depth: 1 },
-    { icon: <FolderClosed size={12} />, label: "Projects", depth: 1 },
-    { icon: <FolderClosed size={12} />, label: "Resources", depth: 1 },
+    { icon: <FolderClosed size={14} />, label: "AETHER Vault", depth: 0 },
+    { icon: <FileText size={14} />, label: "Welcome.md", depth: 1, accent: true },
+    { icon: <FolderClosed size={14} />, label: "daily", depth: 1 },
+    { icon: <FolderClosed size={14} />, label: "Projects", depth: 1 },
+    { icon: <FolderClosed size={14} />, label: "Resources", depth: 1 },
   ];
   return (
     <Frame variant="vault">
@@ -117,7 +117,7 @@ function AiIllustration() {
       </div>
       <div className="ob-link-line">
         <span className="ob-link-badge">
-          <Lock size={11} /> localhost:11434
+          <Lock size={14} /> localhost:11434
         </span>
       </div>
       <div className="ob-node-card is-accent">
@@ -155,7 +155,7 @@ function EmbeddingsIllustration() {
         ))}
       </div>
       <div className="ob-query-pill">
-        <Search size={12} /> ideas about sleep
+        <Search size={14} /> ideas about sleep
       </div>
     </Frame>
   );

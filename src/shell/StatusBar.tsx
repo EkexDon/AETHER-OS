@@ -29,7 +29,7 @@ export function StatusBar() {
   const right = useStatusItems("right");
   const resolved = useThemeStore((s) => s.resolved);
   const toggleTheme = useThemeStore((s) => s.toggle);
-  const toggleCommandBar = useShellStore((s) => s.toggleCommandBar);
+  const toggleLauncher = useShellStore((s) => s.toggleLauncher);
   const toggleShortcuts = useShellStore((s) => s.toggleShortcuts);
 
   return (
@@ -41,14 +41,14 @@ export function StatusBar() {
       <div className="statusbar-section">
         <Items items={right} />
         <Tooltip content="Command palette" placement="top">
-          <button type="button" className="statusbar-item" onClick={toggleCommandBar}>
+          <button type="button" className="statusbar-item" onClick={toggleLauncher}>
             <span className="statusbar-muted">Commands</span>
             <Kbd shortcut="mod+k" />
           </button>
         </Tooltip>
         <Tooltip content="Keyboard shortcuts" shortcut="mod+/" placement="top">
           <button type="button" className="statusbar-item statusbar-icon" onClick={toggleShortcuts} aria-label="Keyboard shortcuts">
-            <Keyboard size={13} />
+            <Keyboard size={14} />
           </button>
         </Tooltip>
         <Tooltip
@@ -62,7 +62,7 @@ export function StatusBar() {
             onClick={toggleTheme}
             aria-label={resolved === "dark" ? "Switch to light theme" : "Switch to dark theme"}
           >
-            {resolved === "dark" ? <Moon size={13} /> : <Sun size={13} />}
+            {resolved === "dark" ? <Moon size={14} /> : <Sun size={14} />}
           </button>
         </Tooltip>
       </div>

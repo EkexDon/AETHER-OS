@@ -5,9 +5,11 @@
 //!
 //! * `<data_dir>/onboarding.json` — wizard state
 //!   (`{ completed_at, version_seen, skipped_steps }`).
-//! * `<data_dir>/vault_prefs.json` — daily-note folder and filename pattern.
-//!   Forward-looking: today only the starter vault layout uses it; the vault
-//!   reader keeps writing daily notes to `daily/YYYY-MM-DD.md`.
+//! * `<data_dir>/vault_prefs.json` — daily-note folder and filename pattern,
+//!   used by the starter vault layout and by the vault reader for quick
+//!   capture / "add to today" (default `daily/YYYY-MM-DD.md`).
+//! * `<data_dir>/general_prefs.json` — general app preferences (confirm
+//!   before quitting while terminal sessions are running).
 //! * Starter vault creation (useful notes explaining wikilinks, tags, tasks)
 //!   and detection of existing Obsidian / NoPes / plain Markdown vaults.
 //! * A small system profile (RAM, cores, arch) for the model recommendation.
@@ -40,6 +42,8 @@ use crate::engine::error::AetherError;
 pub const STATE_FILE: &str = "onboarding.json";
 /// Vault preferences file inside the app data directory.
 pub const VAULT_PREFS_FILE: &str = "vault_prefs.json";
+/// General preferences file inside the app data directory.
+pub const GENERAL_PREFS_FILE: &str = "general_prefs.json";
 /// The changelog bundled at compile time (repo root `CHANGELOG.md`).
 pub const CHANGELOG: &str = include_str!("../../../CHANGELOG.md");
 /// Local Ollama endpoint. Pulls never go anywhere else.
@@ -172,7 +176,8 @@ impl OnboardingState {
 pub struct VaultPrefs {
     /// Vault-relative folder for daily notes (`""` = vault root).
     pub daily_folder: String,
-    /// File name pattern without `.md`; tokens `YYYY`, `MM`, `DD`.
+    /// File name pattern without `.md`; tokens `YYYY`, `MM`, `DD`. `/`
+    /// separates sub-folders (`YYYY/MM/YYYY-MM-DD`), created on demand.
     pub daily_filename_pattern: String,
 }
 
@@ -236,12 +241,21 @@ impl VaultPrefs {
             .replace("DD", "");
         if !rest
             .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.'))
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.' | '/'))
         {
             return Err(AetherError::InvalidInput(
-                "daily note file name pattern may only contain letters, digits, spaces, '-', '_' and '.'"
+                "daily note file name pattern may only contain letters, digits, spaces, '-', '_', '.' and '/'"
                     .to_owned(),
             ));
+        }
+        // `/` separates sub-folders: every segment must be a plain name.
+        if pattern
+            .split('/')
+            .any(|segment| segment.trim().is_empty() || segment.starts_with('.'))
+        {
+            return Err(AetherError::InvalidInput(format!(
+                "invalid daily note file name pattern: {pattern} (sub-folders must have a name and cannot start with '.')"
+            )));
         }
         Ok(Self {
             daily_folder: folder,
@@ -249,7 +263,8 @@ impl VaultPrefs {
         })
     }
 
-    /// File name (with `.md`) of the daily note for `date`.
+    /// File name (with `.md`) of the daily note for `date`; contains `/` when
+    /// the pattern has sub-folders.
     pub fn daily_file_name(&self, date: NaiveDate) -> String {
         let name = self
             .daily_filename_pattern
@@ -261,12 +276,12 @@ impl VaultPrefs {
 
     /// Vault-relative path of the daily note for `date`.
     pub fn daily_rel_path(&self, date: NaiveDate) -> PathBuf {
-        let file = self.daily_file_name(date);
-        if self.daily_folder.is_empty() {
-            PathBuf::from(file)
-        } else {
-            Path::new(&self.daily_folder).join(file)
+        let mut path = PathBuf::new();
+        if !self.daily_folder.is_empty() {
+            path.extend(self.daily_folder.split('/'));
         }
+        path.extend(self.daily_file_name(date).split('/'));
+        path
     }
 
     /// Wikilink target of the daily note for `date` (no `.md`).
@@ -276,6 +291,39 @@ impl VaultPrefs {
             .replace('\\', "/")
             .trim_end_matches(".md")
             .to_owned()
+    }
+}
+
+/// Read `<data_dir>/vault_prefs.json`; defaults when missing, unreadable
+/// JSON or invalid (a corrupt file must never break daily notes).
+pub fn read_vault_prefs(data_dir: &Path) -> Result<VaultPrefs, AetherError> {
+    let path = data_dir.join(VAULT_PREFS_FILE);
+    if !path.exists() {
+        return Ok(VaultPrefs::default());
+    }
+    let raw = fs::read_to_string(&path)?;
+    Ok(serde_json::from_str::<VaultPrefs>(&raw)
+        .ok()
+        .and_then(|p| p.validated().ok())
+        .unwrap_or_default())
+}
+
+// ── General preferences ─────────────────────────────────────────
+
+/// General app preferences (`general_prefs.json`). Missing fields take
+/// their defaults, so older files keep working.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct GeneralPrefs {
+    /// Ask before quitting while terminal sessions are still running.
+    pub confirm_quit_with_terminals: bool,
+}
+
+impl Default for GeneralPrefs {
+    fn default() -> Self {
+        Self {
+            confirm_quit_with_terminals: true,
+        }
     }
 }
 
@@ -353,21 +401,29 @@ impl OnboardingEngine {
 
     /// Current vault preferences (defaults when unset or unreadable).
     pub fn get_vault_prefs(&self) -> Result<VaultPrefs, AetherError> {
-        let path = self.data_dir.join(VAULT_PREFS_FILE);
-        if !path.exists() {
-            return Ok(VaultPrefs::default());
-        }
-        let raw = fs::read_to_string(&path)?;
-        Ok(serde_json::from_str::<VaultPrefs>(&raw)
-            .ok()
-            .and_then(|p| p.validated().ok())
-            .unwrap_or_default())
+        read_vault_prefs(&self.data_dir)
     }
 
     /// Validate and persist vault preferences; returns what was stored.
     pub fn set_vault_prefs(&self, prefs: VaultPrefs) -> Result<VaultPrefs, AetherError> {
         let prefs = prefs.validated()?;
         write_json_atomic(&self.data_dir.join(VAULT_PREFS_FILE), &prefs)?;
+        Ok(prefs)
+    }
+
+    /// Current general preferences (defaults when unset or unreadable).
+    pub fn get_general_prefs(&self) -> Result<GeneralPrefs, AetherError> {
+        let path = self.data_dir.join(GENERAL_PREFS_FILE);
+        if !path.exists() {
+            return Ok(GeneralPrefs::default());
+        }
+        let raw = fs::read_to_string(&path)?;
+        Ok(serde_json::from_str::<GeneralPrefs>(&raw).unwrap_or_default())
+    }
+
+    /// Persist general preferences; returns what was stored.
+    pub fn set_general_prefs(&self, prefs: GeneralPrefs) -> Result<GeneralPrefs, AetherError> {
+        write_json_atomic(&self.data_dir.join(GENERAL_PREFS_FILE), &prefs)?;
         Ok(prefs)
     }
 
@@ -1170,6 +1226,7 @@ fn describe_entry(name: &str) -> &'static str {
         "crash-reports" => "Local crash reports",
         STATE_FILE => "Setup wizard progress",
         VAULT_PREFS_FILE => "Daily note folder and file name pattern",
+        GENERAL_PREFS_FILE => "General preferences (quit confirmation)",
         "clipboard" => "Clipboard history",
         "search" => "Universal search index",
         "history" => "Note version history",
@@ -1265,6 +1322,8 @@ pub fn read_log_tail(data_dir: &Path, max_bytes: u64) -> Result<AppLogTail, Aeth
             None => String::new(),
         };
     }
+    // Lines written before redaction existed must not leak either.
+    let content = crate::engine::diagnostics::redact_secrets(&content).into_owned();
     Ok(AppLogTail {
         path: display,
         content,
@@ -1422,7 +1481,11 @@ mod tests {
             ("../outside", "YYYY-MM-DD"),
             (".hidden", "YYYY-MM-DD"),
             ("daily", "YYYY-MM"),
-            ("daily", "YYYY/MM/DD"),
+            ("daily", "YYYY/../MM-DD"),
+            ("daily", "/YYYY-MM-DD"),
+            ("daily", "YYYY//MM-DD"),
+            ("daily", "YYYY/.MM-DD"),
+            ("daily", "YYYY\\MM\\DD"),
             ("a:b", "YYYY-MM-DD"),
         ] {
             let result = VaultPrefs {
@@ -1441,6 +1504,74 @@ mod tests {
         assert_eq!(
             root.daily_rel_path(day(2026, 1, 5)),
             PathBuf::from("2026-01-05.md")
+        );
+    }
+
+    #[test]
+    fn vault_prefs_accept_nested_patterns() {
+        let nested = VaultPrefs {
+            daily_folder: "Journal".into(),
+            daily_filename_pattern: " YYYY/MM/YYYY-MM-DD ".into(),
+        }
+        .validated()
+        .expect("nested pattern is allowed");
+        assert_eq!(nested.daily_filename_pattern, "YYYY/MM/YYYY-MM-DD");
+        assert_eq!(
+            nested.daily_rel_path(day(2026, 9, 23)),
+            PathBuf::from("Journal")
+                .join("2026")
+                .join("09")
+                .join("2026-09-23.md")
+        );
+        assert_eq!(
+            nested.daily_link(day(2026, 9, 23)),
+            "Journal/2026/09/2026-09-23"
+        );
+
+        let by_day = VaultPrefs {
+            daily_folder: "".into(),
+            daily_filename_pattern: "YYYY/MM/DD".into(),
+        }
+        .validated()
+        .expect("YYYY/MM/DD is allowed");
+        assert_eq!(
+            by_day.daily_rel_path(day(2026, 1, 5)),
+            PathBuf::from("2026").join("01").join("05.md")
+        );
+    }
+
+    // ── general prefs ──
+
+    #[test]
+    fn general_prefs_default_to_confirming_and_persist() {
+        let dir = tempdir().expect("tmp");
+        let engine = OnboardingEngine::new(dir.path()).expect("engine");
+        assert!(
+            engine
+                .get_general_prefs()
+                .expect("get")
+                .confirm_quit_with_terminals
+        );
+
+        let stored = engine
+            .set_general_prefs(GeneralPrefs {
+                confirm_quit_with_terminals: false,
+            })
+            .expect("set");
+        assert!(!stored.confirm_quit_with_terminals);
+        let reopened = OnboardingEngine::new(dir.path()).expect("engine");
+        assert_eq!(reopened.get_general_prefs().expect("get"), stored);
+
+        // Missing fields and corrupt files fall back to the defaults.
+        fs::write(dir.path().join(GENERAL_PREFS_FILE), "{}").expect("write");
+        assert_eq!(
+            engine.get_general_prefs().expect("get"),
+            GeneralPrefs::default()
+        );
+        fs::write(dir.path().join(GENERAL_PREFS_FILE), "{ nope").expect("write");
+        assert_eq!(
+            engine.get_general_prefs().expect("get"),
+            GeneralPrefs::default()
         );
     }
 
@@ -1950,6 +2081,21 @@ mod tests {
         let full = read_log_tail(dir.path(), 10 * 1024 * 1024).expect("full");
         assert!(!full.truncated);
         assert!(full.content.starts_with("line 000"));
+    }
+
+    #[test]
+    fn the_log_tail_never_shows_api_keys() {
+        let dir = tempdir().expect("tmp");
+        fs::create_dir_all(dir.path().join("logs")).expect("mkdir");
+        let key = "sk-or-v1-00112233445566778899aabbccddeeff";
+        fs::write(
+            dir.path().join("logs/aether.log"),
+            format!("old line with {key}\n"),
+        )
+        .expect("write");
+        let tail = read_log_tail(dir.path(), 4096).expect("tail");
+        assert!(!tail.content.contains(key), "{}", tail.content);
+        assert!(tail.content.contains("sk-[REDACTED]"));
     }
 
     #[test]

@@ -145,11 +145,11 @@ ipc/plugins.ts ──▶ commands/plugins_commands.rs ──▶ engine/plugins.r
 
 ## Limitations
 
-- **Desktop CSP** — the Tauri CSP in `src-tauri/tauri.conf.json` must allow
-  blob workers and blob module imports (`worker-src 'self' blob:` and `blob:`
-  in `script-src`); until then plugin workers fail to start in the desktop
-  app with "The webview refused to start the plugin worker". The browser
-  preview is not affected.
+- **Desktop CSP** — resolved in v0.2: the Tauri CSP in
+  `src-tauri/tauri.conf.json` allows blob workers and blob module imports
+  (`worker-src 'self' blob:` and `blob:` in `script-src`), so plugin workers
+  start in the desktop app as in the browser preview. Removing either source
+  brings back "The webview refused to start the plugin worker".
 - Plugins are single-file modules (bundle multi-file code); relative imports
   do not resolve from a blob URL.
 - A plugin can still use CPU and memory freely until it is disabled; there
@@ -161,5 +161,5 @@ ipc/plugins.ts ──▶ commands/plugins_commands.rs ──▶ engine/plugins.r
   behind a paste prompt.
 - `net:fetch` is GET-only with exact host matches (no wildcards, no custom
   ports).
-- The bundled examples declare `minAppVersion: "0.1.0"` so they run on the
-  current build version; raise it once the app version is bumped.
+- The bundled examples declare `minAppVersion: "0.2.0"` (the current app
+  version); older builds refuse them.

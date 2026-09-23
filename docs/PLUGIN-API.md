@@ -374,6 +374,8 @@ own data. Hosts for `net:fetch` are matched exactly and only over HTTPS.
 | Command run | 180 s |
 | Commands per plugin | 20 |
 | Calls in flight | 64 |
+| Call parameters | 1 MB per call (5 MB for note content: `vault.write`, `notes.create`); larger payloads are rejected before validation |
+| Call rate | burst of 200 calls, then 100 calls/s per plugin (token bucket); excess calls fail with "Too many API calls — at most 100 per second; retry in N ms" |
 | Toasts | 5 per 10 s |
 | Storage | 1 MB per plugin |
 | Note read/write | 5 MB |
@@ -406,6 +408,9 @@ Each example exports its pure helpers (`countWords`, `upsertSection`,
 - **Plugin card** — status (*Running*, *Starting…*, *Failed*, *Disabled*,
   *Broken*), activation errors with **Retry**, the last warning or error
   your plugin reported, its registered commands (run them from the card).
+  The host keeps a per-plugin log of the last 20 entries (your `console`
+  warnings and errors, worker crashes, malformed messages, and a
+  "Rate limited" warning at most every 5 s).
 - **DevTools** — worker `console.*` output appears in the webview console;
   the host logs `[plugin <id>] …` lines for errors and warnings.
 - **Reload** — ⌥⇧⌘R ("Reload plugins") restarts every plugin after you

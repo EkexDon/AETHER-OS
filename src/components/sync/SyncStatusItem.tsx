@@ -4,7 +4,6 @@ import { useAetherStore } from "../../lib/store";
 import { retainSyncEvents, useSyncStore } from "../../lib/syncStore";
 import { progressPercent, relativeTime, statusSummary } from "../../lib/sync/format";
 import { Spinner, Tooltip } from "../../ui";
-import "../../styles/views/sync.css";
 import { SetupWizard } from "./SetupWizard";
 import { UnlockModal } from "./UnlockModal";
 
@@ -57,17 +56,17 @@ export function SyncStatusItem() {
   const off = !status || !status.configured || !status.enabled;
   const icon =
     status?.state === "syncing" ? (
-      <Spinner size={11} />
+      <Spinner size={14} />
     ) : off ? (
-      <CloudOff size={12} />
+      <CloudOff size={14} />
     ) : status.state === "locked" ? (
-      <Lock size={12} />
+      <Lock size={14} />
     ) : status.state === "error" ? (
-      <CloudAlert size={12} />
+      <CloudAlert size={14} />
     ) : status.conflicts > 0 ? (
-      <TriangleAlert size={12} />
+      <TriangleAlert size={14} />
     ) : (
-      <Cloud size={12} />
+      <Cloud size={14} />
     );
   const tooltip =
     status && status.configured && status.last_sync_at && status.state !== "syncing"

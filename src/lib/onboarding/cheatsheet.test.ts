@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildCheatSheet, collectShortcuts, filterShortcuts, withShortcutsOnly, type CommandLike } from "./cheatsheet";
+import { CONTEXT_SHORTCUTS } from "../../shell/ShortcutsOverlay";
 
 const COMMANDS: CommandLike[] = [
   { id: "app.commandPalette", title: "Command palette", group: "General", shortcut: "mod+k", keywords: ["launcher"] },
@@ -40,5 +41,12 @@ describe("shortcut cheat sheet", () => {
 
     const pc = buildCheatSheet(collectShortcuts(COMMANDS, EDITOR), { mac: false });
     expect(pc).toContain("| Command palette | `Ctrl+K` |");
+  });
+
+  it("lists the overlay's editor-local shortcuts by default", () => {
+    const groups = collectShortcuts([]);
+    expect(groups.map((g) => g.group)).toEqual(CONTEXT_SHORTCUTS.map((g) => g.group));
+    expect(groups[0].entries.map((e) => e.title)).toEqual(CONTEXT_SHORTCUTS[0].items.map((i) => i.title));
+    expect(groups.flatMap((g) => g.entries).every((e) => !e.runnable)).toBe(true);
   });
 });

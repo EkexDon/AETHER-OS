@@ -70,7 +70,7 @@ export const SearchField = forwardRef<HTMLInputElement, SearchFieldProps>(functi
       suffix={
         value ? (
           <button type="button" className="ui-search-clear" onClick={clear} aria-label="Clear search">
-            <X size={12} />
+            <X size={14} />
           </button>
         ) : shortcutHint ? (
           <Kbd shortcut={shortcutHint} />

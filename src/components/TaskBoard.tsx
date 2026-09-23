@@ -265,7 +265,7 @@ export function TaskBoard() {
 
           <IconButton
             label="Create New Project"
-            icon={<Plus size={15} />}
+            icon={<Plus size={16} />}
             onClick={() => {
               setEditingProject(null);
               setProjectModalOpen(true);
@@ -275,7 +275,7 @@ export function TaskBoard() {
           {activeProject && (
             <IconButton
               label="Project Settings"
-              icon={<Settings2 size={15} />}
+              icon={<Settings2 size={16} />}
               onClick={() => {
                 setEditingProject(activeProject);
                 setProjectModalOpen(true);
@@ -307,11 +307,11 @@ export function TaskBoard() {
         <div className="task-board-toolbar-right">
           {/* Search bar */}
           <div className="task-search-wrap">
-            <Search size={13} className="text-tertiary" />
+            <Search size={14} className="text-tertiary" />
             <input
               type="text"
               className="task-search-input"
-              placeholder="Filter tasks..."
+              placeholder="Filter tasks…"
               value={taskFilterQuery}
               onChange={(e) => setTaskFilterQuery(e.target.value)}
             />
@@ -331,7 +331,7 @@ export function TaskBoard() {
             value={taskFilterPriority ?? ""}
             onChange={(e) => setTaskFilterPriority(e.target.value || null)}
           >
-            <option value="">All Priorities</option>
+            <option value="">All priorities</option>
             {TASK_PRIORITIES.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.label}
@@ -346,7 +346,7 @@ export function TaskBoard() {
               value={taskFilterLabel ?? ""}
               onChange={(e) => setTaskFilterLabel(e.target.value || null)}
             >
-              <option value="">All Labels</option>
+              <option value="">All labels</option>
               {allLabels.map((l) => (
                 <option key={l} value={l}>
                   {l}
@@ -357,7 +357,7 @@ export function TaskBoard() {
 
           {/* New Task Button */}
           <Button variant="primary" size="sm" iconLeft={<Plus size={14} />} onClick={() => handleOpenNewTask("todo")}>
-            New Task
+            New task
           </Button>
         </div>
       </div>
@@ -396,7 +396,7 @@ export function TaskBoard() {
                       }}
                       title={`Add task to ${col.label}`}
                     >
-                      <Plus size={13} />
+                      <Plus size={14} />
                     </button>
                   </div>
 
@@ -407,7 +407,7 @@ export function TaskBoard() {
                         autoFocus
                         className="task-inline-add-input"
                         type="text"
-                        placeholder="Task title (Enter to add)..."
+                        placeholder="Task title, Enter to add"
                         value={quickAddTitle}
                         onChange={(e) => setQuickAddTitle(e.target.value)}
                         onKeyDown={(e) => {
@@ -469,7 +469,7 @@ export function TaskBoard() {
               <div className="task-col-status">Status</div>
               <div className="task-col-priority">Priority</div>
               <div className="task-col-labels">Labels</div>
-              <div className="task-col-due">Due Date</div>
+              <div className="task-col-due">Due date</div>
             </div>
             <div className="task-list-table-body">
               {filteredTasks.map((task) => {
@@ -483,7 +483,7 @@ export function TaskBoard() {
                     onClick={() => handleOpenTask(task)}
                   >
                     <div className="task-col-title">
-                      <CheckSquare size={13} className="text-tertiary" />
+                      <CheckSquare size={14} className="text-tertiary" />
                       <span className="task-row-title-text">{task.title}</span>
                     </div>
                     <div className="task-col-status">
@@ -515,7 +515,7 @@ export function TaskBoard() {
                     <div className="task-col-due">
                       {task.due_date ? (
                         <span className="task-card-due">
-                          <Clock size={11} /> {task.due_date}
+                          <Clock size={14} /> {task.due_date}
                         </span>
                       ) : (
                         <span className="text-tertiary">—</span>
@@ -613,7 +613,7 @@ function TaskCard({
 
           {checklistCount && (
             <span className="task-card-checklist" title="Checklist progress">
-              <CheckSquare size={10} /> {checklistCount.done}/{checklistCount.total}
+              <CheckSquare size={14} /> {checklistCount.done}/{checklistCount.total}
             </span>
           )}
 
@@ -622,7 +622,7 @@ function TaskCard({
               className={`task-card-due${isOverdue ? " overdue" : ""}`}
               title={isOverdue ? "Overdue" : "Due date"}
             >
-              <Clock size={10} /> {task.due_date}
+              <Clock size={14} /> {task.due_date}
             </span>
           )}
         </div>

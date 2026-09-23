@@ -4,7 +4,7 @@ import { Badge, IconButton, Spinner, cx } from "../../ui";
 import { actionLabel, describeAction } from "../../lib/agentActions";
 import type { ActionRun } from "../../lib/intelStore";
 import type { CommandOutput } from "../../types";
-import "../../styles/views/intel.css";
+import { splitTruncation } from "../../lib/intel/commandOutput";
 
 /** Terminal-styled, expandable output of a `run_command` action. */
 export function CommandOutputBlock({ output, defaultOpen = false }: { output: CommandOutput; defaultOpen?: boolean }) {
@@ -14,12 +14,15 @@ export function CommandOutputBlock({ output, defaultOpen = false }: { output: Co
     : output.exit_code === null
       ? "killed"
       : `exit ${output.exit_code}`;
+  const stdout = splitTruncation(output.stdout);
+  const stderr = splitTruncation(output.stderr);
+  const marker = stdout.marker ?? stderr.marker ?? (output.truncated ? "output truncated at 64 KiB" : null);
   return (
     <>
       <button type="button" className="intel-output-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
-        <ChevronRight size={11} style={{ transform: open ? "rotate(90deg)" : undefined }} aria-hidden="true" />
-        <SquareTerminal size={11} aria-hidden="true" />
-        Output · {status} · {output.duration_ms} ms
+        <ChevronRight size={14} style={{ transform: open ? "rotate(90deg)" : undefined }} aria-hidden="true" />
+        <SquareTerminal size={14} aria-hidden="true" />
+        Output · {status} · {output.duration_ms} ms{marker ? " · truncated" : ""}
       </button>
       {open && (
         <pre className="intel-terminal" aria-label="Command output">
@@ -27,10 +30,14 @@ export function CommandOutputBlock({ output, defaultOpen = false }: { output: Co
             {output.cwd} $ {output.command}
             {"\n"}
           </span>
-          {output.stdout}
-          {output.stderr && <span className="intel-terminal-stderr">{output.stderr}</span>}
-          {!output.stdout && !output.stderr && <span className="intel-terminal-meta">(no output){"\n"}</span>}
-          {output.truncated && <span className="intel-terminal-meta">{"\n"}[output truncated at 64 KB]</span>}
+          {stdout.text}
+          {stderr.text && <span className="intel-terminal-stderr">{stderr.text}</span>}
+          {!stdout.text && !stderr.text && <span className="intel-terminal-meta">(no output){"\n"}</span>}
+          {marker && (
+            <span className="intel-terminal-truncated" role="note">
+              {"\n"}— {marker.charAt(0).toUpperCase() + marker.slice(1)}. The full output was not kept. —
+            </span>
+          )}
         </pre>
       )}
     </>
@@ -40,17 +47,17 @@ export function CommandOutputBlock({ output, defaultOpen = false }: { output: Co
 function StatusIcon({ run }: { run: ActionRun }) {
   switch (run.status) {
     case "running":
-      return <Spinner size={12} label="Running" />;
+      return <Spinner size={14} label="Running" />;
     case "done":
-      return <Check size={13} aria-label="Done" />;
+      return <Check size={14} aria-label="Done" />;
     case "error":
-      return <X size={13} aria-label="Failed" />;
+      return <X size={14} aria-label="Failed" />;
     case "denied":
-      return <Ban size={12} aria-label="Denied" />;
+      return <Ban size={14} aria-label="Denied" />;
     case "awaiting":
-      return <ShieldAlert size={13} aria-label="Waiting for approval" />;
+      return <ShieldAlert size={14} aria-label="Waiting for approval" />;
     default:
-      return <CircleDashed size={12} aria-label="Queued" />;
+      return <CircleDashed size={14} aria-label="Queued" />;
   }
 }
 
@@ -61,14 +68,14 @@ export function ActionRunList({ runs, onClear }: { runs: ActionRun[]; onClear?: 
   return (
     <div className="intel-runs" aria-label="Agent actions">
       <div className="intel-runs-header">
-        <Wrench size={12} aria-hidden="true" />
+        <Wrench size={14} aria-hidden="true" />
         <span>Tools used ({runs.length})</span>
         {onClear && !busy && (
           <IconButton
             className="intel-runs-clear"
             size="sm"
             label="Clear tool results"
-            icon={<X size={12} />}
+            icon={<X size={14} />}
             onClick={onClear}
           />
         )}

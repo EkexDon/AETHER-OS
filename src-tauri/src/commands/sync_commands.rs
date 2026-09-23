@@ -27,13 +27,15 @@ use crate::engine::sync::{
 use crate::engine::vault_reader::VaultReader;
 use crate::AppState;
 
-/// Build the engine for `AppState`: forwards engine events to the webview,
-/// unlocks from the opt-in key file in the background, starts the sync /
-/// backup loop and forgets the key when the main window is destroyed.
-pub fn init_sync(app: &tauri::AppHandle, data_dir: &Path) -> Result<Arc<SyncEngine>, AetherError> {
-    // VaultReader is stateless (it reads the vault config on every call), so
-    // a dedicated instance behaves exactly like the shared one.
-    let vault = Arc::new(VaultReader::new(data_dir)?);
+/// Build the engine for `AppState` on the shared vault reader: forwards
+/// engine events to the webview, unlocks from the opt-in key file in the
+/// background, starts the sync / backup loop and forgets the key when the
+/// main window is destroyed.
+pub fn init_sync(
+    app: &tauri::AppHandle,
+    data_dir: &Path,
+    vault: Arc<VaultReader>,
+) -> Result<Arc<SyncEngine>, AetherError> {
     let engine = Arc::new(SyncEngine::new(data_dir, vault)?);
     let handle = app.clone();
     engine.set_emitter(Arc::new(move |event| match event {

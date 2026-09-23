@@ -23,7 +23,6 @@ import { AiStep } from "./steps/AiStep";
 import { EmbeddingsStep } from "./steps/EmbeddingsStep";
 import { TourStep } from "./steps/TourStep";
 import { DoneStep } from "./steps/DoneStep";
-import "../../styles/views/onboarding.css";
 
 /** Heading and one-paragraph explanation per step. */
 export const STEP_COPY: Record<WizardStepId, { title: string; lead: string }> = {
@@ -100,7 +99,7 @@ function ResumePill() {
         <span className="ob-resume-text">
           Setup paused · step {current} of {total}
         </span>
-        <Button size="sm" variant="primary" iconLeft={<Play size={12} />} onClick={resume}>
+        <Button size="sm" variant="primary" iconLeft={<Play size={14} />} onClick={resume}>
           Resume setup
         </Button>
       </div>
@@ -243,7 +242,7 @@ export function OnboardingWizard() {
                       onClick={() => dispatch({ type: "goto", step: s })}
                     >
                       <span className="ob-step-index" aria-hidden="true">
-                        {done ? <Check size={11} strokeWidth={3} /> : i + 1}
+                        {done ? <Check size={14} strokeWidth={3} /> : i + 1}
                       </span>
                       <span className="ob-step-name">{WIZARD_STEP_TITLES[s]}</span>
                       {skipped && <span className="ob-step-tag">Skipped</span>}

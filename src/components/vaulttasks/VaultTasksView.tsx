@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Columns3, FilterX, FolderOpen, LayoutList, ListChecks, NotebookText, RefreshCw, SearchX } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
-import "../../styles/views/vaulttasks.css";
 import {
   Badge,
   Button,
@@ -156,7 +155,6 @@ export function VaultTasksView() {
   const header = (
     <ViewHeader
       title="Note Tasks"
-      icon={ListChecks}
       subtitle={subtitle}
       actions={
         <>

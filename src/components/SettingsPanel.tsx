@@ -53,7 +53,7 @@ export function SettingsPanel({
                   aria-current={selected ? "page" : undefined}
                   onClick={() => select(s.id)}
                 >
-                  <Icon size={15} />
+                  <Icon size={16} />
                   <span>{s.title}</span>
                 </button>
               );

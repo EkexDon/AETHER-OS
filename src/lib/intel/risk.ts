@@ -9,7 +9,12 @@
  */
 import type { ActionRisk, AgentAction, AgentActionKind } from "../../types";
 
-const RISK: Record<AgentActionKind, ActionRisk> = {
+/**
+ * Risk class of every action kind the agent may emit. A parity test
+ * (`risk.test.ts`) parses `action_risk` in Rust and fails when a kind is
+ * missing here or classified differently.
+ */
+export const ACTION_RISKS: Readonly<Record<AgentActionKind, ActionRisk>> = {
   create_note: "safe",
   append_note: "safe",
   append_daily: "safe",
@@ -30,9 +35,14 @@ const RISK: Record<AgentActionKind, ActionRisk> = {
   run_command: "dangerous",
 };
 
-/** Risk of an action; unknown kinds (from a newer model prompt) are treated as dangerous. */
+/**
+ * Risk of an action; unknown kinds (from a newer model prompt, a typo, or
+ * `__proto__`-style keys) are treated as dangerous.
+ */
 export function actionRisk(action: AgentAction): ActionRisk {
-  return RISK[action.action] ?? "dangerous";
+  const kind = (action as { action?: unknown } | null)?.action;
+  if (typeof kind !== "string" || !Object.prototype.hasOwnProperty.call(ACTION_RISKS, kind)) return "dangerous";
+  return ACTION_RISKS[kind as AgentActionKind];
 }
 
 /** True when the action must not run without the user's approval. */

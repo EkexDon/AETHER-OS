@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle, ShieldAlert } from "lucide-react";
 import { Badge, Button, Modal, Spinner, Switch, cx } from "../../ui";
 import { describeAction } from "../../lib/agentActions";
 import { allowToggleLabel } from "../../lib/intel/risk";
+import { hasHiddenCharacters, revealHidden } from "../../lib/intel/hidden";
 import { previewAgentAction } from "../../lib/ipc";
 import { useIntelStore, type ApprovalItem } from "../../lib/intelStore";
 import type { ActionPreview, AgentAction } from "../../types";
-import "../../styles/views/intel.css";
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -43,6 +43,58 @@ export function approvalTitle(action: AgentAction): string {
 
 const orDash = (v: string | null | undefined) => (v === null || v === undefined || v === "" ? "—" : v);
 
+/**
+ * Security-relevant text (commands, paths, messages): never truncated,
+ * and invisible or direction-changing characters are shown as `U+XXXX`
+ * markers so nothing can hide on screen.
+ */
+function Exact({ text }: { text: string }) {
+  return (
+    <>
+      {revealHidden(text).map((part, i) =>
+        part.kind === "text" ? (
+          part.text
+        ) : (
+          <span key={i} className="intel-hidden-char" title={part.name}>
+            {part.code}
+          </span>
+        )
+      )}
+    </>
+  );
+}
+
+/** Code block for commands and messages. */
+function Code({ text }: { text: string }) {
+  return (
+    <code className="intel-code">
+      <Exact text={text} />
+    </code>
+  );
+}
+
+/** A path in mono, wrapped (never ellipsised). */
+function PathText({ text }: { text: string }) {
+  return (
+    <span className="intel-path">
+      <Exact text={text} />
+    </span>
+  );
+}
+
+/** Every string of an action (recursively), for the hidden-character check. */
+function actionStrings(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(actionStrings);
+  if (value && typeof value === "object") return Object.values(value).flatMap(actionStrings);
+  return [];
+}
+
+/** True when any field of the action contains characters {@link Exact} would reveal. */
+export function actionHasHiddenText(action: AgentAction): boolean {
+  return actionStrings(action).some(hasHiddenCharacters);
+}
+
 /** The full details of an action, command text in mono, paths resolved. */
 function ActionFields({ action, preview }: { action: AgentAction; preview: ActionPreview | undefined }) {
   const target = preview?.target ?? null;
@@ -51,10 +103,10 @@ function ActionFields({ action, preview }: { action: AgentAction; preview: Actio
       return (
         <dl className="intel-approval-fields">
           <Field label="Command">
-            <code className="intel-code">{action.command}</code>
+            <Code text={action.command} />
           </Field>
           <Field label="Directory">
-            <span className="intel-path">{target ?? (action.cwd || "the vault")}</span>
+            <PathText text={target ?? (action.cwd || "the vault")} />
           </Field>
         </dl>
       );
@@ -62,7 +114,7 @@ function ActionFields({ action, preview }: { action: AgentAction; preview: Actio
       return (
         <dl className="intel-approval-fields">
           <Field label="Note">
-            <span className="intel-path">{target ?? action.path}</span>
+            <PathText text={target ?? action.path} />
           </Field>
         </dl>
       );
@@ -70,10 +122,10 @@ function ActionFields({ action, preview }: { action: AgentAction; preview: Actio
       return (
         <dl className="intel-approval-fields">
           <Field label="From">
-            <span className="intel-path">{target ?? action.from}</span>
+            <PathText text={target ?? action.from} />
           </Field>
           <Field label="To">
-            <span className="intel-path">{action.to}</span>
+            <PathText text={action.to} />
           </Field>
         </dl>
       );
@@ -81,10 +133,10 @@ function ActionFields({ action, preview }: { action: AgentAction; preview: Actio
       return (
         <dl className="intel-approval-fields">
           <Field label="Repository">
-            <span className="intel-path">{target ?? action.project_path}</span>
+            <PathText text={target ?? action.project_path} />
           </Field>
           <Field label="Message">
-            <code className="intel-code">{action.message}</code>
+            <Code text={action.message} />
           </Field>
         </dl>
       );
@@ -92,7 +144,7 @@ function ActionFields({ action, preview }: { action: AgentAction; preview: Actio
       return (
         <dl className="intel-approval-fields">
           <Field label="Note">
-            <span className="intel-path">{target ?? action.note_path}</span>
+            <PathText text={target ?? action.note_path} />
           </Field>
           <Field label="Line">{action.line}</Field>
         </dl>
@@ -106,9 +158,9 @@ function ActionFields({ action, preview }: { action: AgentAction; preview: Actio
       return (
         <dl className="intel-approval-fields">
           <Field label="Event">
-            <span className="intel-path">{action.id}</span>
+            <PathText text={action.id} />
           </Field>
-          <Field label="Changes">{changes.length ? changes.join(" · ") : "—"}</Field>
+          <Field label="Changes">{changes.length ? <Exact text={changes.join(" · ")} /> : "—"}</Field>
         </dl>
       );
     }
@@ -116,7 +168,7 @@ function ActionFields({ action, preview }: { action: AgentAction; preview: Actio
       return (
         <dl className="intel-approval-fields">
           <Field label="Event">
-            <span className="intel-path">{action.id}</span>
+            <PathText text={action.id} />
           </Field>
           <Field label="Effect">Deleted permanently</Field>
         </dl>
@@ -125,7 +177,7 @@ function ActionFields({ action, preview }: { action: AgentAction; preview: Actio
       return (
         <dl className="intel-approval-fields">
           <Field label="File">
-            <span className="intel-path">{action.path}</span>
+            <PathText text={action.path} />
           </Field>
           <Field label="Existing events">{action.overwrite_existing ? "Overwritten on conflict" : "Kept"}</Field>
           <Field label="Color">{orDash(action.default_color)}</Field>
@@ -134,8 +186,11 @@ function ActionFields({ action, preview }: { action: AgentAction; preview: Actio
     default:
       return (
         <dl className="intel-approval-fields">
+          <Field label="Action">
+            <PathText text={String((action as { action?: unknown }).action ?? "unknown")} />
+          </Field>
           <Field label="Payload">
-            <code className="intel-code">{JSON.stringify(action, null, 2)}</code>
+            <Code text={JSON.stringify(action, null, 2)} />
           </Field>
         </dl>
       );
@@ -156,6 +211,8 @@ export function ApprovalModal() {
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [remember, setRemember] = useState(false);
   const [previews, setPreviews] = useState<Record<string, ActionPreview | "loading">>({});
+  /** The safe choice gets focus first — never the "always allow" switch or Approve. */
+  const denyRef = useRef<HTMLButtonElement>(null);
 
   const current: ApprovalItem | undefined = useMemo(
     () => approvals.find((a) => a.runId === currentId) ?? approvals[0],
@@ -199,8 +256,9 @@ export function ApprovalModal() {
       icon={ShieldAlert}
       title={count > 1 ? `Approve ${count} agent actions` : "Approve agent action"}
       description="The agent wants to do something that changes or removes data. Nothing runs until you approve."
+      initialFocusRef={denyRef}
       footerStart={
-        <Button variant="ghost" onClick={count > 1 ? denyAll : deny}>
+        <Button ref={denyRef} variant="ghost" onClick={count > 1 ? denyAll : deny}>
           {count > 1 ? "Deny all" : "Deny"}
         </Button>
       }
@@ -231,9 +289,15 @@ export function ApprovalModal() {
             </Badge>
           </div>
           <ActionFields action={current.action} preview={preview} />
+          {actionHasHiddenText(current.action) && (
+            <div className="ui-notice ui-notice-danger" role="alert">
+              <AlertTriangle size={14} /> Contains invisible or direction-changing characters (shown as U+… markers). Deny
+              unless you expected them.
+            </div>
+          )}
           {rawPreview === "loading" && (
             <span className="intel-drawer-state">
-              <Spinner size={12} /> Checking what this touches…
+              <Spinner size={14} /> Checking what this touches…
             </span>
           )}
           {preview && preview.details.length > 0 && (
@@ -245,12 +309,12 @@ export function ApprovalModal() {
           )}
           {preview?.warnings.map((w) => (
             <div key={w} className="ui-notice ui-notice-danger" role="alert">
-              <AlertTriangle size={13} /> {w}
+              <AlertTriangle size={14} /> {w}
             </div>
           ))}
           {preview?.error && (
             <div className="ui-notice ui-notice-warning">
-              <AlertTriangle size={13} /> This will probably fail: {preview.error}
+              <AlertTriangle size={14} /> This will probably fail: {preview.error}
             </div>
           )}
           <Switch
@@ -278,7 +342,7 @@ export function ApprovalModal() {
                   onClick={() => setCurrentId(item.runId)}
                 >
                   <span className={cx("intel-risk-dot", item.risk === "dangerous" && "is-dangerous")} aria-hidden="true" />
-                  <span>{describeAction(item.action)}</span>
+                  <span title={describeAction(item.action)}>{describeAction(item.action)}</span>
                 </button>
               ))}
             </div>

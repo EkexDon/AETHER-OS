@@ -18,7 +18,7 @@ export function PinButton({ kind, target, label }: PinButtonProps) {
       size="sm"
       label={pinned ? `Unpin ${label}` : `Pin ${label}`}
       active={pinned}
-      icon={pinned ? <PinOff size={13} /> : <Pin size={13} />}
+      icon={pinned ? <PinOff size={14} /> : <Pin size={14} />}
       onClick={(e) => {
         e.stopPropagation();
         const store = usePinsStore.getState();

@@ -6,7 +6,6 @@ import { APP_VERSION } from "../../lib/onboarding/appVersion";
 import { releaseNotesFor, type ChangelogSection } from "../../lib/onboarding/changelog";
 import { useShellStore } from "../../shell/shellStore";
 import { Button, EmptyState, Modal, Spinner } from "../../ui";
-import "../../styles/views/onboarding.css";
 
 const ReleaseNotes = lazy(() => import("./ReleaseNotes"));
 

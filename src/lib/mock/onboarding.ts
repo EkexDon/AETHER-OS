@@ -16,6 +16,7 @@ import changelog from "../../../CHANGELOG.md?raw";
 import type {
   AppLogTail,
   DataLocation,
+  GeneralPrefs,
   OllamaPullProgress,
   OnboardingState,
   PullOutcome,
@@ -61,6 +62,7 @@ export const MOCK_DETECTED_VAULTS: VaultInfo[] = [
 interface OnboardingMockState {
   onboarding: OnboardingState;
   prefs: VaultPrefs;
+  general: GeneralPrefs;
   /** Vault folders created through the wizard. */
   created: Set<string>;
   pulls: Map<string, { cancelled: boolean }>;
@@ -96,6 +98,7 @@ function seed(fromStorage: boolean): OnboardingMockState {
   return {
     onboarding: (fromStorage ? readStored() : null) ?? { ...FIRST_RUN },
     prefs: { daily_folder: "daily", daily_filename_pattern: "YYYY-MM-DD" },
+    general: { confirm_quit_with_terminals: true },
     created: new Set(),
     pulls: new Map(),
   };
@@ -143,8 +146,12 @@ function validatePrefs(input: Partial<VaultPrefs>): VaultPrefs {
   for (const token of ["YYYY", "MM", "DD"]) {
     if (!pattern.includes(token)) throw invalid(`daily note file name pattern must contain ${token}`);
   }
-  if (!/^[A-Za-z0-9 ._-]*$/.test(pattern.replace(/YYYY|MM|DD/g, ""))) {
-    throw invalid("daily note file name pattern may only contain letters, digits, spaces, '-', '_' and '.'");
+  if (!/^[A-Za-z0-9 ._/-]*$/.test(pattern.replace(/YYYY|MM|DD/g, ""))) {
+    throw invalid("daily note file name pattern may only contain letters, digits, spaces, '-', '_', '.' and '/'");
+  }
+  // `/` separates sub-folders (`YYYY/MM/YYYY-MM-DD`): every segment needs a plain name.
+  if (pattern.split("/").some((segment) => !segment.trim() || segment.startsWith("."))) {
+    throw invalid(`invalid daily note file name pattern: ${pattern} (sub-folders must have a name and cannot start with '.')`);
   }
   return { daily_folder: folder, daily_filename_pattern: pattern };
 }
@@ -274,7 +281,18 @@ export const onboardingHandlers: MockHandlerMap = {
   cmd_onboarding_get_vault_prefs: (): VaultPrefs => state.prefs,
   cmd_onboarding_set_vault_prefs: (args): VaultPrefs => {
     state.prefs = validatePrefs(argObject<VaultPrefs>(args, "prefs"));
+    // Quick capture, the agent and Home's daily note follow the new layout.
+    mockVault.setDailyLayout({ folder: state.prefs.daily_folder, pattern: state.prefs.daily_filename_pattern });
     return state.prefs;
+  },
+  cmd_onboarding_get_general_prefs: (): GeneralPrefs => state.general,
+  cmd_onboarding_set_general_prefs: (args): GeneralPrefs => {
+    const prefs = argObject<Partial<GeneralPrefs>>(args, "prefs");
+    // Missing fields take their defaults, like `#[serde(default)]`.
+    const confirm = prefs.confirm_quit_with_terminals;
+    if (confirm !== undefined && typeof confirm !== "boolean") throw invalid("confirm_quit_with_terminals must be a boolean");
+    state.general = { confirm_quit_with_terminals: confirm ?? true };
+    return state.general;
   },
   cmd_onboarding_reveal_vault: () => {
     if (!mockVault.root) throw new Error("No vault is connected.");
@@ -299,6 +317,7 @@ export const onboardingHandlers: MockHandlerMap = {
       entry("vectors", true, 4_180_000, "Semantic search index (embeddings of your notes)"),
       entry("config.json", false, 64, "Vault connection (which folder AETHER-OS reads)"),
       entry("onboarding.json", false, 118, "Setup wizard progress"),
+      entry("general_prefs.json", false, 41, "General preferences (quit confirmation)"),
     ];
   },
   cmd_onboarding_read_app_log: (args): AppLogTail => {

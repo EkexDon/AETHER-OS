@@ -1,7 +1,8 @@
 import { Database, FolderClosed } from "lucide-react";
 import { useAetherStore } from "../../lib/store";
-import { indexVault } from "../../lib/ipc";
-import { Spinner, Tooltip, toast } from "../../ui";
+import { useHomeStore } from "../../lib/homeStore";
+import { relativeTime } from "../../lib/home/format";
+import { Spinner, Tooltip } from "../../ui";
 import { useShellStore } from "../shellStore";
 
 /** Base name of a path (`/Users/me/Vault` → `Vault`). */
@@ -19,7 +20,7 @@ export function VaultStatusItem() {
   return (
     <Tooltip content={vaultPath ?? "No vault connected — choose one in Settings"} placement="top">
       <button type="button" className="statusbar-item" onClick={() => openSettings("vault")}>
-        <FolderClosed size={12} />
+        <FolderClosed size={14} />
         <span className="statusbar-strong">{vaultName(vaultPath)}</span>
         {vaultPath && <span className="statusbar-muted tabular">{noteCount} notes</span>}
       </button>
@@ -27,32 +28,27 @@ export function VaultStatusItem() {
   );
 }
 
-/** Semantic indexing state; click to (re-)index the vault. */
+/**
+ * Semantic indexing state; click to (re-)index the vault. Runs through
+ * Home's `runIndex`, so the run is recorded (`aether-home-last-index`) and
+ * Home's Vault block and this item always agree on the last index time.
+ */
 export function IndexingStatusItem() {
   const indexing = useAetherStore((s) => s.indexing);
-  const setIndexing = useAetherStore((s) => s.setIndexing);
   const vaultPath = useAetherStore((s) => s.vaultPath);
-
-  const run = async () => {
-    if (indexing) return;
-    setIndexing(true);
-    try {
-      const result = await indexVault();
-      toast.success("Vault indexed", {
-        description: `${result.indexed} of ${result.total} notes embedded${result.skipped ? `, ${result.skipped} unchanged` : ""}.`,
-      });
-    } catch (e) {
-      toast.error("Indexing failed", { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setIndexing(false);
-    }
-  };
+  const lastIndex = useHomeStore((s) => s.lastIndex);
+  const runIndex = useHomeStore((s) => s.runIndex);
 
   if (!vaultPath) return null;
+  const tooltip = indexing
+    ? "Building the semantic index…"
+    : lastIndex
+      ? `Indexed ${relativeTime(lastIndex.at, Date.now())} (${lastIndex.result.indexed} of ${lastIndex.result.total} notes) — click to re-index`
+      : "Not indexed yet — click to index the vault for semantic search";
   return (
-    <Tooltip content={indexing ? "Building the semantic index…" : "Re-index the vault for semantic search"} placement="top">
-      <button type="button" className="statusbar-item" onClick={() => void run()} aria-busy={indexing || undefined}>
-        {indexing ? <Spinner size={11} /> : <Database size={12} />}
+    <Tooltip content={tooltip} placement="top">
+      <button type="button" className="statusbar-item" onClick={() => void runIndex()} aria-busy={indexing || undefined}>
+        {indexing ? <Spinner size={14} /> : <Database size={14} />}
         <span className="statusbar-muted">{indexing ? "Indexing…" : "Index"}</span>
       </button>
     </Tooltip>

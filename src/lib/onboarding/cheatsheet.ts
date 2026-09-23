@@ -1,10 +1,12 @@
 /**
  * Shortcut listing for Settings → Shortcuts and the Markdown cheat sheet.
  * Commands come from the command registry; editor-local shortcuts (which are
- * not global commands) are listed alongside them.
+ * not global commands) come from the shortcuts overlay's
+ * `CONTEXT_SHORTCUTS`, so all three lists always agree.
  */
 import { scoreFields } from "../commands/fuzzy";
 import { formatShortcut, isMacPlatform } from "../shortcuts";
+import { CONTEXT_SHORTCUTS, type ContextShortcutGroup } from "../../shell/ShortcutsOverlay";
 
 /** One row of the shortcut list. */
 export interface ShortcutEntry {
@@ -35,41 +37,13 @@ export interface CommandLike {
   keywords?: string[];
 }
 
-/** Shortcuts handled inside individual editors (not global commands). */
-export const EDITOR_SHORTCUTS: { group: string; items: { title: string; shortcut: string }[] }[] = [
-  {
-    group: "Notes editor",
-    items: [
-      { title: "Save note", shortcut: "mod+s" },
-      { title: "Bold", shortcut: "mod+b" },
-      { title: "Italic", shortcut: "mod+i" },
-      { title: "Underline", shortcut: "mod+u" },
-    ],
-  },
-  {
-    group: "AI agent",
-    items: [
-      { title: "Send message", shortcut: "enter" },
-      { title: "New line", shortcut: "shift+enter" },
-    ],
-  },
-  {
-    group: "IDE",
-    items: [
-      { title: "Save file", shortcut: "mod+s" },
-      { title: "Commit staged changes", shortcut: "mod+enter" },
-      { title: "Close diff", shortcut: "escape" },
-    ],
-  },
-];
-
 /**
  * Group registry commands (first-seen group order) followed by the
  * editor-local shortcuts. Duplicate command ids keep their first entry.
  */
 export function collectShortcuts(
   commands: CommandLike[],
-  editor: typeof EDITOR_SHORTCUTS = EDITOR_SHORTCUTS
+  editor: readonly ContextShortcutGroup[] = CONTEXT_SHORTCUTS
 ): ShortcutGroup[] {
   const groups = new Map<string, ShortcutEntry[]>();
   const seen = new Set<string>();

@@ -195,7 +195,9 @@ impl Workspace {
 
     pub fn create_file(&self, path: &str, content: &str) -> Result<String, AetherError> {
         let file = self.resolve_new(path)?;
-        if file.exists() {
+        // `symlink_metadata` also sees dangling links, which `write` would
+        // otherwise follow to create a file outside the sandbox.
+        if std::fs::symlink_metadata(&file).is_ok() {
             return Err(AetherError::InvalidInput(format!(
                 "file already exists: {}",
                 file.display()
@@ -207,7 +209,7 @@ impl Workspace {
 
     pub fn create_dir(&self, path: &str) -> Result<String, AetherError> {
         let dir = self.resolve_new(path)?;
-        if dir.exists() {
+        if std::fs::symlink_metadata(&dir).is_ok() {
             return Err(AetherError::InvalidInput(format!(
                 "directory already exists: {}",
                 dir.display()
@@ -372,6 +374,57 @@ mod tests {
         let blocked = outside.path().join("new.txt");
         assert!(ws.create_file(&blocked.to_string_lossy(), "hello").is_err());
         assert!(!blocked.exists());
+    }
+
+    /// Table: good path, `..` path, symlinked folder escape and a dangling
+    /// symlink, for reads, writes and creation.
+    #[test]
+    fn paths_stay_inside_the_roots() {
+        let root_dir = tempfile::tempdir().expect("root");
+        let outside = tempfile::tempdir().expect("outside");
+        let root = std::fs::canonicalize(root_dir.path()).expect("canonical");
+        std::fs::create_dir(root.join("src")).expect("mkdir");
+        write(&root.join("src/main.rs"), "fn main() {}");
+        write(&outside.path().join("secret.txt"), "secret");
+        let ws = Workspace::new([root.as_path()]);
+        let dotdot = format!(
+            "{}/../{}/secret.txt",
+            root.display(),
+            outside.path().file_name().unwrap().to_string_lossy()
+        );
+
+        assert!(ws
+            .read_file(&root.join("src/main.rs").to_string_lossy())
+            .is_ok());
+        assert!(ws.read_file(&dotdot).is_err());
+        assert!(ws.write_file(&dotdot, "x").is_err());
+        assert!(ws
+            .create_file(&format!("{}/src/../../new.txt", root.display()), "x")
+            .is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(outside.path(), root.join("link")).expect("symlink");
+            let through = root.join("link/secret.txt");
+            assert!(ws.read_file(&through.to_string_lossy()).is_err());
+            assert!(ws.write_file(&through.to_string_lossy(), "x").is_err());
+            assert!(ws
+                .create_file(&root.join("link/new.txt").to_string_lossy(), "x")
+                .is_err());
+
+            let target = outside.path().join("planted.txt");
+            std::os::unix::fs::symlink(&target, root.join("dangling.txt")).expect("symlink");
+            assert!(ws
+                .create_file(&root.join("dangling.txt").to_string_lossy(), "x")
+                .is_err());
+            assert!(
+                !target.exists(),
+                "a dangling link must not be written through"
+            );
+            assert_eq!(
+                std::fs::read_to_string(outside.path().join("secret.txt")).expect("read"),
+                "secret"
+            );
+        }
     }
 
     #[test]

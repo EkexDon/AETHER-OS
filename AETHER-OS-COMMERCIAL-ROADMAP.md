@@ -127,20 +127,22 @@ Purchase → Lemon Squeezy webhook → Keylight API → license key emailed
 
 **Frontend (React 19):** Dashboard, AgentChat (streaming), SemanticSearch, VaultGraph (D3), AetherNotes, Projects, SettingsPanel, CommandBar (Cmd+K), Zustand store with localStorage.
 
+**Update (v0.2.0, 2026-09-23):** 19 workspaces (React 18 + TypeScript), 237 registered Tauri commands in 28 modules over 34 engine modules, 671 Rust and 1,133 Vitest tests. See `ARCHITECTURE.md` and the status columns below.
+
 ### 5.2 Commercial Gaps
 
-| Gap | Severity |
-|-----|----------|
-| No note editor (read-only) | Critical |
-| No tests | Critical |
-| No license system | Critical |
-| No update mechanism | High |
-| No crash reporting | High |
-| No onboarding flow | Medium |
-| No CI/CD pipeline | High |
-| JSON storage (not SQLite) | Medium |
-| No cross-platform builds | High |
-| No accessibility | Medium |
+| Gap | Severity | Status (v0.2.0, 2026-09-23) |
+|-----|----------|-----------------------------|
+| No note editor (read-only) | Critical | ✅ Closed — TipTap WYSIWYG Markdown editor with tabs, backlinks, autosave |
+| No tests | Critical | ✅ Closed — 671 Rust tests (`cargo test`) and 1,133 Vitest tests, run in CI |
+| No license system | Critical | ❌ Open — no licensing or entitlement gating |
+| No update mechanism | High | ◐ Partial — update check against GitHub releases with release notes and an opt-in daily check; no signed in-app updater |
+| No crash reporting | High | ✅ Closed — panic hook, error boundaries, rotating log, local crash reports (no upload, no Sentry) |
+| No onboarding flow | Medium | ✅ Closed — first-run wizard (vault, Ollama, model download, embeddings, tour) |
+| No CI/CD pipeline | High | ✅ Closed — `ci.yml` on every push, `release.yml` for tagged builds |
+| JSON storage (not SQLite) | Medium | ◐ Partial — clipboard and search use SQLite (FTS5); memory, AI notes, calendar and tasks are still JSON |
+| No cross-platform builds | High | ◐ Partial — unsigned release bundles for macOS (arm64, x64), Linux (AppImage, deb, rpm) and Windows (msi, NSIS); no signing or notarization |
+| No accessibility | Medium | ◐ Partial — AA-contrast tokens, keyboard paths for every action, visible focus; no screen-reader audit |
 
 ---
 
@@ -148,62 +150,62 @@ Purchase → Lemon Squeezy webhook → Keylight API → license key emailed
 
 ### Phase 0: Foundation (Weeks 1-3)
 
-| Feature | What | Effort |
-|---------|------|--------|
-| 0.1 CI/CD | GitHub Actions: cargo test, clippy, npm test, build, tauri build (mac+linux+win) | 2d |
-| 0.2 Test Suite | Rust integration tests, Vitest component tests, Playwright E2E. 80% backend / 70% frontend | 5d |
-| 0.3 Auto-Update | Tauri updater plugin, signed updates from GitHub Releases | 1d |
-| 0.4 Crash Reporting | Rust panic handler + React error boundary. Optional Sentry (opt-in) | 2d |
-| 0.5 Onboarding | First-run wizard: vault path, Ollama check, model selection | 2d |
-| 0.6 Cross-Platform | CI builds: macOS Universal, Linux AppImage+.deb, Windows NSIS | 3d |
+| Feature | What | Effort | Status (v0.2) |
+|---------|------|--------|---------------|
+| 0.1 CI/CD | GitHub Actions: cargo test, clippy, npm test, build, tauri build (mac+linux+win) | 2d | ✅ Shipped |
+| 0.2 Test Suite | Rust integration tests, Vitest component tests, Playwright E2E. 80% backend / 70% frontend | 5d | ◐ Rust + Vitest suites shipped; no Playwright E2E, coverage not measured |
+| 0.3 Auto-Update | Tauri updater plugin, signed updates from GitHub Releases | 1d | ◐ Update check shipped; signed updater not configured |
+| 0.4 Crash Reporting | Rust panic handler + React error boundary. Optional Sentry (opt-in) | 2d | ✅ Shipped (local only; no Sentry) |
+| 0.5 Onboarding | First-run wizard: vault path, Ollama check, model selection | 2d | ✅ Shipped |
+| 0.6 Cross-Platform | CI builds: macOS Universal, Linux AppImage+.deb, Windows NSIS | 3d | ◐ Unsigned builds for macOS arm64 + x64 (not Universal), Linux, Windows |
 
 ### Phase 1: Core OS Layer (Weeks 4-8)
 
-| Feature | What | Tech | Effort |
-|---------|------|------|--------|
-| 1.1 Terminal | PTY-backed, multi-tab, xterm.js, split panes | `portable-pty` + `@xterm/xterm` | 7d |
-| 1.2 System Monitor | CPU/RAM/disk/network/battery, top processes, 2Hz refresh | `sysinfo` crate | 3d |
-| 1.3 Clipboard Manager | System-wide history, searchable, pin, 500 items max | `arboard` crate + SQLite | 4d |
-| 1.4 Quick Launcher | Cmd+Space, fuzzy search across everything | `tauri-plugin-global-shortcut` + `fuzzy-matcher` | 3d |
+| Feature | What | Tech | Effort | Status |
+|---------|------|------|--------|--------|
+| 1.1 Terminal | PTY-backed, multi-tab, xterm.js, split panes | `portable-pty` + `@xterm/xterm` | 7d | ✅ v0.1 (multi-tab; no split panes) |
+| 1.2 System Monitor | CPU/RAM/disk/network/battery, top processes, 2Hz refresh | `sysinfo` crate | 3d | ✅ v0.1 |
+| 1.3 Clipboard Manager | System-wide history, searchable, pin, 500 items max | `arboard` crate + SQLite | 4d | ✅ v0.2 |
+| 1.4 Quick Launcher | Cmd+Space, fuzzy search across everything | `tauri-plugin-global-shortcut` + `fuzzy-matcher` | 3d | ✅ v0.2 (⌥Space, configurable) |
 
 ### Phase 2: Knowledge Engine (Weeks 9-16)
 
-| Feature | What | Tech | Effort |
-|---------|------|------|--------|
-| 2.1 Note Editor | CodeMirror 6, live preview, wikilink/tag autocomplete, Vim mode | CodeMirror 6 | 8d |
-| 2.2 Backlinks | Reverse link index, unlinked mentions, context previews | Rust scan + React panel | 3d |
-| 2.3 Daily Notes | Auto-create `YYYY-MM-DD.md`, Cmd+Shift+N quick capture | Tauri global shortcut | 2d |
-| 2.4 AI Agent Actions | Structured actions: create_note, run_command, web_search, summarize_url. Approval system. | JSON action parser + safety classifier | 6d |
-| 2.5 Web Clipper | URL → fetch → extract content → Markdown note | `reqwest` + `scraper` | 3d |
+| Feature | What | Tech | Effort | Status |
+|---------|------|------|--------|--------|
+| 2.1 Note Editor | CodeMirror 6, live preview, wikilink/tag autocomplete, Vim mode | CodeMirror 6 | 8d | ✅ v0.1 as a TipTap WYSIWYG editor (no Vim mode) |
+| 2.2 Backlinks | Reverse link index, unlinked mentions, context previews | Rust scan + React panel | 3d | ✅ v0.1 |
+| 2.3 Daily Notes | Auto-create `YYYY-MM-DD.md`, Cmd+Shift+N quick capture | Tauri global shortcut | 2d | ✅ v0.1 (⇧⌘N inside the app) |
+| 2.4 AI Agent Actions | Structured actions: create_note, run_command, web_search, summarize_url. Approval system. | JSON action parser + safety classifier | 6d | ✅ v0.2 incl. run_command and the approval system; no web_search |
+| 2.5 Web Clipper | URL → fetch → extract content → Markdown note | `reqwest` + `scraper` | 3d | ✅ v0.1 |
 
 ### Phase 3: Productivity Layer (Weeks 17-22)
 
-| Feature | What | Tech | Effort |
-|---------|------|------|--------|
-| 3.1 Kanban Tasks | Extract `- [ ]` from notes, drag-and-drop board, updates source file | `@hello-pangea/dnd` | 4d |
-| 3.2 Calendar | Monthly view, due dates from frontmatter, ICS import/export, notifications | `ics` crate + `tauri-plugin-notification` | 5d |
-| 3.3 Pomodoro | 25/5 timer, focus mode (dim UI), time tracking on dashboard | React timer + Zustand | 2d |
-| 3.4 Bookmarks | Pin notes/projects/commands to sidebar, drag-to-reorder, groups | Zustand + localStorage | 2d |
+| Feature | What | Tech | Effort | Status |
+|---------|------|------|--------|--------|
+| 3.1 Kanban Tasks | Extract `- [ ]` from notes, drag-and-drop board, updates source file | `@hello-pangea/dnd` | 4d | ✅ v0.2 (Note Tasks) |
+| 3.2 Calendar | Monthly view, due dates from frontmatter, ICS import/export, notifications | `ics` crate + `tauri-plugin-notification` | 5d | ✅ v0.1 (month/week/day, ICS, notifications; due dates are not read from note frontmatter) |
+| 3.3 Pomodoro | 25/5 timer, focus mode (dim UI), time tracking on dashboard | React timer + Zustand | 2d | ✅ v0.2 |
+| 3.4 Bookmarks | Pin notes/projects/commands to sidebar, drag-to-reorder, groups | Zustand + localStorage | 2d | ✅ v0.2 (pins drawer + Home) |
 
 ### Phase 4: Intelligence Layer (Weeks 23-28)
 
-| Feature | What | Tech | Effort |
-|---------|------|------|--------|
-| 4.1 Auto-Git Versioning | Auto-commit on file change, version history, diff viewer, restore | `notify` crate + `git2` | 4d |
-| 4.2 AI Note Suggestions | Real-time related note suggestions while writing, auto-tag proposals | Vector similarity during editing | 3d |
-| 4.3 Conversation Auto-Compaction | Summarize long conversations when token threshold exceeded | Ollama summarization + MemoryStore | 2d |
-| 4.4 Universal Search | One search across notes, projects, conversations, memory, clipboard, files | Unified index: vector + BM25 + file | 4d |
+| Feature | What | Tech | Effort | Status |
+|---------|------|------|--------|--------|
+| 4.1 Auto-Git Versioning | Auto-commit on file change, version history, diff viewer, restore | `notify` crate + `git2` | 4d | ✅ v0.2 |
+| 4.2 AI Note Suggestions | Real-time related note suggestions while writing, auto-tag proposals | Vector similarity during editing | 3d | ✅ v0.2 |
+| 4.3 Conversation Auto-Compaction | Summarize long conversations when token threshold exceeded | Ollama summarization + MemoryStore | 2d | ✅ v0.2 |
+| 4.4 Universal Search | One search across notes, projects, conversations, memory, clipboard, files | Unified index: vector + BM25 + file | 4d | ✅ v0.2 |
 
 ### Phase 5: Extension Layer (Weeks 29-40)
 
-| Feature | What | Tech | Effort |
-|---------|------|------|--------|
-| 5.1 Plugin System | Sandboxed JS/TS modules, plugin API (vault, AI, UI), manifest format | `deno_core` or Web Workers | 12d |
-| 5.2 Export & Publishing | PDF export, HTML export, static site generation from vault | `printpdf` + static site gen | 5d |
-| 5.3 E2E Sync | AES-256-GCM encrypted sync, relay server, conflict resolution | Rust sync engine + relay | 10d |
-| 5.4 SQLite Migration | Migrate MemoryStore + AetherNotes + Clipboard from JSON to SQLite | `rusqlite` + migration scripts | 3d |
-| 5.5 License Integration | Keylight SDK, activation UI, entitlement gating | `tauri-plugin-keylight` | 3d |
-| 5.6 App Store Submission | macOS notarization, code signing, DMG packaging, potential Setapp | Apple Developer cert + CI | 3d |
+| Feature | What | Tech | Effort | Status |
+|---------|------|------|--------|--------|
+| 5.1 Plugin System | Sandboxed JS/TS modules, plugin API (vault, AI, UI), manifest format | `deno_core` or Web Workers | 12d | ✅ v0.2 (Web Workers) |
+| 5.2 Export & Publishing | PDF export, HTML export, static site generation from vault | `printpdf` + static site gen | 5d | ✅ v0.2 (PDF via the print dialog) |
+| 5.3 E2E Sync | AES-256-GCM encrypted sync, relay server, conflict resolution | Rust sync engine + relay | 10d | ◐ v0.2 encrypted folder sync + backups; no relay server |
+| 5.4 SQLite Migration | Migrate MemoryStore + AetherNotes + Clipboard from JSON to SQLite | `rusqlite` + migration scripts | 3d | ◐ Clipboard (and search) on SQLite; MemoryStore + AetherNotes still JSON |
+| 5.5 License Integration | Keylight SDK, activation UI, entitlement gating | `tauri-plugin-keylight` | 3d | ❌ Not started |
+| 5.6 App Store Submission | macOS notarization, code signing, DMG packaging, potential Setapp | Apple Developer cert + CI | 3d | ❌ Not started (unsigned DMGs from CI only) |
 
 ---
 

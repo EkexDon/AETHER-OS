@@ -11,11 +11,11 @@
 //! - the strict summarisation prompt and validation of what the model returns,
 //! - an extractive fallback (first sentences of user turns) for when the
 //!   model is offline or answers with garbage,
-//! - the conversation archive (same JSON format `MemoryStore` reads, with the
-//!   summary in its `summary` field), and
 //! - the memory/conversation blocks injected into chat prompts.
-
-use std::path::Path;
+//!
+//! Compacted conversations are persisted through
+//! [`MemoryStore::upsert_conversation`](crate::engine::memory_store::MemoryStore::upsert_conversation),
+//! with the summary in the record's `summary` field.
 
 use serde::{Deserialize, Serialize};
 
@@ -675,96 +675,6 @@ pub fn summary_title(summary: &str) -> String {
     clip(title, TITLE_CHARS + 1)
 }
 
-/// Title derived from the first message, exactly like `MemoryStore`.
-fn title_from_messages(messages: &[ChatMessageRecord]) -> String {
-    messages
-        .first()
-        .map(|m| {
-            let mut s = m.content.chars().take(TITLE_CHARS).collect::<String>();
-            if m.content.chars().count() > TITLE_CHARS {
-                s.push('…');
-            }
-            s
-        })
-        .unwrap_or_default()
-}
-
-fn is_valid_conversation_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 64
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-}
-
-/// Create or replace a conversation in `dir` (the memory store's
-/// `conversations/` folder). With `id`, the previous record of that id is
-/// replaced and the timestamp refreshed, so a chat session is one entry in
-/// the history. `summary` defaults to the first message, like
-/// `MemoryStore::save_conversation`.
-pub fn upsert_conversation(
-    dir: &Path,
-    id: Option<&str>,
-    messages: Vec<ChatMessageRecord>,
-    context_notes: Vec<String>,
-    summary: Option<String>,
-) -> Result<Conversation, AetherError> {
-    if messages.is_empty() {
-        return Err(AetherError::InvalidInput(
-            "a conversation needs at least one message".to_owned(),
-        ));
-    }
-    let id = match id.map(str::trim).filter(|s| !s.is_empty()) {
-        Some(existing) if is_valid_conversation_id(existing) => existing.to_owned(),
-        Some(invalid) => {
-            return Err(AetherError::InvalidInput(format!(
-                "invalid conversation id: {invalid}"
-            )))
-        }
-        None => uuid::Uuid::new_v4().to_string(),
-    };
-    std::fs::create_dir_all(dir)?;
-    remove_conversation_files(dir, &id)?;
-
-    let now = chrono::Utc::now().timestamp();
-    let summary = summary
-        .map(|s| s.trim().to_owned())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| title_from_messages(&messages));
-    let conversation = Conversation {
-        id: id.clone(),
-        timestamp: now,
-        messages,
-        context_notes,
-        summary,
-    };
-    let json = serde_json::to_string_pretty(&conversation)
-        .map_err(|e| AetherError::Vault(format!("conversation serialize: {e}")))?;
-    let path = dir.join(format!("{now}-{id}.json"));
-    let tmp = dir.join(format!(".{now}-{id}.json.tmp"));
-    std::fs::write(&tmp, json)?;
-    std::fs::rename(&tmp, &path)?;
-    Ok(conversation)
-}
-
-fn remove_conversation_files(dir: &Path, id: &str) -> Result<(), AetherError> {
-    for entry in std::fs::read_dir(dir)? {
-        let path = entry?.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("json") {
-            continue;
-        }
-        let Ok(content) = std::fs::read_to_string(&path) else {
-            continue;
-        };
-        if let Ok(existing) = serde_json::from_str::<Conversation>(&content) {
-            if existing.id == id {
-                std::fs::remove_file(&path)?;
-            }
-        }
-    }
-    Ok(())
-}
-
 /// The chat window the frontend sends with a question: the conversation id
 /// (so it is not repeated as a "recent topic"), its compaction summary and
 /// the messages after the compaction point.
@@ -1135,61 +1045,6 @@ mod tests {
         );
         assert_eq!(first_sentence("no punctuation here"), "no punctuation here");
         assert_eq!(first_sentence(""), "");
-    }
-
-    #[test]
-    fn upsert_replaces_the_previous_record_of_a_session() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        let first = upsert_conversation(dir.path(), None, turns(1), vec!["a.md".into()], None)
-            .expect("save");
-        assert_eq!(first.summary, "Question 0? I prefer short answers.");
-        let second = upsert_conversation(
-            dir.path(),
-            Some(&first.id),
-            turns(3),
-            vec![],
-            Some("Topic: Q\nFacts:\n- x".into()),
-        )
-        .expect("update");
-        assert_eq!(second.id, first.id);
-
-        let files: Vec<_> = std::fs::read_dir(dir.path())
-            .expect("list")
-            .filter_map(Result::ok)
-            .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some("json"))
-            .collect();
-        assert_eq!(files.len(), 1);
-        let stored: Conversation =
-            serde_json::from_str(&std::fs::read_to_string(files[0].path()).expect("read"))
-                .expect("parse");
-        assert_eq!(stored.messages.len(), 6);
-        assert!(stored.summary.starts_with("Topic: Q"));
-    }
-
-    #[test]
-    fn memory_store_loads_upserted_conversations() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        let store = crate::engine::memory_store::MemoryStore::new(dir.path()).expect("store");
-        let saved = upsert_conversation(
-            &dir.path().join("conversations"),
-            None,
-            turns(2),
-            vec![],
-            Some("Topic: Loaded\nFacts:\n- y".into()),
-        )
-        .expect("save");
-        let loaded = store.load_recent(10).expect("load");
-        assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].id, saved.id);
-        store.delete_conversation(&saved.id).expect("delete");
-        assert!(store.load_recent(10).expect("load").is_empty());
-    }
-
-    #[test]
-    fn upsert_validates_input() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        assert!(upsert_conversation(dir.path(), None, vec![], vec![], None).is_err());
-        assert!(upsert_conversation(dir.path(), Some("../evil"), turns(1), vec![], None).is_err());
     }
 
     #[test]

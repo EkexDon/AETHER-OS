@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, FolderSync, KeyRound, Lock, LockOpen } from "lucide-react";
-import "../../styles/views/sync.css";
 import { useAetherStore } from "../../lib/store";
 import { retainSyncEvents, useSyncStore } from "../../lib/syncStore";
 import { errorText, statusSummary } from "../../lib/sync/format";

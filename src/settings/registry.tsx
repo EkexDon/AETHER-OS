@@ -43,7 +43,7 @@ export interface SettingsSection {
   id: string;
   title: string;
   icon: LucideIcon;
-  /** Sort key in the section list (built-ins use 10–50, About is last). */
+  /** Sort key in the section list (General 5 first, built-ins 10–50, About last). */
   order: number;
   component: ComponentType | LazyExoticComponent<ComponentType>;
   /** Extra words for the settings filter. */
@@ -84,7 +84,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   // @anchor:settings:export
   { id: "sync", title: "Sync & Backup", icon: SyncSettingsIcon, order: 60, component: SyncSettingsSection, keywords: ["backup", "restore", "encryption", "passphrase", "icloud", "dropbox", "syncthing", "devices"] },
   // @anchor:settings:sync
-  { id: "general", title: "General", icon: SlidersHorizontal, order: 42, component: GeneralSettings, keywords: ["start", "startup", "language", "setup", "wizard", "agent panel"] },
+  { id: "general", title: "General", icon: SlidersHorizontal, order: 5, component: GeneralSettings, keywords: ["start", "startup", "language", "setup", "wizard", "agent panel", "quit", "terminal"] },
   { id: "shortcuts", title: "Shortcuts", icon: KeyboardIcon, order: 70, component: ShortcutsSettings, keywords: ["keys", "keyboard", "hotkeys", "cheat sheet"] },
   { id: "privacy", title: "Data & Privacy", icon: ShieldCheck, order: 80, component: DataPrivacySettings, keywords: ["data", "crash", "log", "reset", "telemetry", "backup"] },
   { id: "updates", title: "Updates", icon: CircleArrowUp, order: 90, component: UpdatesSettings, keywords: ["version", "release", "changelog", "what's new"] },
@@ -100,7 +100,7 @@ export function getSettingsSections(sections: SettingsSection[] = SETTINGS_SECTI
     .map(({ s }) => s);
 }
 
-/** Resolve the section to show: the requested id if it exists, else the first. */
+/** Resolve the section to show: the requested id if it exists, else the first (General). */
 export function resolveSettingsSection(
   id: string | null | undefined,
   sections: SettingsSection[] = getSettingsSections()

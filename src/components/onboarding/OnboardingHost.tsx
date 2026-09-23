@@ -8,7 +8,6 @@ import { toast } from "../../ui";
 import { OnboardingWizard } from "./OnboardingWizard";
 import { WhatsNewModal } from "./WhatsNewModal";
 import { OllamaGuideModal } from "./OllamaGuideModal";
-import "../../styles/views/onboarding.css";
 
 let ollamaToastShown = false;
 
@@ -19,9 +18,10 @@ export function resetOllamaToast(): void {
 
 /**
  * Mounts the onboarding overlays (wizard, "What's new", Ollama guidance) and
- * runs the launch sequence. Registered as an invisible status bar item so
- * it lives exactly as long as the shell; everything it renders is portaled
- * to `document.body`. Does nothing without a backend (plain browser, tests).
+ * runs the launch sequence. Mounted once by the shell's `FeatureHosts`
+ * slot, so it lives exactly as long as the shell; everything it renders is
+ * portaled to `document.body`. Does nothing without a backend (plain
+ * browser, tests).
  */
 export function OnboardingHost() {
   const health = useAetherStore((s) => s.health);

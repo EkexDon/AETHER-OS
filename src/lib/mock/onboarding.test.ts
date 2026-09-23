@@ -106,6 +106,28 @@ describe("onboarding mock", () => {
       invoke("cmd_onboarding_set_vault_prefs", { prefs: { daily_folder: "d", daily_filename_pattern: "YYYY" } })
     ).rejects.toMatch(/must contain MM/);
 
+    // Sub-folders in the pattern (created on demand), like the backend.
+    expect(
+      await invoke("cmd_onboarding_set_vault_prefs", { prefs: { daily_folder: "Journal", daily_filename_pattern: "YYYY/MM/YYYY-MM-DD" } })
+    ).toEqual({ daily_folder: "Journal", daily_filename_pattern: "YYYY/MM/YYYY-MM-DD" });
+    const daily = await invoke<string>("cmd_daily_note");
+    expect(daily).toMatch(/\/Journal\/\d{4}\/\d{2}\/\d{4}-\d{2}-\d{2}\.md$/);
+    expect(await invoke<string>("cmd_append_daily", { text: "nested" })).toBe(daily);
+    for (const bad of ["YYYY//MM-DD", ".hidden/YYYY-MM-DD", "YYYY/ /MM-DD", "YYYY/MM/DD:x"]) {
+      await expect(
+        invoke("cmd_onboarding_set_vault_prefs", { prefs: { daily_folder: "", daily_filename_pattern: bad } }),
+        bad
+      ).rejects.toMatch(/invalid input: /);
+    }
+    expect(await invoke("cmd_onboarding_get_general_prefs")).toEqual({ confirm_quit_with_terminals: true });
+    expect(await invoke("cmd_onboarding_set_general_prefs", { prefs: { confirm_quit_with_terminals: false } })).toEqual({
+      confirm_quit_with_terminals: false,
+    });
+    expect(await invoke("cmd_onboarding_set_general_prefs", { prefs: {} })).toEqual({ confirm_quit_with_terminals: true });
+    await expect(invoke("cmd_onboarding_set_general_prefs", { prefs: { confirm_quit_with_terminals: "no" } })).rejects.toMatch(
+      /must be a boolean/
+    );
+
     const locations = await invoke<{ name: string }[]>("cmd_onboarding_data_locations");
     expect(locations.map((l) => l.name)).toContain("vectors");
     const log = await invoke<{ content: string; truncated: boolean }>("cmd_onboarding_read_app_log", { maxBytes: 1024 });

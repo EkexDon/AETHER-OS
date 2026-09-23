@@ -142,7 +142,7 @@ export function ContinueBlock(props: ContinueBlockProps) {
                     <span className="home-project-line">
                       {p.git_branch && (
                         <span className="home-project-branch">
-                          <GitBranch size={11} aria-hidden="true" />
+                          <GitBranch size={14} aria-hidden="true" />
                           {p.git_branch}
                         </span>
                       )}

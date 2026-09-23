@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { CalendarPlus, Command as CommandIcon, FilePlus2, ListPlus, Pin, Zap } from "lucide-react";
-import "../styles/views/home.css";
-import type { CalendarEvent, Project, TaskItem } from "../types";
+import type { CalendarEvent, Conversation, Project, TaskItem } from "../types";
 import type { ViewMode } from "../views/modes";
 import { useAetherStore } from "../lib/store";
 import { useShellStore } from "../shell/shellStore";
 import { useIdeStore } from "../lib/ideStore";
 import { useHomeStore } from "../lib/homeStore";
 import { useFocusStore } from "../lib/focusStore";
+import { useVaultTasksStore } from "../lib/vaultTasksStore";
+import { openConversation as openAgentConversation } from "../lib/agentChatBus";
 import { countPins, usePinsStore } from "../lib/pinsStore";
 import { appendDaily, dailyNote } from "../lib/ipc";
 import { dateKey } from "../lib/home/focusStats";
@@ -103,8 +104,9 @@ export function Dashboard() {
   };
 
   const openNoteTask = (t: HomeNoteTask) => {
+    // The editor scrolls to (and highlights) this line once the note loads.
+    useVaultTasksStore.setState({ pendingLine: { notePath: t.notePath, line: t.line } });
     openNote(t.notePath);
-    toast.info("Opened note", { description: `${t.noteName} · line ${t.line + 1}` });
   };
 
   const openProject = (p: Project) => {
@@ -112,8 +114,12 @@ export function Dashboard() {
     setView("ide");
   };
 
-  // The agent panel owns its history list; Home opens it (see docs/features/home.md).
-  const openConversation = () => aether().setChatOpen(true);
+  // Loads that conversation into the agent panel (intel's chat bus).
+  const openConversation = (c: Conversation) => {
+    openAgentConversation(c.id).catch((e: unknown) =>
+      toast.error("Could not open the conversation", { description: errorMessage(e) })
+    );
+  };
 
   const seeAll = (tab: ContinueTab) => {
     if (tab === "notes") setView("search");
@@ -150,7 +156,7 @@ export function Dashboard() {
         </Button>
       </Tooltip>
       <Tooltip content="Open launcher" shortcut="mod+k" placement="bottom">
-        <Button variant="ghost" size="sm" aria-label="Open launcher" iconLeft={<CommandIcon size={14} />} onClick={() => shell.toggleCommandBar()}>
+        <Button variant="ghost" size="sm" aria-label="Open launcher" iconLeft={<CommandIcon size={14} />} onClick={() => shell.toggleLauncher()}>
           <span className="home-qa-label">Launcher</span>
         </Button>
       </Tooltip>

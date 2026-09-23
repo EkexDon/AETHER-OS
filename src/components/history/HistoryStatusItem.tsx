@@ -45,7 +45,7 @@ export function HistoryStatusItem() {
             onClick={() => setView("history")}
             aria-label={`Note history: ${historyStatusLabel(status, now)}`}
           >
-            <History size={12} aria-hidden="true" />
+            <History size={14} aria-hidden="true" />
             {status.last_error && <span className="statusbar-dot is-offline" aria-hidden="true" />}
             <span className="statusbar-muted tabular">{historyStatusLabel(status, now)}</span>
           </button>

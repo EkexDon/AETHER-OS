@@ -241,6 +241,20 @@ impl TerminalManager {
             .collect())
     }
 
+    /// Number of sessions whose shell is still running (used to confirm
+    /// quitting the app). A poisoned lock counts as none running.
+    pub fn live_count(&self) -> usize {
+        self.sessions
+            .lock()
+            .map(|sessions| {
+                sessions
+                    .values()
+                    .filter(|h| h.alive.load(std::sync::atomic::Ordering::Relaxed))
+                    .count()
+            })
+            .unwrap_or(0)
+    }
+
     pub fn cleanup_dead(&self) -> Result<usize, AetherError> {
         let mut sessions = self
             .sessions
@@ -385,6 +399,24 @@ mod tests {
 
         let list_after = manager.list().expect("list should succeed");
         assert!(!list_after.iter().any(|s| s.id == session.id));
+    }
+
+    #[test]
+    fn live_count_tracks_running_sessions() {
+        let manager = TerminalManager::new();
+        assert_eq!(manager.live_count(), 0);
+        let first = manager
+            .spawn(None, None, 80, 24, |_id, _output| {})
+            .expect("spawn should succeed");
+        let second = manager
+            .spawn(None, None, 80, 24, |_id, _output| {})
+            .expect("spawn should succeed");
+        assert_eq!(manager.live_count(), 2);
+
+        manager.kill(&first.id).expect("kill should succeed");
+        assert_eq!(manager.live_count(), 1);
+        manager.kill(&second.id).expect("kill should succeed");
+        assert_eq!(manager.live_count(), 0);
     }
 
     #[test]

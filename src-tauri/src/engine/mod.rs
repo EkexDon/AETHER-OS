@@ -22,6 +22,7 @@ pub mod task_board;
 
 // Wave 1 infra: shared helpers.
 pub mod diagnostics;
+pub mod fs_guard;
 pub mod sqlite;
 pub mod updater;
 

@@ -270,7 +270,7 @@
   position: absolute;
   inset: 3px;
   border-radius: inherit;
-  box-shadow: inset 0 0 0 1px rgba(10, 9, 8, 0.12);
+  box-shadow: var(--shadow-swatch-ring);
 }
 
 .accent-swatch:hover {

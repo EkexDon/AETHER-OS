@@ -69,8 +69,20 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+/// Bad input from the UI (settings values, paths, ids).
 fn invalid(msg: impl Into<String>) -> AetherError {
     AetherError::InvalidInput(msg.into())
+}
+
+/// The sync state or folder does not allow the operation, or stored sync
+/// data is inconsistent.
+fn sync_err(msg: impl Into<String>) -> AetherError {
+    AetherError::Sync(msg.into())
+}
+
+/// Key material or passphrase problems.
+fn crypto_err(msg: impl Into<String>) -> AetherError {
+    AetherError::Crypto(msg.into())
 }
 
 // ── Public data types (IPC) ────────────────────────────────────────────
@@ -514,7 +526,7 @@ impl SyncEngine {
 
     fn require_keys(&self) -> Result<Arc<KeySet>, AetherError> {
         self.current_keys()
-            .ok_or_else(|| invalid("sync is locked — unlock it with your passphrase first"))
+            .ok_or_else(|| sync_err("sync is locked — unlock it with your passphrase first"))
     }
 
     fn store(&self, settings: &SyncSettings) -> Result<SyncStore, AetherError> {
@@ -523,7 +535,7 @@ impl SyncEngine {
             .as_deref()
             .ok_or_else(|| invalid("choose a sync folder first"))?;
         if !Path::new(dir).is_dir() {
-            return Err(invalid(format!("the sync folder is not reachable: {dir}")));
+            return Err(sync_err(format!("the sync folder is not reachable: {dir}")));
         }
         Ok(SyncStore::new(Path::new(dir)))
     }
@@ -659,9 +671,9 @@ impl SyncEngine {
         let folder_changed = s.sync_dir != old.sync_dir;
         if let Some(remember) = patch.remember_key {
             if remember && !folder_changed {
-                let keys = self
-                    .require_keys()
-                    .map_err(|_| invalid("unlock sync first to remember the key on this device"))?;
+                let keys = self.require_keys().map_err(|_| {
+                    sync_err("unlock sync first to remember the key on this device")
+                })?;
                 self.write_key_file(&keys)?;
             } else if !remember {
                 self.remove_key_file()?;
@@ -758,7 +770,8 @@ impl SyncEngine {
             key: hex::encode(keys.master().as_bytes()),
         };
         let bytes = Zeroizing::new(
-            serde_json::to_vec(&remembered).map_err(|e| invalid(format!("key serialize: {e}")))?,
+            serde_json::to_vec(&remembered)
+                .map_err(|e| crypto_err(format!("key serialize: {e}")))?,
         );
         let mut key_hex = Zeroizing::new(remembered.key);
         key_hex.clear();
@@ -784,15 +797,15 @@ impl SyncEngine {
         }
         let bytes = Zeroizing::new(folder_sync::read_limited(&path, 4096)?);
         let remembered: RememberedKey = serde_json::from_slice(&bytes)
-            .map_err(|e| invalid(format!("remembered key is corrupt: {e}")))?;
+            .map_err(|e| crypto_err(format!("remembered key is corrupt: {e}")))?;
         let key_hex = Zeroizing::new(remembered.key);
         let raw = Zeroizing::new(
-            hex::decode(key_hex.as_str()).map_err(|_| invalid("remembered key is corrupt"))?,
+            hex::decode(key_hex.as_str()).map_err(|_| crypto_err("remembered key is corrupt"))?,
         );
         let array: [u8; crypto::KEY_LEN] = raw
             .as_slice()
             .try_into()
-            .map_err(|_| invalid("remembered key has the wrong length"))?;
+            .map_err(|_| crypto_err("remembered key has the wrong length"))?;
         remembered.kdf.validate()?;
         Ok(Some(KeySet::new(
             MasterKey::from_bytes(array),
@@ -822,7 +835,7 @@ impl SyncEngine {
         let settings = self.settings();
         let store = match settings.sync_dir.as_deref() {
             Some(dir) if Path::new(dir).is_dir() => Some(SyncStore::new(Path::new(dir))),
-            Some(dir) => return Err(invalid(format!("the sync folder is not reachable: {dir}"))),
+            Some(dir) => return Err(sync_err(format!("the sync folder is not reachable: {dir}"))),
             None => None,
         };
         let remote = match &store {
@@ -849,11 +862,16 @@ impl SyncEngine {
                 )
             }
         };
+        if !creating {
+            // The sync folder's key file is untrusted: never derive with
+            // parameters weaker than this build creates keys with.
+            info.kdf.ensure_at_least(&self.kdf)?;
+        }
         let keys = KeySet::derive(passphrase, info.salt_bytes()?, info.kdf)?;
         if creating {
             info.verifier = keys.verifier_hex();
         } else if !keys.matches_verifier(&info.verifier) {
-            return Err(invalid("wrong passphrase"));
+            return Err(crypto_err("wrong passphrase"));
         }
         if let Some(store) = &store {
             if store.read_keyinfo()?.is_none() {
@@ -912,7 +930,12 @@ impl SyncEngine {
             return false;
         };
         let matches = match self.effective_keyinfo(&settings) {
-            Ok(Some(info)) => info.salt == keys.salt_hex() && keys.matches_verifier(&info.verifier),
+            Ok(Some(info)) => {
+                info.salt == keys.salt_hex()
+                    && keys.matches_verifier(&info.verifier)
+                    && info.kdf.ensure_at_least(&self.kdf).is_ok()
+                    && keys.kdf().ensure_at_least(&self.kdf).is_ok()
+            }
             _ => false,
         };
         if !matches {
@@ -978,7 +1001,7 @@ impl SyncEngine {
             Some(info) => {
                 if info.salt != keys.salt_hex() || !keys.matches_verifier(&info.verifier) {
                     *lock(&self.keys) = None;
-                    return Err(invalid(
+                    return Err(crypto_err(
                         "the sync passphrase was changed on another device — unlock with the new passphrase",
                     ));
                 }
@@ -987,7 +1010,7 @@ impl SyncEngine {
             None => {
                 // The folder was emptied or is new: re-initialise it with our key.
                 let mut info = KeyInfo::read(&self.local_keyinfo_path())?
-                    .ok_or_else(|| invalid("unlock sync again to initialise this folder"))?;
+                    .ok_or_else(|| sync_err("unlock sync again to initialise this folder"))?;
                 info.store_id = uuid::Uuid::new_v4().to_string();
                 info.created_at = now_ms();
                 info.created_by = settings.device_name.clone();
@@ -1044,7 +1067,7 @@ impl SyncEngine {
                     file_count: r.file_count,
                 })
                 .collect(),
-            (None, Ok(_)) => return Err(invalid("unlock sync to see the other devices")),
+            (None, Ok(_)) => return Err(sync_err("unlock sync to see the other devices")),
             _ => Vec::new(),
         };
         if !devices.iter().any(|d| d.is_current) {
@@ -1214,7 +1237,7 @@ impl SyncEngine {
             KeepChoice::Remote => {
                 let bytes = ctx
                     .read_local(&record.copy_path)
-                    .map_err(|_| invalid("the conflict copy no longer exists on this device"))?;
+                    .map_err(|_| sync_err("the conflict copy no longer exists on this device"))?;
                 ctx.write_local(&record.path, &bytes, now_ms())?;
                 ctx.trash_local(&record.copy_path)?;
             }
@@ -1254,7 +1277,7 @@ impl SyncEngine {
         let settings = self.settings();
         let store = match settings.sync_dir.as_deref() {
             Some(dir) if Path::new(dir).is_dir() => Some(SyncStore::new(Path::new(dir))),
-            Some(dir) => return Err(invalid(format!("the sync folder is not reachable: {dir}"))),
+            Some(dir) => return Err(sync_err(format!("the sync folder is not reachable: {dir}"))),
             None => None,
         };
         let current = match &store {
@@ -1262,10 +1285,11 @@ impl SyncEngine {
             None => None,
         }
         .or(KeyInfo::read(&self.local_keyinfo_path())?)
-        .ok_or_else(|| invalid("no passphrase has been set up yet"))?;
+        .ok_or_else(|| sync_err("no passphrase has been set up yet"))?;
+        current.kdf.ensure_at_least(&self.kdf)?;
         let old_keys = KeySet::derive(old, current.salt_bytes()?, current.kdf)?;
         if !old_keys.matches_verifier(&current.verifier) {
-            return Err(invalid("the current passphrase is wrong"));
+            return Err(crypto_err("the current passphrase is wrong"));
         }
 
         // Resume a half-finished change with the same new passphrase.
@@ -1273,6 +1297,7 @@ impl SyncEngine {
             .as_ref()
             .and_then(|s| KeyInfo::read(&s.pending_keyinfo_path()).ok().flatten());
         let resumed = pending.and_then(|p| {
+            p.kdf.ensure_at_least(&self.kdf).ok()?;
             let keys = KeySet::derive(new, p.salt_bytes().ok()?, p.kdf).ok()?;
             keys.matches_verifier(&p.verifier).then_some((p, keys))
         });
@@ -1343,10 +1368,17 @@ impl SyncEngine {
         if !p.is_absolute() || !p.is_file() {
             return Err(invalid(format!("backup not found: {path}")));
         }
-        if p.extension().and_then(|e| e.to_str()) != Some(snapshot::BACKUP_EXT) {
+        let is_backup =
+            |p: &Path| p.extension().and_then(|e| e.to_str()) == Some(snapshot::BACKUP_EXT);
+        if !is_backup(p) {
             return Err(invalid("not an .aetherbak backup file"));
         }
-        Ok(std::fs::canonicalize(p)?)
+        let canonical = std::fs::canonicalize(p)?;
+        // A symlink named `*.aetherbak` must still point at a backup file.
+        if !is_backup(&canonical) || !canonical.is_file() {
+            return Err(invalid("not an .aetherbak backup file"));
+        }
+        Ok(canonical)
     }
 
     fn do_backup(
@@ -1779,7 +1811,7 @@ fn migrate_store(
             };
             record.id = new.path_hash(&record.copy_path)[..32].to_owned();
             let json = serde_json::to_vec(&record)
-                .map_err(|e| invalid(format!("conflict serialize: {e}")))?;
+                .map_err(|e| sync_err(format!("conflict serialize: {e}")))?;
             let sealed = new.seal(
                 EnvelopeKind::Conflict,
                 HeaderFields {
@@ -1801,7 +1833,8 @@ fn migrate_store(
 }
 
 fn write_json<T: Serialize>(path: &Path, value: &T) -> Result<(), AetherError> {
-    let bytes = serde_json::to_vec_pretty(value).map_err(|e| invalid(format!("serialize: {e}")))?;
+    let bytes =
+        serde_json::to_vec_pretty(value).map_err(|e| sync_err(format!("serialize: {e}")))?;
     folder_sync::write_atomic(path, &bytes, None)
 }
 
@@ -2149,6 +2182,38 @@ mod tests {
     }
 
     #[test]
+    fn weaker_kdf_parameters_in_the_sync_folder_are_rejected() {
+        let (sync, a, _b) = pair();
+        a.sync();
+        assert!(store_of(&sync).read_keyinfo().unwrap().is_some());
+
+        // A device that creates keys with stronger parameters must refuse
+        // the weaker header written by `a` instead of deriving with it.
+        let data = tempfile::tempdir().unwrap();
+        let vault_dir = tempfile::tempdir().unwrap();
+        let reader = VaultReader::new(data.path()).unwrap();
+        reader
+            .set_vault_path(vault_dir.path().to_str().unwrap())
+            .unwrap();
+        let strong = KdfParams {
+            m_kib: 128,
+            t: 2,
+            ..KdfParams::TESTING
+        };
+        let engine = SyncEngine::with_kdf(data.path(), Arc::new(reader), strong).unwrap();
+        engine
+            .update_settings(SyncSettingsPatch {
+                sync_dir: Some(sync.path().to_string_lossy().to_string()),
+                enabled: Some(true),
+                ..SyncSettingsPatch::default()
+            })
+            .unwrap();
+        let err = engine.unlock(PASS, false).unwrap_err().to_string();
+        assert!(err.contains("weaker"), "{err}");
+        assert!(!engine.status().unlocked);
+    }
+
+    #[test]
     fn corrupted_blob_is_skipped_and_reported() {
         let (sync, a, b) = pair();
         let t = now() - 60_000;
@@ -2480,6 +2545,17 @@ mod tests {
                 RestoreMode::Merge
             )
             .is_err());
+    }
+
+    #[test]
+    fn lock_drops_the_key_material() {
+        let (_sync, a, _b) = pair();
+        a.sync();
+        assert!(a.engine.current_keys().is_some());
+        let status = a.engine.lock();
+        assert!(!status.unlocked);
+        assert!(a.engine.current_keys().is_none(), "the key set is released");
+        assert!(a.engine.sync_now().is_err(), "nothing runs without the key");
     }
 
     #[test]

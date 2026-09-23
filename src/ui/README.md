@@ -98,7 +98,7 @@ custom box; `SegmentedControl` is a `radiogroup` (←/→ move the selection).
 
 ```tsx
 <Tabs aria-label="Import or export" value={tab} onChange={setTab}
-  items={[{ id: "export", label: "Export", icon: <Download size={13} /> }, { id: "import", label: "Import", count: 3 }]} />
+  items={[{ id: "export", label: "Export", icon: <Download size={14} /> }, { id: "import", label: "Import", count: 3 }]} />
 ```
 
 `variant`: `underline` (view level) or `pill` (in panels). Roving focus:
@@ -117,7 +117,7 @@ custom box; `SegmentedControl` is a `radiogroup` (←/→ move the selection).
 ```tsx
 <Card interactive padding="md" onClick={open}>…</Card>
 <ListRow icon={<FileText size={14} />} title="Weekly review" description="2 days ago" meta="3"
-  actions={<IconButton size="sm" label="Delete" icon={<Trash2 size={13} />} onClick={del} />}
+  actions={<IconButton size="sm" label="Delete" icon={<Trash2 size={14} />} onClick={del} />}
   selected={active} onClick={select} />
 <EmptyState icon={FolderGit2} title="No projects yet" description="Add a folder to scan."
   action={<Button variant="primary">Add folder</Button>} />

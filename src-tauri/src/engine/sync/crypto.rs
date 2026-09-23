@@ -119,27 +119,43 @@ impl KdfParams {
     /// parameters are untrusted input (they come from a shared folder).
     pub fn validate(&self) -> Result<(), AetherError> {
         if self.version != 0x13 {
-            return Err(AetherError::InvalidInput(format!(
+            return Err(AetherError::Crypto(format!(
                 "unsupported Argon2 version {}",
                 self.version
             )));
         }
         if !(1..=16).contains(&self.p) {
-            return Err(AetherError::InvalidInput(format!(
+            return Err(AetherError::Crypto(format!(
                 "Argon2 parallelism {} is out of range",
                 self.p
             )));
         }
         if !(1..=10).contains(&self.t) {
-            return Err(AetherError::InvalidInput(format!(
+            return Err(AetherError::Crypto(format!(
                 "Argon2 pass count {} is out of range",
                 self.t
             )));
         }
         if self.m_kib < MIN_M_KIB.max(8 * self.p) || self.m_kib > MAX_M_KIB {
-            return Err(AetherError::InvalidInput(format!(
+            return Err(AetherError::Crypto(format!(
                 "Argon2 memory cost {} KiB is out of range",
                 self.m_kib
+            )));
+        }
+        Ok(())
+    }
+
+    /// Reject parameters that are valid but weaker than `floor` (the
+    /// parameters this build creates keys with): less memory or fewer
+    /// passes. Key files in a shared sync folder are untrusted, so a
+    /// downgraded header must not make the key cheaper to brute-force.
+    pub fn ensure_at_least(&self, floor: &KdfParams) -> Result<(), AetherError> {
+        self.validate()?;
+        if self.m_kib < floor.m_kib || self.t < floor.t {
+            return Err(AetherError::Crypto(format!(
+                "the key parameters in the sync folder are weaker than this device requires \
+                 ({} KiB × {} passes, need at least {} KiB × {} passes)",
+                self.m_kib, self.t, floor.m_kib, floor.t
             )));
         }
         Ok(())
@@ -176,12 +192,12 @@ pub fn derive_master(
 ) -> Result<MasterKey, AetherError> {
     params.validate()?;
     let argon_params = Params::new(params.m_kib, params.t, params.p, Some(KEY_LEN))
-        .map_err(|e| AetherError::InvalidInput(format!("Argon2 parameters: {e}")))?;
+        .map_err(|e| AetherError::Crypto(format!("Argon2 parameters: {e}")))?;
     let argon = Argon2::new(Algorithm::Argon2id, Version::V0x13, argon_params);
     let mut out = Zeroizing::new([0u8; KEY_LEN]);
     argon
         .hash_password_into(passphrase, salt, out.as_mut())
-        .map_err(|e| AetherError::InvalidInput(format!("key derivation failed: {e}")))?;
+        .map_err(|e| AetherError::Crypto(format!("key derivation failed: {e}")))?;
     Ok(MasterKey(out))
 }
 
@@ -195,10 +211,10 @@ pub fn random_salt() -> [u8; SALT_LEN] {
 /// Parse a hex salt as stored in key files and headers.
 pub fn parse_salt(hex_salt: &str) -> Result<[u8; SALT_LEN], AetherError> {
     let bytes = hex::decode(hex_salt.trim())
-        .map_err(|_| AetherError::InvalidInput("salt is not valid hex".into()))?;
+        .map_err(|_| AetherError::Crypto("salt is not valid hex".into()))?;
     bytes
         .try_into()
-        .map_err(|_| AetherError::InvalidInput("salt must be 16 bytes".into()))
+        .map_err(|_| AetherError::Crypto("salt must be 16 bytes".into()))
 }
 
 /// `blake3(master || "verify")` — lets a device check a passphrase without
@@ -306,11 +322,9 @@ fn seal_with_nonce(
     nonce: &[u8; NONCE_LEN],
 ) -> Result<Vec<u8>, AetherError> {
     let header_json = serde_json::to_vec(header)
-        .map_err(|e| AetherError::InvalidInput(format!("header serialize: {e}")))?;
+        .map_err(|e| AetherError::Crypto(format!("header serialize: {e}")))?;
     if header_json.len() > MAX_HEADER_LEN {
-        return Err(AetherError::InvalidInput(
-            "envelope header too large".into(),
-        ));
+        return Err(AetherError::Crypto("envelope header too large".into()));
     }
     let mut out = Vec::with_capacity(
         MAGIC.len() + 4 + header_json.len() + NONCE_LEN + plaintext.len() + TAG_LEN,
@@ -332,7 +346,7 @@ fn aead_encrypt(
     aad: &[u8],
 ) -> Result<Vec<u8>, AetherError> {
     let cipher = Aes256Gcm::new_from_slice(key)
-        .map_err(|_| AetherError::InvalidInput("invalid key length".into()))?;
+        .map_err(|_| AetherError::Crypto("invalid key length".into()))?;
     cipher
         .encrypt(
             Nonce::from_slice(nonce),
@@ -341,7 +355,7 @@ fn aead_encrypt(
                 aad,
             },
         )
-        .map_err(|_| AetherError::InvalidInput("encryption failed".into()))
+        .map_err(|_| AetherError::Crypto("encryption failed".into()))
 }
 
 /// Raw AES-256-GCM decryption; fails on any tampering.
@@ -352,7 +366,7 @@ fn aead_decrypt(
     aad: &[u8],
 ) -> Result<Vec<u8>, AetherError> {
     let cipher = Aes256Gcm::new_from_slice(key)
-        .map_err(|_| AetherError::InvalidInput("invalid key length".into()))?;
+        .map_err(|_| AetherError::Crypto("invalid key length".into()))?;
     cipher
         .decrypt(
             Nonce::from_slice(nonce),
@@ -362,7 +376,7 @@ fn aead_decrypt(
             },
         )
         .map_err(|_| {
-            AetherError::InvalidInput(
+            AetherError::Crypto(
                 "decryption failed: the data was modified or belongs to a different passphrase"
                     .into(),
             )
@@ -375,7 +389,7 @@ fn aead_decrypt(
 pub fn peek_header(bytes: &[u8]) -> Result<(EnvelopeHeader, usize), AetherError> {
     let prefix = MAGIC.len() + 4;
     if bytes.len() < prefix || &bytes[..MAGIC.len()] != MAGIC {
-        return Err(AetherError::InvalidInput(
+        return Err(AetherError::Crypto(
             "not an AETHER encrypted object (bad magic)".into(),
         ));
     }
@@ -383,12 +397,12 @@ pub fn peek_header(bytes: &[u8]) -> Result<(EnvelopeHeader, usize), AetherError>
     len_bytes.copy_from_slice(&bytes[MAGIC.len()..prefix]);
     let header_len = u32::from_be_bytes(len_bytes) as usize;
     if header_len == 0 || header_len > MAX_HEADER_LEN || bytes.len() < prefix + header_len {
-        return Err(AetherError::InvalidInput("corrupt envelope header".into()));
+        return Err(AetherError::Crypto("corrupt envelope header".into()));
     }
     let header: EnvelopeHeader = serde_json::from_slice(&bytes[prefix..prefix + header_len])
-        .map_err(|e| AetherError::InvalidInput(format!("corrupt envelope header: {e}")))?;
+        .map_err(|e| AetherError::Crypto(format!("corrupt envelope header: {e}")))?;
     if header.v != FORMAT_VERSION {
-        return Err(AetherError::InvalidInput(format!(
+        return Err(AetherError::Crypto(format!(
             "unsupported envelope version {}",
             header.v
         )));
@@ -404,7 +418,7 @@ pub fn open_with_key(
 ) -> Result<(EnvelopeHeader, Vec<u8>), AetherError> {
     let (header, header_end) = peek_header(bytes)?;
     if bytes.len() < header_end + NONCE_LEN + TAG_LEN {
-        return Err(AetherError::InvalidInput("truncated envelope".into()));
+        return Err(AetherError::Crypto("truncated envelope".into()));
     }
     let mut nonce = [0u8; NONCE_LEN];
     nonce.copy_from_slice(&bytes[header_end..header_end + NONCE_LEN]);
@@ -415,7 +429,7 @@ pub fn open_with_key(
         &bytes[..header_end],
     )?;
     if plaintext.len() as u64 != header.size {
-        return Err(AetherError::InvalidInput(
+        return Err(AetherError::Crypto(
             "envelope size does not match its header".into(),
         ));
     }
@@ -560,13 +574,13 @@ impl KeySet {
     ) -> Result<(EnvelopeHeader, Vec<u8>), AetherError> {
         let (header, _) = peek_header(bytes)?;
         if header.kind != expected {
-            return Err(AetherError::InvalidInput(format!(
+            return Err(AetherError::Crypto(format!(
                 "unexpected object kind {:?} (expected {:?})",
                 header.kind, expected
             )));
         }
         if header.salt != self.salt_hex() {
-            return Err(AetherError::InvalidInput(
+            return Err(AetherError::Crypto(
                 "this object was encrypted with a different passphrase".into(),
             ));
         }
@@ -674,6 +688,29 @@ mod tests {
         assert!(d.validate().is_ok());
         let json = serde_json::to_string(&d).unwrap();
         assert!(json.contains("\"alg\":\"argon2id\""));
+    }
+
+    #[test]
+    fn kdf_parameters_weaker_than_the_floor_are_rejected() {
+        let floor = KdfParams {
+            m_kib: 128,
+            t: 2,
+            ..KdfParams::TESTING
+        };
+        assert!(floor.ensure_at_least(&floor).is_ok());
+        let stronger = KdfParams {
+            m_kib: 256,
+            t: 3,
+            ..floor
+        };
+        assert!(stronger.ensure_at_least(&floor).is_ok());
+        let less_memory = KdfParams { m_kib: 64, ..floor };
+        assert!(less_memory.ensure_at_least(&floor).is_err());
+        let fewer_passes = KdfParams { t: 1, ..floor };
+        assert!(fewer_passes.ensure_at_least(&floor).is_err());
+        assert!(KdfParams::DEFAULT
+            .ensure_at_least(&KdfParams::DEFAULT)
+            .is_ok());
     }
 
     #[test]

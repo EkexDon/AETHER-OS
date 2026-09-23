@@ -3,6 +3,7 @@ import type { SystemProfile } from "../../types";
 import {
   describePullStatus,
   detectOllamaIssue,
+  embeddingModelOptions,
   formatBytes,
   isModelInstalled,
   isValidModelName,
@@ -65,5 +66,20 @@ describe("model helpers", () => {
     expect(ollamaInstallCommand(null).start).toBe("ollama serve");
     expect(ollamaInstallCommand("linux").install).toContain("install.sh");
     expect(ollamaInstallCommand("windows").install).toContain("winget");
+  });
+
+  it("suggests installed embedding models first, then other models, then known ones", () => {
+    const options = embeddingModelOptions(["qwen2.5:7b", "mxbai-embed-large:latest", "all-minilm", "nomic-embed-text:latest"]);
+    expect(options.map((o) => o.name)).toEqual([
+      "all-minilm",
+      "mxbai-embed-large:latest",
+      "nomic-embed-text:latest",
+      "qwen2.5:7b",
+      "bge-m3",
+      "snowflake-arctic-embed",
+    ]);
+    expect(options.filter((o) => o.installed)).toHaveLength(4);
+    expect(embeddingModelOptions(null).map((o) => o.name)[0]).toBe("nomic-embed-text");
+    expect(embeddingModelOptions(null).every((o) => !o.installed)).toBe(true);
   });
 });

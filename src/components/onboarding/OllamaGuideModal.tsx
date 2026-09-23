@@ -18,7 +18,6 @@ import { refreshHealth } from "../../lib/onboarding/vaultActions";
 import { Badge, Button, Modal, Select, useToast } from "../../ui";
 import { CopyCommand } from "./CopyCommand";
 import { PullModelControl } from "./PullModelControl";
-import "../../styles/views/onboarding.css";
 
 /**
  * Guidance instead of silent failures: explains why local AI is not working
@@ -94,13 +93,13 @@ export function OllamaGuideModal() {
       title={title}
       description={description}
       footerStart={
-        <Button variant="ghost" size="sm" iconLeft={<Cloud size={13} />} onClick={useCloud}>
+        <Button variant="ghost" size="sm" iconLeft={<Cloud size={14} />} onClick={useCloud}>
           Use OpenRouter instead
         </Button>
       }
       footer={
         <>
-          <Button variant="secondary" iconLeft={<RefreshCw size={13} />} loading={checking} onClick={() => void retry()}>
+          <Button variant="secondary" iconLeft={<RefreshCw size={14} />} loading={checking} onClick={() => void retry()}>
             Check again
           </Button>
           <Button variant="primary" onClick={close}>
@@ -118,7 +117,7 @@ export function OllamaGuideModal() {
               <Button
                 variant="ghost"
                 size="sm"
-                iconRight={<ArrowUpRight size={12} />}
+                iconRight={<ArrowUpRight size={14} />}
                 onClick={() => void openExternalUrl(install.url).catch(() => undefined)}
               >
                 Or download the app from ollama.com

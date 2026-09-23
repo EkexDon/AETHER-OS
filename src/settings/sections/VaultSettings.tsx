@@ -15,7 +15,6 @@ import {
 import { canPickFolder, connectVault, folderName, pickFolder } from "../../lib/onboarding/vaultActions";
 import { Badge, Button, EmptyState, Input, Spinner, useToast } from "../../ui";
 import { SettingsGroup, SettingsPage, SettingsRow } from "../layout";
-import "../../styles/views/onboarding.css";
 
 const KIND_LABEL: Record<VaultInfo["kind"], string> = { nopes: "NoPes", obsidian: "Obsidian", plain: "Markdown" };
 
@@ -216,7 +215,7 @@ export function VaultSettings() {
           label="Show in Finder"
           hint={vaultPath ? folderName(vaultPath) : "Connect a vault first."}
           control={
-            <Button size="sm" variant="ghost" iconLeft={<SquareArrowOutUpRight size={13} />} disabled={!vaultPath} onClick={() => void reveal()}>
+            <Button size="sm" variant="ghost" iconLeft={<SquareArrowOutUpRight size={14} />} disabled={!vaultPath} onClick={() => void reveal()}>
               Reveal
             </Button>
           }
@@ -230,7 +229,7 @@ export function VaultSettings() {
           stacked={creating}
           control={
             creating ? undefined : (
-              <Button size="sm" variant="secondary" iconLeft={<FolderPlus size={13} />} onClick={() => void startCreate()}>
+              <Button size="sm" variant="secondary" iconLeft={<FolderPlus size={14} />} onClick={() => void startCreate()}>
                 Create new vault
               </Button>
             )
@@ -271,7 +270,7 @@ export function VaultSettings() {
           stacked={found !== null}
           control={
             found === null ? (
-              <Button size="sm" variant="secondary" iconLeft={<FolderSearch size={13} />} loading={scanning} onClick={() => void scan()}>
+              <Button size="sm" variant="secondary" iconLeft={<FolderSearch size={14} />} loading={scanning} onClick={() => void scan()}>
                 Search
               </Button>
             ) : undefined
@@ -309,7 +308,7 @@ export function VaultSettings() {
 
       <SettingsGroup
         title="Daily notes"
-        description="Used for the layout of new starter vaults. Quick capture and the agent currently always write to daily/YYYY-MM-DD.md."
+        description="Where today's note lives. Quick capture, the agent, Home and new starter vaults all follow this layout."
       >
         {prefs === null && !prefsError ? (
           <div className="ob-loading obs-pad">
@@ -334,7 +333,12 @@ export function VaultSettings() {
             />
             <SettingsRow
               label="File name pattern"
-              hint={`YYYY, MM and DD are replaced — today: ${previewDailyName(prefsDraft.daily_filename_pattern.trim() || "YYYY-MM-DD")}`}
+              hint={`YYYY, MM and DD are replaced; "/" adds sub-folders (YYYY/MM/YYYY-MM-DD), created as needed. Today: ${[
+                prefsDraft.daily_folder.trim().replace(/^\/+|\/+$/g, ""),
+                previewDailyName(prefsDraft.daily_filename_pattern.trim() || "YYYY-MM-DD"),
+              ]
+                .filter(Boolean)
+                .join("/")}`}
               htmlFor="settings-daily-pattern"
               control={
                 <div className="obs-inline">

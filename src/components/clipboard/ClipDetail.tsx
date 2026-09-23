@@ -52,9 +52,9 @@ export function ClipDetail({ item, now, onCopy, onTogglePin, onDelete, onSaveAsN
     <section className="clip-detail" aria-label="Clip details" aria-live="polite">
       <header className="clip-detail-header">
         <div className="clip-detail-badges">
-          <Badge icon={<KindIcon size={12} />}>{kindLabel(item.kind)}</Badge>
+          <Badge icon={<KindIcon size={14} />}>{kindLabel(item.kind)}</Badge>
           {item.pinned && (
-            <Badge variant="accent" icon={<Pin size={11} />}>
+            <Badge variant="accent" icon={<Pin size={14} />}>
               Pinned
             </Badge>
           )}

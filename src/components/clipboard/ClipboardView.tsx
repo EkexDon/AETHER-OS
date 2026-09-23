@@ -11,15 +11,14 @@ import { ClipDetail } from "./ClipDetail";
 import { SaveAsNoteModal } from "./SaveAsNoteModal";
 import { ClearHistoryModal } from "./ClearHistoryModal";
 import { useNow } from "./useNow";
-import "../../styles/views/clipboard.css";
 
 const FILTER_ICONS: Record<ClipKindFilter, JSX.Element> = {
-  all: <Layers size={13} />,
-  text: <Type size={13} />,
-  url: <Link2 size={13} />,
-  code: <Braces size={13} />,
-  image: <ImageIcon size={13} />,
-  color: <Palette size={13} />,
+  all: <Layers size={14} />,
+  text: <Type size={14} />,
+  url: <Link2 size={14} />,
+  code: <Braces size={14} />,
+  image: <ImageIcon size={14} />,
+  color: <Palette size={14} />,
 };
 
 /** Page size for PageUp / PageDown. */
@@ -262,7 +261,7 @@ export function ClipboardView() {
               size="sm"
               variant="ghost"
               className={cx("clip-filter-toggle", pinnedOnly && "is-active")}
-              iconLeft={<Pin size={13} />}
+              iconLeft={<Pin size={14} />}
               aria-pressed={pinnedOnly}
               onClick={() => actions.setPinnedOnly(!pinnedOnly)}
             >

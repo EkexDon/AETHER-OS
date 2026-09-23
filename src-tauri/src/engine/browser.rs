@@ -68,8 +68,11 @@ impl BrowserManager {
     }
 
     /// Open a URL in LibreWolf if available, otherwise fall back to
-    /// the system default browser via `open`.
+    /// the system default browser via `open`. Only `http`, `https` and
+    /// `mailto` URLs are accepted (see [`validate_external_url`]).
     pub fn open_url(&self, url: &str) -> Result<(), AetherError> {
+        let url = validate_external_url(url)?;
+        let url = url.as_str();
         if let Some(ref path) = self.librewolf_path {
             Command::new(path).arg(url).spawn().map_err(|e| {
                 AetherError::InvalidInput(format!("Failed to launch LibreWolf: {e}"))
@@ -94,6 +97,8 @@ impl BrowserManager {
 
     /// Open a URL in LibreWolf specifically, erroring if not installed.
     pub fn open_in_librewolf(&self, url: &str) -> Result<(), AetherError> {
+        let url = validate_external_url(url)?;
+        let url = url.as_str();
         let path = self
             .librewolf_path
             .as_ref()
@@ -107,9 +112,80 @@ impl BrowserManager {
     }
 }
 
+/// Parse a URL that is handed to an external program (the system browser,
+/// LibreWolf). Only `http`, `https` and `mailto` are allowed: `open` would
+/// launch applications and scripts for `file:` URLs or plain paths, and a
+/// leading `-` would be read as an option.
+pub fn validate_external_url(raw: &str) -> Result<url::Url, AetherError> {
+    let trimmed = raw.trim();
+    let url = url::Url::parse(trimmed)
+        .map_err(|_| AetherError::InvalidInput(format!("not a valid URL: {trimmed}")))?;
+    match url.scheme() {
+        "http" | "https" if url.host_str().is_some_and(|h| !h.is_empty()) => Ok(url),
+        "mailto" => Ok(url),
+        other => Err(AetherError::InvalidInput(format!(
+            "only http, https and mailto links can be opened (got \"{other}:\")"
+        ))),
+    }
+}
+
+/// Parse a URL for the embedded browser webview: `http`/`https` pages and
+/// `about:blank` only (no `file:`, `javascript:`, `data:` or app URLs).
+pub fn validate_webview_url(raw: &str) -> Result<url::Url, AetherError> {
+    let trimmed = raw.trim();
+    let url = url::Url::parse(trimmed)
+        .map_err(|_| AetherError::InvalidInput(format!("not a valid URL: {trimmed}")))?;
+    match url.scheme() {
+        "http" | "https" if url.host_str().is_some_and(|h| !h.is_empty()) => Ok(url),
+        "about" if url.path() == "blank" => Ok(url),
+        other => Err(AetherError::InvalidInput(format!(
+            "the built-in browser only opens http and https pages (got \"{other}:\")"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn external_urls_are_limited_to_web_and_mail_links() {
+        for ok in [
+            "https://example.com/a?b=c",
+            "http://localhost:11434",
+            "  https://openrouter.ai  ",
+            "mailto:someone@example.com",
+        ] {
+            assert!(validate_external_url(ok).is_ok(), "{ok}");
+        }
+        for bad in [
+            "file:///Applications/Calculator.app",
+            "/Applications/Calculator.app",
+            "-a Calculator",
+            "javascript:alert(1)",
+            "vscode://file/etc/passwd",
+            "smb://server/share",
+            "https://",
+            "",
+        ] {
+            assert!(validate_external_url(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn webview_urls_are_web_pages_or_about_blank() {
+        assert!(validate_webview_url("https://duckduckgo.com/?q=x").is_ok());
+        assert!(validate_webview_url("about:blank").is_ok());
+        for bad in [
+            "file:///etc/passwd",
+            "javascript:alert(1)",
+            "data:text/html,<script>1</script>",
+            "tauri://localhost",
+            "about:config",
+        ] {
+            assert!(validate_webview_url(bad).is_err(), "{bad}");
+        }
+    }
 
     #[test]
     fn info_returns_consistent_data() {
@@ -138,10 +214,12 @@ mod tests {
 
     #[test]
     fn open_url_with_invalid_scheme_errors() {
-        let mgr = BrowserManager::new();
-        // Empty URL should still attempt to open — we don't validate URLs
-        // at the engine level. Just verify it doesn't panic.
-        let _ = mgr.open_url("about:blank");
+        let mgr = BrowserManager {
+            librewolf_path: None,
+        };
+        // Rejected before any process is spawned.
+        assert!(mgr.open_url("about:blank").is_err());
+        assert!(mgr.open_url("file:///etc/passwd").is_err());
     }
 
     #[test]

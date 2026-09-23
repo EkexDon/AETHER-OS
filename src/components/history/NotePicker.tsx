@@ -74,7 +74,7 @@ export function NotePicker({ onPick, autoFocus }: NotePickerProps) {
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(note.path)}
                 >
-                  <FileText size={13} aria-hidden="true" />
+                  <FileText size={14} aria-hidden="true" />
                   <span className="history-picker-name">{note.name}</span>
                   {folder && <span className="history-picker-folder">{folder}</span>}
                 </li>

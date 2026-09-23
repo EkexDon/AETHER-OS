@@ -232,3 +232,51 @@ select:focus-visible,
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Hit areas ──────────────────────────────────────────────────
+   Dense controls keep their visual size; an invisible ring makes them
+   at least ~28 px to point at (Button / IconButton: see button.css). */
+.dir-chip-remove,
+.terminal-tab-close,
+.vt-stat,
+.ui-segment,
+.graph-tag-pill,
+.usearch-prefix,
+.statusbar-item {
+  position: relative;
+}
+
+.dir-chip-remove::after,
+.terminal-tab-close::after,
+.vt-stat::after,
+.ui-segment::after,
+.ui-switch-sm::after,
+.graph-tag-pill::after,
+.usearch-prefix::after,
+.statusbar-item::after {
+  content: "";
+  position: absolute;
+}
+
+.dir-chip-remove::after,
+.terminal-tab-close::after {
+  inset: -6px;
+}
+
+.vt-stat::after,
+.graph-tag-pill::after,
+.usearch-prefix::after {
+  inset: -4px -2px;
+}
+
+.ui-switch-sm::after {
+  inset: -7px -2px;
+}
+
+.ui-segment::after {
+  inset: -3px 0;
+}
+
+.statusbar-item::after {
+  inset: -2px 0;
+}

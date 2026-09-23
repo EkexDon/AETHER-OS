@@ -6,7 +6,6 @@ import { formatBytes } from "../../lib/clipboard/format";
 import { SettingsGroup, SettingsPage, SettingsRow } from "../../settings/layout";
 import { Button, Input, Select, Spinner, Switch, useToast } from "../../ui";
 import { ClearHistoryModal } from "./ClearHistoryModal";
-import "../../styles/views/clipboard.css";
 
 const KEEP_PRESETS = [1, 7, 14, 30, 90, 180, 365];
 const MAX_ITEMS_MIN = 10;

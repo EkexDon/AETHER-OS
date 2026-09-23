@@ -10,6 +10,9 @@ import { OnboardingWizard } from "./OnboardingWizard";
 import { OllamaStatusItem } from "./OllamaStatusItem";
 import { OllamaGuideModal } from "./OllamaGuideModal";
 import { WhatsNewModal } from "./WhatsNewModal";
+import changelog from "../../../CHANGELOG.md?raw";
+import { releaseNotesFor } from "../../lib/onboarding/changelog";
+import { APP_VERSION } from "../../lib/onboarding/appVersion";
 
 const ONLINE = { ollama_online: true, openrouter_configured: false, vault_connected: false };
 
@@ -167,11 +170,19 @@ describe("Ollama guidance", () => {
 
 describe("WhatsNewModal", () => {
   it("renders the bundled changelog section", async () => {
+    // The section of the running version (or "Unreleased" while it has entries).
+    const section = releaseNotesFor(changelog, APP_VERSION);
+    expect(section).not.toBeNull();
+    const heading = /^###\s+(.+)$/m.exec(section!.body)?.[1]?.trim();
+    expect(heading).toBeTruthy();
     useOnboardingStore.setState({ whatsNewOpen: true });
     render(<WhatsNewModal />);
     expect(screen.getByRole("dialog", { name: /What's new/ })).toBeInTheDocument();
     // The Markdown renderer (with mermaid) is lazy-loaded; allow for a cold import.
-    expect(await screen.findByText(/First-run setup/, undefined, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: heading }, { timeout: 10_000 })).toBeInTheDocument();
+    if (section!.version !== "Unreleased") {
+      expect(screen.getByRole("dialog", { name: `What's new in ${section!.version}` })).toBeInTheDocument();
+    }
     fireEvent.click(screen.getByRole("button", { name: "Got it" }));
     expect(useOnboardingStore.getState().whatsNewOpen).toBe(false);
   }, 15_000);

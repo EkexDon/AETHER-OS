@@ -78,7 +78,7 @@ function ColorDetail({ value }: { value: string }) {
             <div key={f.label} className="clip-color-format">
               <dt>{f.label}</dt>
               <dd className="mono">{f.value}</dd>
-              <IconButton size="sm" label={`Copy ${f.label}`} icon={<Copy size={13} />} onClick={() => void copyFormat(f.value)} />
+              <IconButton size="sm" label={`Copy ${f.label}`} icon={<Copy size={14} />} onClick={() => void copyFormat(f.value)} />
             </div>
           ))}
         </dl>

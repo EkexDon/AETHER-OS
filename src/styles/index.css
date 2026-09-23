@@ -1,7 +1,8 @@
 /* ─────────────────────────────────────────────────────────────────────────
    AETHER-OS stylesheet entry. Order matters: fonts → tokens → base →
-   primitives → shell → views. Feature views import their own
-   `src/styles/views/<feature>.css` from their root component.
+   primitives → shell → views → features. Every stylesheet is imported
+   exactly once, here — components never import CSS themselves, so a
+   feature's styles are there before its first (possibly lazy) render.
    ───────────────────────────────────────────────────────────────────────── */
 
 /* Bundled fonts (no CDN — the Tauri CSP only allows 'self'). */
@@ -42,7 +43,17 @@
 @import "./views/calendar.css";
 @import "./views/tasks.css";
 @import "./views/agent-chat.css";
-@import "./views/command-bar.css";
 @import "./views/settings.css";
 @import "./views/quick-capture.css";
 @import "./views/web-clipper.css";
+
+/* Feature views (v0.2) */
+@import "./views/clipboard.css";
+@import "./views/history.css";
+@import "./views/home.css";
+@import "./views/vaulttasks.css";
+@import "./views/intel.css";
+@import "./views/plugins.css";
+@import "./views/export.css";
+@import "./views/sync.css";
+@import "./views/onboarding.css";

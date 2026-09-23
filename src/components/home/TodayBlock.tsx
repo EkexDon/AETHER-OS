@@ -8,6 +8,7 @@ import { shiftDateKey } from "../../lib/home/focusStats";
 import { relativeTime } from "../../lib/home/format";
 import { Badge, Button, Checkbox, EmptyState, Input, ListRow, Spinner, cx } from "../../ui";
 import { HomeBlock } from "./HomeBlock";
+import { plainTaskTitle } from "../../lib/vaulttasks/segments";
 
 /** Most rows each list shows before "+N more". */
 const MAX_EVENTS = 6;
@@ -68,10 +69,10 @@ export function TodayBlock(props: TodayBlockProps) {
         <section className="home-subsection" aria-label="Schedule">
           <header className="home-subsection-header">
             <span className="ui-section-label">
-              <CalendarDays size={12} aria-hidden="true" /> Schedule
+              <CalendarDays size={14} aria-hidden="true" /> Schedule
             </span>
-            {props.loadingEvents && <Spinner size={11} label="Loading events" />}
-            <Button variant="ghost" size="sm" iconLeft={<CalendarPlus size={13} />} onClick={props.onNewEvent}>
+            {props.loadingEvents && <Spinner size={14} label="Loading events" />}
+            <Button variant="ghost" size="sm" iconLeft={<CalendarPlus size={14} />} onClick={props.onNewEvent}>
               New event
             </Button>
           </header>
@@ -113,10 +114,10 @@ export function TodayBlock(props: TodayBlockProps) {
         <section className="home-subsection" aria-label="Due">
           <header className="home-subsection-header">
             <span className="ui-section-label">
-              <ListTodo size={12} aria-hidden="true" /> Due
+              <ListTodo size={14} aria-hidden="true" /> Due
             </span>
-            {props.loadingTasks && <Spinner size={11} label="Loading tasks" />}
-            <Button variant="ghost" size="sm" iconRight={<ArrowUpRight size={13} />} onClick={props.onOpenTasks}>
+            {props.loadingTasks && <Spinner size={14} label="Loading tasks" />}
+            <Button variant="ghost" size="sm" iconRight={<ArrowUpRight size={14} />} onClick={props.onOpenTasks}>
               Board
             </Button>
           </header>
@@ -128,7 +129,7 @@ export function TodayBlock(props: TodayBlockProps) {
               title="Nothing due"
               description="Tasks due today or earlier show up here."
               action={
-                <Button size="sm" variant="secondary" iconLeft={<Plus size={13} />} onClick={props.onNewTask}>
+                <Button size="sm" variant="secondary" iconLeft={<Plus size={14} />} onClick={props.onNewTask}>
                   New task
                 </Button>
               }
@@ -170,11 +171,12 @@ export function TodayBlock(props: TodayBlockProps) {
                 return (
                   <li key={t.id} className="home-due-item">
                     <span className="home-due-note-icon" aria-hidden="true">
-                      <FileText size={13} />
+                      <FileText size={14} />
                     </span>
                     <ListRow
                       className="home-due-row"
-                      title={t.text}
+                      title={plainTaskTitle(t.text) || t.text}
+                      aria-label={`${plainTaskTitle(t.text) || t.text} — ${t.noteName}, line ${t.line + 1}`}
                       description={`${t.noteName} · line ${t.line + 1}`}
                       meta={<Badge variant={badge.tone}>{badge.label}</Badge>}
                       onClick={() => props.onOpenNoteTask(t)}
@@ -272,7 +274,7 @@ function DailyNoteStrip({
     <div className="home-daily">
       <ListRow
         className="home-daily-row"
-        icon={<CalendarCheck size={15} />}
+        icon={<CalendarCheck size={16} />}
         title="Daily note"
         description={daily ? `${today} · edited ${relativeTime(daily.mtime * 1000, now)}` : `${today} · not created yet`}
         meta={
@@ -291,13 +293,13 @@ function DailyNoteStrip({
       >
         <Input
           size="sm"
-          iconLeft={<Zap size={13} />}
+          iconLeft={<Zap size={14} />}
           aria-label="Add a line to today's daily note"
           placeholder="Add a line to today's note…"
           value={text}
           disabled={busy === "append"}
           onChange={(e) => setText(e.target.value)}
-          suffix={busy === "append" ? <Spinner size={11} label="Saving" /> : undefined}
+          suffix={busy === "append" ? <Spinner size={14} label="Saving" /> : undefined}
         />
       </form>
     </div>

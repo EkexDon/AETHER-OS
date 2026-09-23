@@ -14,7 +14,7 @@ export const appendNote = (path: string, content: string) =>
 /** Notes linking to `noteName` via `[[wikilinks]]`. */
 export const getBacklinks = (noteName: string) =>
   call<Backlink[]>("cmd_get_backlinks", { noteName });
-/** Today's daily note path (`daily/YYYY-MM-DD.md`), created if missing. */
+/** Today's daily note path (Settings → Vault layout, default `daily/YYYY-MM-DD.md`), created if missing. */
 export const dailyNote = () => call<string>("cmd_daily_note");
 /** Append a timestamped bullet to today's daily note; returns its path. */
 export const appendDaily = (text: string) => call<string>("cmd_append_daily", { text });

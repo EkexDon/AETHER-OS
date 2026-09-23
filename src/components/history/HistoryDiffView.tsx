@@ -80,7 +80,7 @@ function SplitCell({ line, side, span }: { line: DiffLine | null; side: "old" | 
 function FoldButton({ count, onExpand }: { count: number; onExpand: () => void }) {
   return (
     <button type="button" className="history-diff-fold" onClick={onExpand}>
-      <ChevronsUpDown size={12} aria-hidden="true" />
+      <ChevronsUpDown size={14} aria-hidden="true" />
       <span>
         Show {count} unchanged line{count === 1 ? "" : "s"}
       </span>

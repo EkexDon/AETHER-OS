@@ -25,9 +25,8 @@ import { editorLabel, openBookmark, openClip, openCommand, openHit } from "../..
 import { Kbd, Modal, Spinner, cx } from "../../ui";
 import { HighlightedSnippet, HighlightedText } from "../search/Highlighted";
 import { LAUNCHER_PER_KIND, useLauncherSearch } from "./useLauncherSearch";
-import "../../styles/views/search.css";
 
-/** Props of {@link Launcher}; `onClose` keeps the old CommandBar contract. */
+/** Props of {@link Launcher}: controlled by the shell (`launcherOpen` in the shell store). */
 export interface LauncherProps {
   onClose: () => void;
   /** Render the palette (default `true`). When `false` only the global-shortcut listener is mounted. */
@@ -65,7 +64,7 @@ export function primaryLabel(item: LauncherItem): string {
         case "memory":
           return "Open Memory";
         case "conversation":
-          return "Show conversation";
+          return "Open conversation";
       }
   }
 }
@@ -88,7 +87,7 @@ export function alternateLabel(item: LauncherItem, preferredEditor: string): str
     case "memory":
       return "Show in Search";
     case "conversation":
-      return "Open AI agent";
+      return "Show transcript";
     default:
       return null;
   }
@@ -355,7 +354,7 @@ function LauncherPalette({ onClose }: { onClose: () => void }) {
                         active && (
                           <span className="launcher-item-action">
                             {primaryLabel(item)}
-                            <CornerDownLeft size={12} />
+                            <CornerDownLeft size={14} />
                           </span>
                         )
                       )}

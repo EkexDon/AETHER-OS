@@ -79,7 +79,9 @@ describe("PluginPanel", () => {
     expect(container.querySelector("img, script, iframe")).toBeNull();
     expect(container.textContent).toContain("tracker");
     const links = [...container.querySelectorAll("a")];
-    expect(links.map((a) => a.getAttribute("href"))).toEqual(["", "https://tauri.app"]);
+    // The javascript: link is dropped to text; the web link opens in the system browser.
+    expect(links.map((a) => a.getAttribute("href"))).toEqual(["https://tauri.app/"]);
+    expect(screen.getByText("click").closest("a")).toBeNull();
     expect((window as unknown as { __pwned?: number }).__pwned).toBeUndefined();
   });
 });

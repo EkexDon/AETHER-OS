@@ -100,7 +100,7 @@ export function IdeSourceControl({ rootPath, onOpenDiff, onChanged }: IdeSourceC
     <div className="scm-panel">
       <div className="scm-toolbar">
         <span className="scm-branch" title="Current branch">
-          <GitBranch size={12} /> {status.branch}
+          <GitBranch size={14} /> {status.branch}
           {describeSyncState(status.ahead, status.behind) && (
             <span className="scm-sync">{describeSyncState(status.ahead, status.behind)}</span>
           )}
@@ -109,11 +109,11 @@ export function IdeSourceControl({ rootPath, onOpenDiff, onChanged }: IdeSourceC
             onClick={() => setShowBranches((v) => !v)}
             title={showBranches ? "Hide branches" : "Show branches"}
           >
-            <ChevronDown size={12} style={{ transform: showBranches ? "none" : "rotate(-90deg)" }} />
+            <ChevronDown size={14} style={{ transform: showBranches ? "none" : "rotate(-90deg)" }} />
           </button>
         </span>
         <button className="btn btn-icon btn-sm" onClick={() => void refresh()} title="Refresh status">
-          <RefreshCw size={12} />
+          <RefreshCw size={14} />
         </button>
       </div>
 
@@ -150,7 +150,7 @@ export function IdeSourceControl({ rootPath, onOpenDiff, onChanged }: IdeSourceC
               spellCheck={false}
             />
             <button type="submit" className="btn btn-icon btn-sm" disabled={!newBranchName.trim() || busy}>
-              <Plus size={12} />
+              <Plus size={14} />
             </button>
           </form>
         </div>
@@ -211,16 +211,16 @@ export function IdeSourceControl({ rootPath, onOpenDiff, onChanged }: IdeSourceC
           disabled={staged.length === 0 || !message.trim() || busy}
           onClick={handleCommit}
         >
-          {busy ? <Loader2 size={13} className="spin" /> : <GitCommitHorizontal size={13} />}
+          {busy ? <Loader2 size={14} className="spin" /> : <GitCommitHorizontal size={14} />}
           Commit ({staged.length})
         </button>
       </div>
 
       <div className="scm-section">
-        <h4>Recent Commits</h4>
+        <h4>Recent commits</h4>
         {log.map((c) => (
           <div key={c.id} className="scm-commit-row" title={`${c.id} — ${c.author}`}>
-            <CornerUpLeft size={11} className="scm-commit-icon" />
+            <CornerUpLeft size={14} className="scm-commit-icon" />
             <span className="scm-commit-summary">{c.summary}</span>
             <span className="scm-commit-meta">
               {formatRelativeTime(c.time, Math.floor(Date.now() / 1000))} · {c.id}
@@ -266,17 +266,17 @@ function ScmRow({ entry, kind, side, busy, onOpen, onAction, onStage, onDiscard 
       <span className="scm-actions">
         {side === "unstaged" && onStage && (
           <button className="btn btn-icon btn-sm" onClick={onStage} disabled={busy} title="Stage (+)">
-            <CirclePlus size={13} />
+            <CirclePlus size={14} />
           </button>
         )}
         {side === "staged" && onAction && (
           <button className="btn btn-icon btn-sm" onClick={onAction} disabled={busy} title="Unstage (−)">
-            <CircleMinus size={13} />
+            <CircleMinus size={14} />
           </button>
         )}
         {side === "unstaged" && onDiscard && (
           <button className="btn btn-icon btn-sm" onClick={onDiscard} disabled={busy} title="Discard changes">
-            <CornerUpLeft size={13} />
+            <CornerUpLeft size={14} />
           </button>
         )}
       </span>

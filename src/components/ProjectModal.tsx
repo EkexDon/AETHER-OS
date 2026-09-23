@@ -112,7 +112,7 @@ export function ProjectModal({
             onClick={() => void handleDelete()}
             disabled={saving}
           >
-            <Trash2 size={13} /> {confirmingDelete ? "Confirm delete" : "Delete"}
+            <Trash2 size={14} /> {confirmingDelete ? "Confirm delete" : "Delete"}
           </button>
         )
       }
@@ -129,7 +129,7 @@ export function ProjectModal({
     >
         <div className="event-editor-body" onKeyDown={handleKeyDown}>
           <label className="event-editor-field">
-            <span className="event-editor-field-label">Project Name</span>
+            <span className="event-editor-field-label">Project name</span>
             <input
               ref={nameRef}
               className="settings-input"
@@ -153,7 +153,7 @@ export function ProjectModal({
           </label>
 
           <div className="event-editor-field">
-            <span className="event-editor-field-label">Color Theme</span>
+            <span className="event-editor-field-label">Color</span>
             <div className="event-editor-color-row">
               {CALENDAR_COLORS.map((c) => (
                 <button

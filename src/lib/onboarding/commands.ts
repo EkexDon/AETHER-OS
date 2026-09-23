@@ -22,7 +22,7 @@ export const onboardingCommands: CommandContribution[] = [
     icon: WandSparkles,
     keywords: ["onboarding", "wizard", "first run", "welcome", "tour", "setup"],
     run: (ctx) => {
-      ctx.closeCommandBar();
+      ctx.closeLauncher();
       useOnboardingStore.getState().openWizard({ restart: true });
     },
   },
@@ -33,7 +33,7 @@ export const onboardingCommands: CommandContribution[] = [
     icon: Sparkles,
     keywords: ["changelog", "release notes", "update", "version"],
     run: (ctx) => {
-      ctx.closeCommandBar();
+      ctx.closeLauncher();
       useOnboardingStore.getState().openWhatsNew();
     },
   },
@@ -44,7 +44,7 @@ export const onboardingCommands: CommandContribution[] = [
     icon: HardDrive,
     keywords: ["ollama", "offline", "model", "pull", "install", "download", "local ai"],
     run: (ctx) => {
-      ctx.closeCommandBar();
+      ctx.closeLauncher();
       useOnboardingStore.getState().openOllamaGuide();
     },
   },

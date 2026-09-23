@@ -5,7 +5,6 @@ import { useHistoryStore } from "../../lib/historyStore";
 import { useAetherStore } from "../../lib/store";
 import { IconButton, Modal } from "../../ui";
 import { NoteHistoryPanel } from "./NoteHistoryPanel";
-import "../../styles/views/history.css";
 
 /**
  * Right-side drawer with the history of one note, opened with ⌘⇧H while

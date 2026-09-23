@@ -14,6 +14,18 @@
    ───────────────────────────────────────────────────────────────────────── */
 
 :root {
+  /* ── Theme-independent control shading ─────────────────────────
+     Raised accent surfaces (primary button, send), pressed controls,
+     switch knobs, inset wells and swatch rings look the same in both
+     themes; tooltips are always dark, so their kbd chips too. */
+  --shadow-accent-raised: inset 0 1px 0 rgba(255, 253, 248, 0.16), 0 1px 2px rgba(10, 9, 8, 0.22);
+  --shadow-pressed: inset 0 1px 2px rgba(10, 9, 8, 0.2);
+  --shadow-knob: 0 1px 2px rgba(10, 9, 8, 0.3), 0 0 0 0.5px rgba(10, 9, 8, 0.12);
+  --shadow-well: inset 0 1px 1px rgba(10, 9, 8, 0.06);
+  --shadow-swatch-ring: inset 0 0 0 1px rgba(10, 9, 8, 0.12);
+  --color-tooltip-kbd-bg: rgba(255, 253, 248, 0.08);
+  --color-tooltip-kbd-border: rgba(255, 253, 248, 0.12);
+
   /* ── Typography ─────────────────────────────────────────────── */
   --font-ui: "IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;

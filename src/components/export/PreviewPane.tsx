@@ -70,7 +70,7 @@ export function PreviewPane({ flow, scope, options, notes, onThemeChange }: Prev
     <div className="export-preview">
       <div className="export-preview-bar">
         <span className="ui-section-label">
-          <Eye size={12} /> {flow === "bundle" ? "Markdown preview" : "Page preview"}
+          <Eye size={14} /> {flow === "bundle" ? "Markdown preview" : "Page preview"}
         </span>
         <div className="export-preview-controls">
           {notes.length > 1 && (

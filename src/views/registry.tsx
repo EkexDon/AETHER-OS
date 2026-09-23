@@ -82,7 +82,7 @@ export const VIEWS: ViewDefinition[] = [
     group: "knowledge",
     shortcut: "mod+1",
     component: Dashboard,
-    description: "Vault overview and quick actions",
+    description: "Your day at a glance",
   },
   {
     mode: "editor",

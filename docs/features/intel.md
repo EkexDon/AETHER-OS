@@ -91,9 +91,12 @@ approve them — with every executed or denied action in a local **audit log**.
 Action semantics:
 
 - `run_command` runs `sh -lc <command>` (login shell, your profile's `PATH`;
-  `cmd /C` on Windows) with stdin closed, `AETHER_AGENT=1` in the
-  environment, a 60 s timeout (configurable 15 s–5 min) and 64 KB of captured
-  output per stream. `cwd` defaults to the vault; relative paths resolve
+  `cmd /C` on Windows) with stdin closed, a 60 s timeout (configurable
+  15 s–5 min) and 64 KB of captured output per stream; longer output ends
+  with the marker `[… output truncated at 64 KiB]`. The environment is
+  minimal — only `PATH`, `HOME`, `LANG`, `TERM` and `AETHER_AGENT=1` (plus
+  the Windows essentials) — so API keys and other secrets in the app's own
+  environment are not inherited. `cwd` defaults to the vault; relative paths resolve
   against the vault; the directory must be inside a project directory or the
   vault. On timeout the whole process group is killed.
 - `delete_note` never deletes: the note moves to
@@ -193,9 +196,10 @@ against the vault / git / task mocks; `run_command` validates the working
 directory and returns plausible fake output for `ls`, `pwd`, `echo`,
 `git status|log`, `npm|cargo test` (nothing is executed). The fake LLM
 answers explicit requests with the matching action block — try
-``run `git status` in the demo app``, *delete the note Quick Capture*,
-*move Reading List to the archive*, *commit my changes*, *add a task to call
-the landlord*, *tick off the first task in Reading List*.
+``run `git status` in the demo app``, *delete the note Quick Capture* or
+*move the Reading List note to the archive* (all three need approval). It
+does not emit `git_commit`, `create_task` or `toggle_vault_task` blocks;
+their mock handlers are covered by tests (see `docs/dev/MOCK-MODE.md`).
 
 ## Limitations
 

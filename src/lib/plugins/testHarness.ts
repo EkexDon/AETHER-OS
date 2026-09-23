@@ -44,6 +44,7 @@ export class InProcessWorker implements WorkerLike {
   terminated = false;
   private readonly hostMessage = new Set<(event: MessageEvent) => void>();
   private readonly hostError = new Set<(event: Event) => void>();
+  private readonly hostMessageError = new Set<(event: Event) => void>();
   private readonly workerListeners = new Map<string, Set<Listener>>();
 
   constructor(
@@ -99,11 +100,13 @@ export class InProcessWorker implements WorkerLike {
 
   addEventListener(type: string, listener: (event: never) => void): void {
     if (type === "message") this.hostMessage.add(listener as (event: MessageEvent) => void);
+    else if (type === "messageerror") this.hostMessageError.add(listener as (event: Event) => void);
     else this.hostError.add(listener as (event: Event) => void);
   }
 
   removeEventListener(type: string, listener: (event: never) => void): void {
     if (type === "message") this.hostMessage.delete(listener as (event: MessageEvent) => void);
+    else if (type === "messageerror") this.hostMessageError.delete(listener as (event: Event) => void);
     else this.hostError.delete(listener as (event: Event) => void);
   }
 
@@ -115,14 +118,30 @@ export class InProcessWorker implements WorkerLike {
   fail(message: string): void {
     for (const listener of [...this.hostError]) listener({ message, preventDefault: () => undefined } as unknown as Event);
   }
+
+  /** Simulate a message from the worker that could not be deserialised. */
+  failMessage(): void {
+    for (const listener of [...this.hostMessageError]) listener({} as Event);
+  }
+
+  /** Deliver raw data to the host as if the worker had posted it (bypasses the runtime). */
+  emitRaw(data: unknown): void {
+    const copy = clone(data);
+    queueMicrotask(() => {
+      if (this.terminated) return;
+      for (const listener of [...this.hostMessage]) listener({ data: copy } as MessageEvent);
+    });
+  }
 }
 
 /** Host dependencies that create {@link InProcessWorker}s and remember them. */
 export function inProcessWorkerDeps(
-  loadModule?: (source: string) => Promise<object>
+  loadModule?: (source: string) => Promise<object>,
+  extra: Pick<PluginHostDeps, "createRateLimiter"> = {}
 ): PluginHostDeps & { workers: Map<string, InProcessWorker> } {
   const workers = new Map<string, InProcessWorker>();
   return {
+    ...extra,
     workers,
     createWorker(bootstrap, name) {
       const worker = new InProcessWorker(bootstrap, loadModule);

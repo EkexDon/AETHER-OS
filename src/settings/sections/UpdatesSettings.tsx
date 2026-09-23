@@ -8,7 +8,6 @@ import { openExternalUrl } from "../../lib/onboarding/external";
 import { useShellStore } from "../../shell/shellStore";
 import { Badge, Button, Spinner, Switch, useToast } from "../../ui";
 import { SettingsGroup, SettingsPage, SettingsRow } from "../layout";
-import "../../styles/views/onboarding.css";
 
 const ReleaseNotes = lazy(() => import("../../components/onboarding/ReleaseNotes"));
 
@@ -80,7 +79,7 @@ export function UpdatesSettings() {
           label="Check for updates"
           hint={formatLastCheck(lastCheck)}
           control={
-            <Button size="sm" variant="secondary" iconLeft={<CircleArrowUp size={13} />} loading={checking} onClick={check}>
+            <Button size="sm" variant="secondary" iconLeft={<CircleArrowUp size={14} />} loading={checking} onClick={check}>
               Check now
             </Button>
           }
@@ -137,7 +136,7 @@ export function UpdatesSettings() {
               <Button
                 size="sm"
                 variant={update.update_available ? "primary" : "ghost"}
-                iconRight={<ArrowUpRight size={12} />}
+                iconRight={<ArrowUpRight size={14} />}
                 onClick={() => void openRelease(update.url)}
               >
                 Open release page
@@ -160,7 +159,7 @@ export function UpdatesSettings() {
             <Button
               size="sm"
               variant="ghost"
-              iconLeft={<Sparkles size={13} />}
+              iconLeft={<Sparkles size={14} />}
               onClick={() => {
                 closeSettings();
                 openWhatsNew();

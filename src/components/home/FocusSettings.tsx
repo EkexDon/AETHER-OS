@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Volume2 } from "lucide-react";
-import "../../styles/views/home.css";
 import type { PomodoroSettings } from "../../types";
 import { useFocusStore } from "../../lib/focusStore";
 import { POMODORO_LIMITS } from "../../lib/home/pomodoro";
@@ -143,7 +142,7 @@ export function FocusSettings() {
               <Button
                 size="sm"
                 variant="ghost"
-                iconLeft={<Volume2 size={13} />}
+                iconLeft={<Volume2 size={14} />}
                 onClick={() => {
                   if (!playChime()) toast.error("Sound is not available on this system");
                 }}

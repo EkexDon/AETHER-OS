@@ -102,7 +102,7 @@ export function ClipList({
         description={rowDescription(item)}
         meta={
           <span className="clip-row-meta">
-            {item.pinned && <Pin size={12} className="clip-row-pin" aria-label="Pinned" />}
+            {item.pinned && <Pin size={14} className="clip-row-pin" aria-label="Pinned" />}
             <time dateTime={item.last_copied_at} title={absoluteTime(item.last_copied_at)}>
               {relativeTime(item.last_copied_at, now)}
             </time>
@@ -152,7 +152,7 @@ export function ClipList({
       )}
       {loadingMore && (
         <div className="clip-list-more" role="status">
-          <Spinner size={12} /> Loading more…
+          <Spinner size={14} /> Loading more…
         </div>
       )}
     </div>

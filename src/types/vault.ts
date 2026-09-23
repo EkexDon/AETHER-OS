@@ -8,6 +8,19 @@ export interface VaultNote {
   mtime: number;
 }
 
+/**
+ * An image, video, audio or PDF file embedded in a note, as returned by
+ * `cmd_read_vault_asset` (mirrors `VaultAsset` in `vault_reader.rs`).
+ */
+export interface VaultAsset {
+  /** MIME type inferred from the file extension. */
+  mime: string;
+  /** File content, standard base64. */
+  data_base64: string;
+  /** File size in bytes. */
+  byte_len: number;
+}
+
 /** A `- [ ]` task extracted from a note by the NoPes indexer. */
 export interface VaultTask {
   note_path: string;

@@ -208,7 +208,7 @@ export function PinsPanel({ variant = "compact", onOpened, className }: PinsPane
                       icon={
                         <>
                           <span className="home-pin-grip" aria-hidden="true">
-                            <GripVertical size={12} />
+                            <GripVertical size={14} />
                           </span>
                           <Icon size={14} />
                         </>
@@ -217,7 +217,7 @@ export function PinsPanel({ variant = "compact", onOpened, className }: PinsPane
                       description={full ? (stale ? `${meta.label} · not found` : `${meta.label} · ${pinDetail(pin)}`) : undefined}
                       meta={stale && !full ? <Badge variant="warning">Missing</Badge> : undefined}
                       actions={
-                        <IconButton size="sm" label={`Unpin ${pin.label}`} icon={<X size={13} />} onClick={() => remove(pin)} />
+                        <IconButton size="sm" label={`Unpin ${pin.label}`} icon={<X size={14} />} onClick={() => remove(pin)} />
                       }
                       onClick={() => void open(pin)}
                       onKeyDown={(e) => onRowKeyDown(e, pin)}
@@ -292,7 +292,7 @@ function GroupHeader({ group, editable, canDelete }: { group: PinGroup; editable
           }}
           onBlur={commit}
         />
-        <IconButton size="sm" label="Save group name" icon={<Check size={13} />} onMouseDown={(e) => e.preventDefault()} onClick={commit} />
+        <IconButton size="sm" label="Save group name" icon={<Check size={14} />} onMouseDown={(e) => e.preventDefault()} onClick={commit} />
       </div>
     );
   }
@@ -308,7 +308,7 @@ function GroupHeader({ group, editable, canDelete }: { group: PinGroup; editable
           <IconButton
             size="sm"
             label={`Rename ${group.name}`}
-            icon={<Pencil size={12} />}
+            icon={<Pencil size={14} />}
             onClick={() => {
               setName(group.name);
               setEditing(true);
@@ -317,7 +317,7 @@ function GroupHeader({ group, editable, canDelete }: { group: PinGroup; editable
           <IconButton
             size="sm"
             label={canDelete ? `Delete ${group.name}` : "The last group cannot be deleted"}
-            icon={<Trash2 size={12} />}
+            icon={<Trash2 size={14} />}
             disabled={!canDelete}
             onClick={() => {
               const moved = group.items.length;
@@ -454,13 +454,13 @@ function PanelFooter({ groups }: { groups: PinGroup[] }) {
             {error}
           </span>
         )}
-        <Button type="submit" size="sm" iconLeft={<Plus size={13} />}>
+        <Button type="submit" size="sm" iconLeft={<Plus size={14} />}>
           Pin {mode === "url" ? "link" : "command"}
         </Button>
       </form>
 
       {newGroup === null ? (
-        <Button variant="ghost" size="sm" iconLeft={<FolderPlus size={13} />} onClick={() => setNewGroup("")}>
+        <Button variant="ghost" size="sm" iconLeft={<FolderPlus size={14} />} onClick={() => setNewGroup("")}>
           New group
         </Button>
       ) : (

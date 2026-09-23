@@ -156,7 +156,7 @@ export function ActivityTimeline({ selectedPath, onPick }: ActivityTimelineProps
           <IconButton
             size="sm"
             label="Refresh activity"
-            icon={<RefreshCw size={13} />}
+            icon={<RefreshCw size={14} />}
             loading={loading && loaded}
             onClick={() => void refresh()}
           />

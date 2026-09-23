@@ -11,11 +11,13 @@
 //!   errors, lifecycle lines). Rotated at 5 MB, keeping three old files
 //!   (`aether.log.1` … `aether.log.3`).
 
+use std::borrow::Cow;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::engine::error::AetherError;
@@ -322,7 +324,7 @@ impl Diagnostics {
                 "crash report not found: {id}"
             )));
         }
-        let content = std::fs::read_to_string(&path)?;
+        let content = redact_secrets(&std::fs::read_to_string(&path)?).into_owned();
         let header = parse_header(&content);
         Ok(CrashReport {
             id: id.to_owned(),
@@ -459,7 +461,7 @@ fn write_crash_report(dir: &Path, body: &str) -> Result<String, AetherError> {
         let path = dir.join(format!("{id}.log"));
         match OpenOptions::new().write(true).create_new(true).open(&path) {
             Ok(mut file) => {
-                file.write_all(body.as_bytes())?;
+                file.write_all(redact_secrets(body).as_bytes())?;
                 return Ok(id);
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -521,7 +523,52 @@ fn rotate_if_needed(path: &Path, max_bytes: u64, keep: u32) -> Result<(), Aether
 
 fn format_log_line(level: &str, target: &str, message: &str) -> String {
     let stamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ");
-    format!("{stamp} {level:<5} [{target}] {}\n", message.trim_end())
+    format!(
+        "{stamp} {level:<5} [{target}] {}\n",
+        redact_secrets(message.trim_end())
+    )
+}
+
+fn secret_patterns() -> &'static [(Regex, &'static str)] {
+    static PATTERNS: OnceLock<Vec<(Regex, &'static str)>> = OnceLock::new();
+    PATTERNS.get_or_init(|| {
+        [
+            // OpenRouter (`sk-or-v1-…`), OpenAI and Anthropic style keys.
+            (r"\bsk-[A-Za-z0-9_\-]{16,}", "sk-[REDACTED]"),
+            // HTTP bearer and basic credentials.
+            (r"(?i)\bbearer\s+[A-Za-z0-9._~+/=\-]{8,}", "Bearer [REDACTED]"),
+            (r"\bBasic\s+[A-Za-z0-9+/=]{12,}", "Basic [REDACTED]"),
+            // GitHub, Slack, Google and AWS access keys.
+            (r"\bgh[pousr]_[A-Za-z0-9]{20,}", "[REDACTED]"),
+            (r"\bxox[abprs]-[A-Za-z0-9\-]{10,}", "[REDACTED]"),
+            (r"\bAIza[0-9A-Za-z_\-]{30,}", "[REDACTED]"),
+            (r"\bAKIA[0-9A-Z]{16}\b", "[REDACTED]"),
+            // `api_key=…`, `"token": "…"`, `x-api-key: …` and friends.
+            (
+                r#"(?i)\b(x-api-key|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passphrase|secret|token)("?\s*[:=]\s*"?)[^\s"',;&]{6,}"#,
+                "${1}${2}[REDACTED]",
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(pattern, replacement)| {
+            Regex::new(pattern).ok().map(|re| (re, replacement))
+        })
+        .collect()
+    })
+}
+
+/// Replace anything that looks like a credential — API keys (`sk-or-…`,
+/// `sk-…`), bearer tokens, common provider tokens and `key=value` style
+/// secrets — with `[REDACTED]`. Applied to every log line and crash report
+/// before it is written, and again when they are read back.
+pub fn redact_secrets(text: &str) -> Cow<'_, str> {
+    let mut out = Cow::Borrowed(text);
+    for (re, replacement) in secret_patterns() {
+        if re.is_match(&out) {
+            out = Cow::Owned(re.replace_all(&out, *replacement).into_owned());
+        }
+    }
+    out
 }
 
 fn first_line(value: &str) -> String {
@@ -573,6 +620,75 @@ mod tests {
             url: Some("http://127.0.0.1:1420/".to_owned()),
             fatal,
         }
+    }
+
+    #[test]
+    fn secrets_are_redacted() {
+        let cases = [
+            (
+                "calling openrouter with sk-or-v1-0123456789abcdef0123456789abcdef",
+                "calling openrouter with sk-[REDACTED]",
+            ),
+            ("key sk-proj-ABCDEFGHIJKLMNOPQRSTU", "key sk-[REDACTED]"),
+            (
+                "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.sig",
+                "Authorization: Bearer [REDACTED]",
+            ),
+            (
+                "GET /v1?api_key=abcdef123456&x=1",
+                "GET /v1?api_key=[REDACTED]&x=1",
+            ),
+            (r#"{"token": "abcdefghijkl"}"#, r#"{"token": "[REDACTED]"}"#),
+            (
+                "push with ghp_abcdefghijklmnopqrstuvwxyz0123",
+                "push with [REDACTED]",
+            ),
+            (
+                "Authorization: Basic dXNlcjpwYXNzd29yZA==",
+                "Authorization: Basic [REDACTED]",
+            ),
+            ("x-api-key: abcdef123456", "x-api-key: [REDACTED]"),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(redact_secrets(input), expected, "{input}");
+        }
+        for plain in [
+            "Ollama is not running on localhost:11434",
+            "task-management notes",
+            "the token count was 12",
+            "skip-list",
+            "basic settings were saved",
+        ] {
+            assert_eq!(redact_secrets(plain), plain);
+            assert!(matches!(redact_secrets(plain), Cow::Borrowed(_)));
+        }
+    }
+
+    #[test]
+    fn logs_and_crash_reports_never_contain_api_keys() {
+        let (dir, diag) = diagnostics();
+        let key = "sk-or-v1-feedfacefeedfacefeedfacefeedface";
+        diag.log_info("ai", &format!("request failed for key {key}"))
+            .expect("log");
+        let id = diag
+            .log_frontend_error(&FrontendErrorPayload {
+                message: format!("boom Bearer {key}"),
+                stack: Some(format!("at call (api_key={key})")),
+                fatal: true,
+                ..FrontendErrorPayload::default()
+            })
+            .expect("report")
+            .expect("fatal errors produce a report");
+        let log = std::fs::read_to_string(dir.path().join("logs/aether.log")).expect("log");
+        assert!(!log.contains(key), "{log}");
+        let report = std::fs::read_to_string(dir.path().join(format!("crash-reports/{id}.log")))
+            .expect("report");
+        assert!(!report.contains(key), "{report}");
+        assert!(!diag
+            .read_crash_report(&id)
+            .expect("read")
+            .content
+            .contains(key));
     }
 
     #[test]

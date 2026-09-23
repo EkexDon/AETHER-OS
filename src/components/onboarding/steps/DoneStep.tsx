@@ -10,7 +10,7 @@ import { Kbd, Switch } from "../../../ui";
 function SummaryRow({ ok, label, value }: { ok: boolean; label: string; value: ReactNode }) {
   return (
     <li className={ok ? "ob-summary-row is-ok" : "ob-summary-row"}>
-      {ok ? <CircleCheck size={15} /> : <CircleDashed size={15} />}
+      {ok ? <CircleCheck size={16} /> : <CircleDashed size={16} />}
       <span className="ob-summary-label">{label}</span>
       <span className="ob-summary-value">{value}</span>
     </li>
