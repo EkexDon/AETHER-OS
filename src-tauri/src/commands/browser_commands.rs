@@ -5,8 +5,34 @@ use serde::Serialize;
 use tauri::webview::WebviewBuilder;
 use tauri::{AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, State, WebviewUrl};
 
-use crate::engine::browser::BrowserInfo;
+use crate::engine::browser::{validate_webview_url, BrowserInfo};
 use crate::AppState;
+
+/// Label prefix of every embedded browser webview.
+const WEBVIEW_PREFIX: &str = "browser-webview-";
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// Only webviews created by [`cmd_browser_webview_open`] may be controlled
+/// from the browser commands — never the app's own window.
+fn check_label(label: &str) -> Result<(), String> {
+    let valid = label
+        .strip_prefix(WEBVIEW_PREFIX)
+        .is_some_and(|n| !n.is_empty() && n.len() <= 10 && n.bytes().all(|b| b.is_ascii_digit()));
+    if valid {
+        Ok(())
+    } else {
+        Err(format!("not an embedded browser webview: {label:?}"))
+    }
+}
+
+fn browser_webview(app: &AppHandle, label: &str) -> Result<tauri::Webview, String> {
+    check_label(label)?;
+    app.get_webview(label)
+        .ok_or_else(|| format!("Webview {} not found", label))
+}
 
 const BROWSER_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
 
@@ -27,23 +53,21 @@ impl BrowserWebviews {
     }
 
     fn next_label(&self) -> String {
-        let mut c = self.counter.lock().unwrap();
+        let mut c = lock(&self.counter);
         *c += 1;
-        format!("browser-webview-{}", *c)
+        format!("{WEBVIEW_PREFIX}{}", *c)
     }
 
     fn insert(&self, label: String, url: String) {
-        self.urls.lock().unwrap().insert(label, url);
+        lock(&self.urls).insert(label, url);
     }
 
     fn remove(&self, label: &str) {
-        self.urls.lock().unwrap().remove(label);
+        lock(&self.urls).remove(label);
     }
 
     fn list(&self) -> Vec<(String, String)> {
-        self.urls
-            .lock()
-            .unwrap()
+        lock(&self.urls)
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect()
@@ -77,7 +101,10 @@ pub async fn cmd_browser_open_librewolf(
     state: State<'_, AppState>,
     url: String,
 ) -> Result<(), String> {
-    state.browser.open_in_librewolf(&url).map_err(|e| e.to_string())
+    state
+        .browser
+        .open_in_librewolf(&url)
+        .map_err(|e| e.to_string())
 }
 
 /// Open a URL in a native webview embedded as a subview of the main window.
@@ -93,8 +120,8 @@ pub async fn cmd_browser_webview_open(
     width: f64,
     height: f64,
 ) -> Result<String, String> {
+    let parsed = validate_webview_url(&url).map_err(|e| e.to_string())?;
     let label = state.browser_webviews.next_label();
-    let parsed = url::Url::parse(&url).map_err(|e| e.to_string())?;
 
     let main_window = app
         .get_window("main")
@@ -150,9 +177,7 @@ pub async fn cmd_browser_webview_set_bounds(
     width: f64,
     height: f64,
 ) -> Result<(), String> {
-    let webview = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("Webview {} not found", label))?;
+    let webview = browser_webview(&app, &label)?;
     webview
         .set_bounds(tauri::Rect {
             position: LogicalPosition::new(x, y).into(),
@@ -164,18 +189,14 @@ pub async fn cmd_browser_webview_set_bounds(
 
 #[tauri::command]
 pub async fn cmd_browser_webview_show(app: AppHandle, label: String) -> Result<(), String> {
-    let webview = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("Webview {} not found", label))?;
+    let webview = browser_webview(&app, &label)?;
     webview.show().map_err(|e| format!("Failed to show: {e}"))?;
     Ok(())
 }
 
 #[tauri::command]
 pub async fn cmd_browser_webview_hide(app: AppHandle, label: String) -> Result<(), String> {
-    let webview = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("Webview {} not found", label))?;
+    let webview = browser_webview(&app, &label)?;
     webview.hide().map_err(|e| format!("Failed to hide: {e}"))?;
     Ok(())
 }
@@ -187,6 +208,7 @@ pub async fn cmd_browser_webview_close(
     state: State<'_, AppState>,
     label: String,
 ) -> Result<(), String> {
+    check_label(&label)?;
     if let Some(webview) = app.get_webview(&label) {
         webview
             .close()
@@ -204,10 +226,8 @@ pub async fn cmd_browser_webview_navigate(
     label: String,
     url: String,
 ) -> Result<(), String> {
-    let webview = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("Webview {} not found", label))?;
-    let parsed = url::Url::parse(&url).map_err(|e| e.to_string())?;
+    let webview = browser_webview(&app, &label)?;
+    let parsed = validate_webview_url(&url).map_err(|e| e.to_string())?;
     webview
         .navigate(parsed)
         .map_err(|e| format!("Failed to navigate: {e}"))?;
@@ -217,9 +237,7 @@ pub async fn cmd_browser_webview_navigate(
 
 #[tauri::command]
 pub async fn cmd_browser_webview_back(app: AppHandle, label: String) -> Result<(), String> {
-    let webview = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("Webview {} not found", label))?;
+    let webview = browser_webview(&app, &label)?;
     webview
         .eval("window.history.back();")
         .map_err(|e| format!("Failed to go back: {e}"))?;
@@ -228,9 +246,7 @@ pub async fn cmd_browser_webview_back(app: AppHandle, label: String) -> Result<(
 
 #[tauri::command]
 pub async fn cmd_browser_webview_forward(app: AppHandle, label: String) -> Result<(), String> {
-    let webview = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("Webview {} not found", label))?;
+    let webview = browser_webview(&app, &label)?;
     webview
         .eval("window.history.forward();")
         .map_err(|e| format!("Failed to go forward: {e}"))?;
@@ -239,9 +255,7 @@ pub async fn cmd_browser_webview_forward(app: AppHandle, label: String) -> Resul
 
 #[tauri::command]
 pub async fn cmd_browser_webview_reload(app: AppHandle, label: String) -> Result<(), String> {
-    let webview = app
-        .get_webview(&label)
-        .ok_or_else(|| format!("Webview {} not found", label))?;
+    let webview = browser_webview(&app, &label)?;
     webview
         .eval("window.location.reload();")
         .map_err(|e| format!("Failed to reload: {e}"))?;
@@ -260,7 +274,7 @@ pub async fn cmd_browser_webview_list(
 #[tauri::command]
 pub async fn cmd_browser_webview_hide_all(app: AppHandle) -> Result<(), String> {
     for webview in app.webviews().values() {
-        if webview.label().starts_with("browser-webview-") {
+        if check_label(webview.label()).is_ok() {
             let _ = webview.hide();
         }
     }
@@ -270,6 +284,23 @@ pub async fn cmd_browser_webview_hide_all(app: AppHandle) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_embedded_browser_labels_are_accepted() {
+        assert!(check_label("browser-webview-1").is_ok());
+        assert!(check_label("browser-webview-42").is_ok());
+        for bad in [
+            "main",
+            "browser-webview-",
+            "browser-webview-x",
+            "browser-webview-1/..",
+            "",
+        ] {
+            assert!(check_label(bad).is_err(), "{bad:?}");
+        }
+        let wv = BrowserWebviews::new();
+        assert!(check_label(&wv.next_label()).is_ok());
+    }
 
     #[test]
     fn test_next_label_increments() {

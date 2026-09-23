@@ -84,24 +84,14 @@ pub fn export_calendar(events: &[CalendarEvent], opts: &IcsExportOptions) -> Str
             // crate accepts it (its `all_day` takes `Date<TZ>`).
             let start_dt = start_date
                 .and_hms_opt(0, 0, 0)
-                .unwrap_or_else(|| {
-                    chrono::DateTime::from_timestamp(0, 0)
-                        .unwrap()
-                        .naive_utc()
-                });
+                .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc());
             let start_utc = chrono::TimeZone::from_utc_datetime(&chrono::Utc, &start_dt);
             #[allow(deprecated)]
             e.all_day(start_utc.date());
-            if let Ok(end_date) =
-                chrono::NaiveDate::parse_from_str(&event.end, "%Y-%m-%d")
-            {
+            if let Ok(end_date) = chrono::NaiveDate::parse_from_str(&event.end, "%Y-%m-%d") {
                 let end_dt = end_date
                     .and_hms_opt(0, 0, 0)
-                    .unwrap_or_else(|| {
-                        chrono::DateTime::from_timestamp(0, 0)
-                            .unwrap()
-                            .naive_utc()
-                    });
+                    .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc());
                 let end_utc = chrono::TimeZone::from_utc_datetime(&chrono::Utc, &end_dt);
                 #[allow(deprecated)]
                 e.end_date(end_utc.date());
@@ -157,7 +147,7 @@ impl Default for IcsImportOptions {
     fn default() -> Self {
         Self {
             overwrite_existing: false,
-            default_color: "#7c3aed".to_owned(),
+            default_color: crate::engine::calendar::default_color().to_owned(),
         }
     }
 }
@@ -208,9 +198,9 @@ pub fn import_calendar(
 
     let now = chrono::Utc::now().to_rfc3339();
     for parsed in events {
-        let uid = parsed.uid.unwrap_or_else(|| {
-            format!("{}@aether-os.local", uuid::Uuid::new_v4())
-        });
+        let uid = parsed
+            .uid
+            .unwrap_or_else(|| format!("{}@aether-os.local", uuid::Uuid::new_v4()));
         let mut all_day = parsed.all_day;
         let start = parsed.start;
         let mut end = parsed.end;
@@ -255,10 +245,7 @@ pub fn import_calendar(
             updated_at: now.clone(),
         };
 
-        out.push(ImportedEvent {
-            event,
-            uid,
-        });
+        out.push(ImportedEvent { event, uid });
     }
 
     Ok((out, result))
@@ -372,7 +359,11 @@ fn split_property(line: &str) -> Option<(String, String)> {
     let key_part = &line[..colon];
     let value = line[colon + 1..].to_owned();
     // Strip parameters from the key (e.g. `DTSTART;VALUE=DATE:20261010`).
-    let key = key_part.split(';').next().unwrap_or(key_part).to_uppercase();
+    let key = key_part
+        .split(';')
+        .next()
+        .unwrap_or(key_part)
+        .to_uppercase();
     Some((key, value))
 }
 
@@ -423,9 +414,7 @@ fn apply_property(
         "X-AETHER-COLOR" => p.color = Some(value.to_owned()),
         "X-AETHER-SOURCE-NOTE" => p.source_note_path = Some(value.to_owned()),
         "RRULE" => {
-            errors.push(format!(
-                "line {line_no}: recurring events not supported"
-            ));
+            errors.push(format!("line {line_no}: recurring events not supported"));
             // Drop the event entirely.
             p.start.clear();
         }
@@ -514,7 +503,7 @@ mod tests {
     fn round_trip_preserves_key_fields() {
         let original = sample_event("Roadmap review");
         let opts = IcsExportOptions::default();
-        let ics = export_calendar(&[original.clone()], &opts);
+        let ics = export_calendar(std::slice::from_ref(&original), &opts);
         eprintln!("ICS:\n{}", ics);
         assert!(ics.contains("BEGIN:VCALENDAR"));
         assert!(ics.contains("BEGIN:VEVENT"));
@@ -550,6 +539,23 @@ mod tests {
     fn rejects_empty_input() {
         let err = import_calendar("", &IcsImportOptions::default()).expect_err("must reject");
         assert!(err.to_string().contains("empty"));
+    }
+
+    #[test]
+    fn imports_without_colour_get_the_teal_default_and_keep_their_own() {
+        let ics = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:c1@aether-os.local\r\nDTSTART:20261010T090000Z\r\nDTEND:20261010T100000Z\r\nSUMMARY:No colour\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:c2@aether-os.local\r\nDTSTART:20261011T090000Z\r\nDTEND:20261011T100000Z\r\nSUMMARY:Purple\r\nX-AETHER-COLOR:#7c3aed\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        assert_eq!(IcsImportOptions::default().default_color, "#0f9d8a");
+        let (imported, result) = import_calendar(ics, &IcsImportOptions::default()).expect("parse");
+        assert!(result.errors.is_empty(), "errors: {:?}", result.errors);
+        let colour_of = |uid: &str| {
+            imported
+                .iter()
+                .find(|i| i.uid == uid)
+                .map(|i| i.event.color.clone())
+                .expect("event")
+        };
+        assert_eq!(colour_of("c1@aether-os.local"), "#0f9d8a");
+        assert_eq!(colour_of("c2@aether-os.local"), "#7c3aed");
     }
 
     #[test]

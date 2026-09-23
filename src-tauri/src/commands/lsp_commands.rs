@@ -29,7 +29,11 @@ pub async fn cmd_lsp_start(
 
     if state.lsp.running().contains(&key) {
         let command = first_candidate_command(&language);
-        return Ok(Some(LspSessionInfo { key, language, command }));
+        return Ok(Some(LspSessionInfo {
+            key,
+            language,
+            command,
+        }));
     }
 
     // Pick the first candidate that exists on this machine.
@@ -60,11 +64,18 @@ pub async fn cmd_lsp_start(
             );
         },
         move |key, message| {
-            let _ = app.emit(LSP_EVENT, serde_json::json!({ "key": key, "message": message }));
+            let _ = app.emit(
+                LSP_EVENT,
+                serde_json::json!({ "key": key, "message": message }),
+            );
         },
     )?;
 
-    Ok(Some(LspSessionInfo { key, language, command }))
+    Ok(Some(LspSessionInfo {
+        key,
+        language,
+        command,
+    }))
 }
 
 fn first_candidate_command(language: &str) -> String {

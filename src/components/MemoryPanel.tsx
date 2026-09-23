@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Brain, Plus, Trash2, Tag } from "lucide-react";
 import { useAetherStore } from "../lib/store";
 import { getMemoryFacts, saveMemoryFact, deleteMemoryFact } from "../lib/ipc";
+import { Button, EmptyState, IconButton, Input, ListRow, ViewHeader } from "../ui";
 
 export function MemoryPanel() {
   const { memoryFacts, setMemoryFacts } = useAetherStore();
@@ -39,74 +40,80 @@ export function MemoryPanel() {
   }, {});
 
   return (
-    <div className="memory-panel">
-      <div className="memory-header">
-        <Brain size={20} />
-        <div>
-          <h2 className="memory-title">AI Memory</h2>
-          <p className="memory-subtitle">
-            {memoryFacts.length} fact{memoryFacts.length === 1 ? "" : "s"} the AI knows about you
-          </p>
-        </div>
-      </div>
-
-      <div className="memory-add">
-        <input
-          type="text"
-          className="memory-input"
-          placeholder="e.g. I prefer Cursor as my editor"
-          value={newFact}
-          onChange={(e) => setNewFact(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void handleAdd();
+    <div className="view memory-panel">
+      <ViewHeader
+        title="AI Memory"
+        subtitle={`${memoryFacts.length} fact${memoryFacts.length === 1 ? "" : "s"} the AI knows about you`}
+      />
+      <div className="view-body">
+        <form
+          className="memory-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleAdd();
           }}
-        />
-        <input
-          type="text"
-          className="memory-input memory-category-input"
-          placeholder="category"
-          value={newCategory}
-          onChange={(e) => setNewCategory(e.target.value)}
-        />
-        <button className="btn btn-primary" onClick={() => void handleAdd()} disabled={!newFact.trim()}>
-          <Plus size={16} /> Remember
-        </button>
-      </div>
+        >
+          <Input
+            className="memory-input"
+            placeholder="e.g. I prefer Cursor as my editor"
+            value={newFact}
+            onChange={(e) => setNewFact(e.target.value)}
+            aria-label="New fact"
+          />
+          <Input
+            className="memory-category-input"
+            iconLeft={<Tag size={14} />}
+            placeholder="category"
+            value={newCategory}
+            onChange={(e) => setNewCategory(e.target.value)}
+            aria-label="Category"
+          />
+          <Button type="submit" variant="primary" iconLeft={<Plus size={14} />} disabled={!newFact.trim()}>
+            Remember
+          </Button>
+        </form>
 
-      {error && <div className="projects-error">{error}</div>}
+        {error && <div className="projects-error memory-error">{error}</div>}
 
-      {memoryFacts.length === 0 ? (
-        <div className="projects-empty">
-          <Brain size={48} className="dashboard-empty-icon" />
-          <p>No memories yet. Add facts the AI should always know about you.</p>
-        </div>
-      ) : (
-        <div className="memory-list">
-          {Object.entries(byCategory).map(([category, facts]) => (
-            <div key={category} className="memory-category">
-              <div className="memory-category-header">
-                <Tag size={12} />
-                <span>{category}</span>
-              </div>
-              {facts.map((f) => (
-                <div key={f.fact} className="memory-fact">
-                  <span className="memory-fact-text">{f.fact}</span>
-                  <span className="memory-fact-date">
-                    {new Date(f.created_at * 1000).toLocaleDateString()}
-                  </span>
-                  <button
-                    className="btn btn-icon memory-fact-delete"
-                    onClick={() => void handleDelete(f.fact)}
-                    title="Forget this"
-                  >
-                    <Trash2 size={13} />
-                  </button>
+        {memoryFacts.length === 0 ? (
+          <EmptyState
+            icon={Brain}
+            title="No memories yet"
+            description="Add facts the AI should always know about you — preferences, projects, people."
+          />
+        ) : (
+          <div className="memory-list">
+            {Object.entries(byCategory).map(([category, facts]) => (
+              <section key={category} className="memory-category">
+                <h3 className="ui-section-label memory-category-header">
+                  <Tag size={14} />
+                  <span>{category}</span>
+                  <span className="memory-category-count">{facts.length}</span>
+                </h3>
+                <div className="memory-card">
+                  {facts.map((f) => (
+                    <ListRow
+                      key={f.fact}
+                      className="memory-fact"
+                      title={<span className="memory-fact-text">{f.fact}</span>}
+                      meta={new Date(f.created_at * 1000).toLocaleDateString()}
+                      actions={
+                        <IconButton
+                          label="Forget this"
+                          size="sm"
+                          variant="danger"
+                          icon={<Trash2 size={14} />}
+                          onClick={() => void handleDelete(f.fact)}
+                        />
+                      }
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

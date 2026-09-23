@@ -1,0 +1,865 @@
+/* AETHER-OS export theme.
+   Mirrors the app's design tokens (docs/dev/DESIGN-SYSTEM.md): warm paper
+   in light, warm graphite in dark, one teal accent. Everything is scoped
+   to .aether-doc so the same stylesheet works as a page, inside a shadow
+   root (print) and inside the app's preview frame. */
+
+.aether-doc {
+  --doc-bg: #f8f7f4;
+  --doc-surface: #f1efeb;
+  --doc-elevated: #fdfcfa;
+  --doc-sunken: #f4f2ee;
+  --doc-fg: #1d1c1a;
+  --doc-fg-2: #56544e;
+  --doc-fg-3: #6e6c65;
+  --doc-fill: rgba(40, 36, 28, 0.045);
+  --doc-fill-strong: rgba(40, 36, 28, 0.085);
+  --doc-border-subtle: rgba(40, 36, 28, 0.07);
+  --doc-border: rgba(40, 36, 28, 0.115);
+  --doc-border-strong: rgba(40, 36, 28, 0.2);
+  --doc-accent: #1b7a70;
+  --doc-accent-text: #17736a;
+  --doc-accent-soft: rgba(27, 122, 112, 0.1);
+  --doc-accent-border: rgba(27, 122, 112, 0.38);
+  --doc-success: #3d7a2a;
+  --doc-warning: #94620e;
+  --doc-danger: #c03b33;
+  --doc-info: #2c5fb3;
+  --doc-shadow: 0 1px 2px rgba(38, 34, 28, 0.06), 0 12px 32px -8px rgba(38, 34, 28, 0.16);
+  --doc-font: "IBM Plex Sans Variable", "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --doc-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --doc-measure: 44rem;
+
+  color-scheme: light;
+  margin: 0;
+  background: var(--doc-bg);
+  color: var(--doc-fg);
+  font-family: var(--doc-font);
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern", "liga";
+}
+
+.aether-doc[data-theme="dark"] {
+  --doc-bg: #131312;
+  --doc-surface: #181817;
+  --doc-elevated: #1e1e1c;
+  --doc-sunken: #0f0f0e;
+  --doc-fg: #ecebe6;
+  --doc-fg-2: #adaba3;
+  --doc-fg-3: #918f87;
+  --doc-fill: rgba(236, 232, 222, 0.05);
+  --doc-fill-strong: rgba(236, 232, 222, 0.1);
+  --doc-border-subtle: rgba(236, 232, 222, 0.06);
+  --doc-border: rgba(236, 232, 222, 0.095);
+  --doc-border-strong: rgba(236, 232, 222, 0.16);
+  --doc-accent: #3fb0a3;
+  --doc-accent-text: #5cc2b5;
+  --doc-accent-soft: rgba(63, 176, 163, 0.13);
+  --doc-accent-border: rgba(63, 176, 163, 0.42);
+  --doc-success: #7fb85e;
+  --doc-warning: #d9a441;
+  --doc-danger: #e5625b;
+  --doc-info: #6f9fe3;
+  --doc-shadow: 0 1px 2px rgba(10, 9, 8, 0.3), 0 16px 40px -8px rgba(10, 9, 8, 0.6);
+  color-scheme: dark;
+}
+
+@media screen and (prefers-color-scheme: dark) {
+  .aether-doc[data-theme="auto"] {
+    --doc-bg: #131312;
+    --doc-surface: #181817;
+    --doc-elevated: #1e1e1c;
+    --doc-sunken: #0f0f0e;
+    --doc-fg: #ecebe6;
+    --doc-fg-2: #adaba3;
+    --doc-fg-3: #918f87;
+    --doc-fill: rgba(236, 232, 222, 0.05);
+    --doc-fill-strong: rgba(236, 232, 222, 0.1);
+    --doc-border-subtle: rgba(236, 232, 222, 0.06);
+    --doc-border: rgba(236, 232, 222, 0.095);
+    --doc-border-strong: rgba(236, 232, 222, 0.16);
+    --doc-accent: #3fb0a3;
+    --doc-accent-text: #5cc2b5;
+    --doc-accent-soft: rgba(63, 176, 163, 0.13);
+    --doc-accent-border: rgba(63, 176, 163, 0.42);
+    --doc-success: #7fb85e;
+    --doc-warning: #d9a441;
+    --doc-danger: #e5625b;
+    --doc-info: #6f9fe3;
+    --doc-shadow: 0 1px 2px rgba(10, 9, 8, 0.3), 0 16px 40px -8px rgba(10, 9, 8, 0.6);
+    color-scheme: dark;
+  }
+}
+
+.aether-doc *,
+.aether-doc *::before,
+.aether-doc *::after {
+  box-sizing: border-box;
+}
+
+.aether-doc ::selection {
+  background: var(--doc-accent-soft);
+}
+
+/* ── Layout ─────────────────────────────────────────────────────── */
+.aether-doc .doc-main {
+  max-width: var(--doc-measure);
+  margin: 0 auto;
+  padding: 72px 24px 96px;
+}
+
+.aether-doc .doc-footer {
+  max-width: var(--doc-measure);
+  margin: 0 auto;
+  padding: 24px 24px 56px;
+  border-top: 1px solid var(--doc-border-subtle);
+  color: var(--doc-fg-3);
+  font-size: 13px;
+}
+
+.aether-doc .skip-link {
+  position: absolute;
+  left: 16px;
+  top: 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--doc-elevated);
+  color: var(--doc-fg);
+  transform: translateY(-200%);
+  z-index: 20;
+}
+
+.aether-doc .skip-link:focus {
+  transform: none;
+  box-shadow: var(--doc-shadow);
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+.aether-doc .doc-header {
+  margin-bottom: 40px;
+}
+
+.aether-doc .doc-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+  color: var(--doc-fg-3);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.aether-doc .doc-breadcrumb a {
+  color: var(--doc-fg-2);
+  text-decoration: none;
+}
+
+.aether-doc .doc-breadcrumb a:hover {
+  color: var(--doc-accent-text);
+}
+
+.aether-doc .doc-title {
+  margin: 0;
+  font-size: clamp(30px, 5vw, 42px);
+  line-height: 1.1;
+  font-weight: 650;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.aether-doc .doc-description {
+  margin: 14px 0 0;
+  color: var(--doc-fg-2);
+  font-size: 18px;
+  line-height: 1.55;
+}
+
+.aether-doc .doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 18px;
+  color: var(--doc-fg-3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.aether-doc .doc-meta-sep {
+  color: var(--doc-border-strong);
+}
+
+.aether-doc .doc-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ── Typography ─────────────────────────────────────────────────── */
+.aether-doc .doc-content > :first-child {
+  margin-top: 0;
+}
+
+.aether-doc h1,
+.aether-doc h2,
+.aether-doc h3,
+.aether-doc h4,
+.aether-doc h5,
+.aether-doc h6 {
+  color: var(--doc-fg);
+  font-weight: 620;
+  line-height: 1.25;
+  scroll-margin-top: 88px;
+}
+
+.aether-doc .doc-content h1 {
+  margin: 56px 0 16px;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+}
+
+.aether-doc .doc-content h2 {
+  margin: 48px 0 12px;
+  font-size: 23px;
+  letter-spacing: -0.025em;
+}
+
+.aether-doc .doc-content h3 {
+  margin: 32px 0 8px;
+  font-size: 19px;
+  letter-spacing: -0.015em;
+}
+
+.aether-doc .doc-content h4,
+.aether-doc .doc-content h5,
+.aether-doc .doc-content h6 {
+  margin: 24px 0 6px;
+  font-size: 16px;
+}
+
+.aether-doc p,
+.aether-doc ul,
+.aether-doc ol,
+.aether-doc dl,
+.aether-doc table,
+.aether-doc figure {
+  margin: 0 0 18px;
+}
+
+.aether-doc ul,
+.aether-doc ol {
+  padding-left: 1.4em;
+}
+
+.aether-doc li + li {
+  margin-top: 4px;
+}
+
+.aether-doc li > ul,
+.aether-doc li > ol {
+  margin: 4px 0 0;
+}
+
+.aether-doc li:has(> input[type="checkbox"]) {
+  list-style: none;
+  margin-left: -1.4em;
+}
+
+.aether-doc input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0 8px 0 0;
+  vertical-align: -2px;
+  accent-color: var(--doc-accent);
+}
+
+.aether-doc li:has(> input[type="checkbox"]:checked) {
+  color: var(--doc-fg-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--doc-border-strong);
+}
+
+.aether-doc a {
+  color: var(--doc-accent-text);
+  text-decoration: underline;
+  text-decoration-color: var(--doc-accent-border);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 120ms cubic-bezier(0.2, 0, 0, 1), color 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.aether-doc a:hover {
+  text-decoration-color: currentColor;
+}
+
+.aether-doc a:focus-visible,
+.aether-doc summary:focus-visible,
+.aether-doc input:focus-visible {
+  outline: 2px solid var(--doc-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.aether-doc strong {
+  font-weight: 620;
+}
+
+.aether-doc mark {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: rgba(217, 164, 65, 0.28);
+  color: inherit;
+}
+
+.aether-doc hr {
+  height: 1px;
+  margin: 40px 0;
+  border: 0;
+  background: var(--doc-border);
+}
+
+.aether-doc blockquote {
+  margin: 0 0 18px;
+  padding: 4px 0 4px 18px;
+  border-left: 3px solid var(--doc-border-strong);
+  color: var(--doc-fg-2);
+}
+
+.aether-doc blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.aether-doc blockquote[class^="markdown-alert-"] {
+  padding: 12px 16px;
+  border-left-width: 3px;
+  border-radius: 0 8px 8px 0;
+  background: var(--doc-fill);
+  color: var(--doc-fg);
+}
+
+.aether-doc blockquote.markdown-alert-note { border-left-color: var(--doc-info); }
+.aether-doc blockquote.markdown-alert-tip { border-left-color: var(--doc-success); }
+.aether-doc blockquote.markdown-alert-important { border-left-color: var(--doc-accent); }
+.aether-doc blockquote.markdown-alert-warning { border-left-color: var(--doc-warning); }
+.aether-doc blockquote.markdown-alert-caution { border-left-color: var(--doc-danger); }
+
+.aether-doc img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.aether-doc img.embed {
+  display: block;
+  margin: 8px 0;
+  box-shadow: 0 0 0 1px var(--doc-border-subtle), var(--doc-shadow);
+}
+
+.aether-doc table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.aether-doc th,
+.aether-doc td {
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--doc-border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+.aether-doc th {
+  border-bottom-color: var(--doc-border-strong);
+  font-weight: 600;
+}
+
+.aether-doc details {
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  border: 1px solid var(--doc-border);
+  border-radius: 8px;
+}
+
+.aether-doc summary {
+  cursor: pointer;
+  font-weight: 560;
+}
+
+.aether-doc kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--doc-border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font-family: var(--doc-mono);
+  font-size: 0.8em;
+}
+
+.aether-doc .footnote-definition {
+  font-size: 14px;
+  color: var(--doc-fg-2);
+}
+
+/* ── Code ───────────────────────────────────────────────────────── */
+.aether-doc code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--doc-fill);
+  font-family: var(--doc-mono);
+  font-size: 0.86em;
+}
+
+.aether-doc pre {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  border: 1px solid var(--doc-border-subtle);
+  border-radius: 8px;
+  background: var(--doc-sunken);
+  font-family: var(--doc-mono);
+  font-size: 13.5px;
+  line-height: 1.6;
+  tab-size: 4;
+}
+
+.aether-doc pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+}
+
+.aether-doc pre.code[data-lang]::before {
+  content: attr(data-lang);
+  display: block;
+  margin: -4px 0 8px;
+  color: var(--doc-fg-3);
+  font-family: var(--doc-font);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.aether-doc pre.mermaid {
+  color: var(--doc-fg-2);
+  white-space: pre-wrap;
+}
+
+.aether-doc pre.mermaid[data-processed="true"] {
+  display: flex;
+  justify-content: center;
+  background: var(--doc-elevated);
+}
+
+/* ── Vault syntax ───────────────────────────────────────────────── */
+.aether-doc .tag {
+  display: inline-block;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--doc-accent-soft);
+  color: var(--doc-accent-text);
+  font-size: 0.82em;
+  font-weight: 500;
+  line-height: 1.7;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.aether-doc a.tag:hover {
+  background: var(--doc-accent-border);
+}
+
+.aether-doc .wikilink {
+  color: var(--doc-accent-text);
+  border-bottom: 1px solid var(--doc-accent-border);
+}
+
+.aether-doc .missing {
+  color: var(--doc-fg-3);
+  border-bottom: 1px dashed var(--doc-border-strong);
+  cursor: help;
+}
+
+.aether-doc .embed-note::before,
+.aether-doc .attachment::before {
+  content: "↳ ";
+  color: var(--doc-fg-3);
+}
+
+.aether-doc .attachment {
+  font-family: var(--doc-mono);
+  font-size: 0.88em;
+}
+
+/* ── Backlinks ──────────────────────────────────────────────────── */
+.aether-doc .backlinks {
+  margin-top: 64px;
+  padding-top: 24px;
+  border-top: 1px solid var(--doc-border);
+}
+
+.aether-doc .backlinks-title {
+  margin: 0 0 12px;
+  color: var(--doc-fg-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.aether-doc .backlinks ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aether-doc .backlinks li + li {
+  margin: 0;
+}
+
+.aether-doc .backlinks a,
+.aether-doc .backlinks .wikilink {
+  display: inline-block;
+  padding: 5px 12px;
+  border: 1px solid var(--doc-border);
+  border-radius: 8px;
+  background: var(--doc-elevated);
+  color: var(--doc-fg);
+  font-size: 14px;
+  text-decoration: none;
+  box-shadow: 0 1px 0 var(--doc-border-subtle);
+  transition: border-color 120ms cubic-bezier(0.2, 0, 0, 1), transform 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.aether-doc .backlinks a:hover {
+  border-color: var(--doc-accent-border);
+  transform: translateY(-1px);
+}
+
+/* ── Site chrome ────────────────────────────────────────────────── */
+.aether-site .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--doc-border-subtle);
+  background: color-mix(in srgb, var(--doc-bg) 86%, transparent);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.aether-site .site-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  max-width: 72rem;
+  height: 60px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.aether-site .site-title {
+  color: var(--doc-fg);
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aether-site .site-nav {
+  display: flex;
+  gap: 18px;
+  font-size: 14px;
+}
+
+.aether-site .site-nav a {
+  color: var(--doc-fg-2);
+  text-decoration: none;
+}
+
+.aether-site .site-nav a:hover {
+  color: var(--doc-fg);
+}
+
+.aether-site .site-search {
+  position: relative;
+  margin-left: auto;
+  width: min(320px, 42vw);
+}
+
+.aether-site .site-search-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 34px 0 12px;
+  border: 1px solid var(--doc-border);
+  border-radius: 8px;
+  background: var(--doc-elevated);
+  color: var(--doc-fg);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 120ms cubic-bezier(0.2, 0, 0, 1), box-shadow 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.aether-site .site-search-input:focus {
+  outline: none;
+  border-color: var(--doc-accent-border);
+  box-shadow: 0 0 0 3px var(--doc-accent-soft);
+}
+
+.aether-site .site-search-hint {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--doc-fg-3);
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.aether-site .site-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(440px, 92vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--doc-border);
+  border-radius: 12px;
+  background: var(--doc-elevated);
+  box-shadow: var(--doc-shadow);
+}
+
+.aether-site .search-result {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--doc-fg);
+  text-decoration: none;
+}
+
+.aether-site .search-result[aria-selected="true"],
+.aether-site .search-result:hover {
+  background: var(--doc-fill-strong);
+}
+
+.aether-site .search-result-title {
+  display: block;
+  font-size: 14px;
+  font-weight: 560;
+}
+
+.aether-site .search-result-meta {
+  display: block;
+  overflow: hidden;
+  color: var(--doc-fg-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aether-site .search-empty {
+  padding: 12px 10px;
+  color: var(--doc-fg-3);
+  font-size: 13px;
+}
+
+/* ── Index & tag pages ──────────────────────────────────────────── */
+.aether-site .site-hero {
+  margin-bottom: 56px;
+}
+
+.aether-site .site-hero-title {
+  margin: 0;
+  font-size: clamp(34px, 6vw, 52px);
+  line-height: 1.05;
+  font-weight: 680;
+  letter-spacing: -0.045em;
+}
+
+.aether-site .site-hero-description {
+  max-width: 36rem;
+  margin: 16px 0 0;
+  color: var(--doc-fg-2);
+  font-size: 18px;
+}
+
+.aether-site .site-hero-meta {
+  margin: 20px 0 0;
+  color: var(--doc-fg-3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.aether-site .site-section {
+  margin-bottom: 48px;
+}
+
+.aether-site .site-section-title {
+  margin: 0 0 12px;
+  color: var(--doc-fg-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.aether-site .note-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aether-site .note-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--doc-border-subtle);
+}
+
+.aether-site .note-list a {
+  color: var(--doc-fg);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.aether-site .note-list a:hover {
+  color: var(--doc-accent-text);
+}
+
+.aether-site .note-meta {
+  flex-shrink: 0;
+  color: var(--doc-fg-3);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.aether-site .folder-group {
+  margin: 0 0 12px;
+  padding: 0;
+  border: 0;
+}
+
+.aether-site .folder-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  color: var(--doc-fg-2);
+  font-size: 14px;
+  font-weight: 600;
+  list-style-position: outside;
+}
+
+.aether-site .count {
+  color: var(--doc-fg-3);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.aether-site .tag-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.aether-site .tag-cloud li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .aether-doc .doc-main {
+    padding: 40px 16px 64px;
+  }
+  .aether-site .site-header-inner {
+    gap: 12px;
+    padding: 0 16px;
+  }
+  .aether-site .site-nav {
+    display: none;
+  }
+  .aether-site .site-search {
+    width: 100%;
+  }
+  .aether-site .note-list li {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aether-doc * {
+    transition: none !important;
+  }
+}
+
+/* ── Print ──────────────────────────────────────────────────────── */
+@media print {
+  .aether-doc {
+    --doc-bg: #fdfcfa;
+    --doc-sunken: #f4f2ee;
+    --doc-fg: #1d1c1a;
+    --doc-fg-2: #56544e;
+    --doc-fg-3: #6e6c65;
+    --doc-accent-text: #17736a;
+    background: none;
+    color-scheme: light;
+    font-size: 11pt;
+    line-height: 1.55;
+  }
+  .aether-doc .doc-main {
+    max-width: none;
+    padding: 0;
+  }
+  .aether-doc .site-header,
+  .aether-doc .skip-link,
+  .aether-doc .doc-footer {
+    display: none;
+  }
+  .aether-doc a {
+    color: inherit;
+  }
+  .aether-doc pre,
+  .aether-doc img,
+  .aether-doc table,
+  .aether-doc blockquote,
+  .aether-doc figure {
+    break-inside: avoid;
+  }
+  .aether-doc pre {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .aether-doc h1,
+  .aether-doc h2,
+  .aether-doc h3,
+  .aether-doc h4 {
+    break-after: avoid;
+  }
+  .aether-doc .backlinks a,
+  .aether-doc .backlinks .wikilink {
+    box-shadow: none;
+  }
+}

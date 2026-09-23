@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from "react";
-import { FileText, Trash2, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Trash2, Sparkles, MousePointerClick, MessageSquareQuote } from "lucide-react";
 import { useAetherStore } from "../lib/store";
 import { getAetherNotes, deleteAetherNote } from "../lib/ipc";
+import { MarkdownRenderer } from "./MarkdownRenderer";
+import { Badge, EmptyState, IconButton, ListRow, ViewHeader } from "../ui";
 
 export function AetherNotes() {
   const { aetherNotes, setAetherNotes } = useAetherStore();
@@ -25,56 +27,81 @@ export function AetherNotes() {
   const selectedNote = aetherNotes.find((n) => n.id === selected);
 
   return (
-    <div className="aether-notes">
-      <div className="notes-list">
-        <div className="notes-list-header">
-          <span>AI Notes</span>
-          <span className="notes-count">{aetherNotes.length}</span>
+    <div className="view aether-notes-view">
+      <ViewHeader
+        title="AI Notes"
+        subtitle={`${aetherNotes.length} saved agent answer${aetherNotes.length === 1 ? "" : "s"}`}
+      />
+      <div className="view-body aether-notes">
+        <div className="notes-list" role="list" aria-label="AI notes">
+          {aetherNotes.length === 0 ? (
+            <EmptyState
+              icon={Sparkles}
+              size="sm"
+              title="No AI notes yet"
+              description="Save an agent answer with the save button in the agent panel to keep it here."
+            />
+          ) : (
+            aetherNotes.map((note) => (
+              <ListRow
+                key={note.id}
+                role="listitem"
+                className="note-item"
+                title={note.title}
+                description={new Date(note.created_at).toLocaleDateString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}
+                selected={selected === note.id}
+                onClick={() => setSelected(note.id)}
+              />
+            ))
+          )}
         </div>
-        {aetherNotes.length === 0 && (
-          <div className="notes-empty">
-            <FileText size={32} />
-            <p>No AI notes yet. Save agent responses to create notes.</p>
-          </div>
-        )}
-        {aetherNotes.map((note) => (
-          <div
-            key={note.id}
-            className={`note-item${selected === note.id ? " note-selected" : ""}`}
-            onClick={() => setSelected(note.id)}
-          >
-            <div className="note-item-title">{note.title}</div>
-            <div className="note-item-meta">
-              <Clock size={10} />
-              {new Date(note.created_at).toLocaleDateString()}
-            </div>
-          </div>
-        ))}
-      </div>
 
-      {selectedNote && (
-        <div className="note-detail">
-          <div className="note-detail-header">
-            <span>{selectedNote.title}</span>
-            <button className="btn btn-icon" onClick={() => handleDelete(selectedNote.id)}>
-              <Trash2 size={14} />
-            </button>
-          </div>
-          {selectedNote.source_query && (
-            <div className="note-source">Query: {selectedNote.source_query}</div>
+        <section className="note-detail" aria-live="polite">
+          {selectedNote ? (
+            <>
+              <header className="note-detail-header">
+                <h2 className="note-detail-title">{selectedNote.title}</h2>
+                <IconButton
+                  label="Delete note"
+                  variant="danger"
+                  icon={<Trash2 size={16} />}
+                  onClick={() => void handleDelete(selectedNote.id)}
+                />
+              </header>
+              {selectedNote.source_query && (
+                <div className="note-source">
+                  <MessageSquareQuote size={14} />
+                  <span>{selectedNote.source_query}</span>
+                </div>
+              )}
+              {selectedNote.related_notes.length > 0 && (
+                <div className="note-related">
+                  {selectedNote.related_notes.map((p) => (
+                    <Badge key={p} className="related-chip">
+                      {p.split("/").pop()?.replace(/\.md$/, "")}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              <div className="note-content">
+                <MarkdownRenderer content={selectedNote.content} />
+              </div>
+            </>
+          ) : (
+            aetherNotes.length > 0 && (
+              <EmptyState
+                icon={MousePointerClick}
+                title="Select a note"
+                description="Pick a saved answer on the left to read it here."
+              />
+            )
           )}
-          {selectedNote.related_notes.length > 0 && (
-            <div className="note-related">
-              {selectedNote.related_notes.map((p) => (
-                <span key={p} className="related-chip">
-                  {p.split("/").pop()?.replace(/\.md$/, "")}
-                </span>
-              ))}
-            </div>
-          )}
-          <pre className="note-content">{selectedNote.content}</pre>
-        </div>
-      )}
+        </section>
+      </div>
     </div>
   );
 }

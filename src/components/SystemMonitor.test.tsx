@@ -23,7 +23,7 @@ describe("SystemMonitor", () => {
   it("renders the monitor title in error state", async () => {
     render(<SystemMonitor />);
     await vi.waitFor(() => {
-      expect(screen.getByText(/System Monitor/i)).toBeTruthy();
+      expect(screen.getByRole("heading", { name: /System Monitor/i })).toBeTruthy();
     });
   });
 });

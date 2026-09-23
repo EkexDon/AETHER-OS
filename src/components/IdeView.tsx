@@ -22,6 +22,7 @@ import {
   ideWriteFile,
   scanProjects,
 } from "../lib/ipc";
+import { EmptyState } from "../ui";
 import { CodeEditor } from "./CodeEditor";
 import { IdeDiffView } from "./IdeDiffView";
 import { IdeFileTree } from "./IdeFileTree";
@@ -233,7 +234,7 @@ export function IdeView() {
     return (
       <div className="ide-picker">
         <div className="ide-picker-inner">
-          <Code2 size={40} className="ide-picker-icon" />
+          <Code2 size={18} className="ide-picker-icon" aria-hidden="true" />
           <h2>Open a project</h2>
           <p className="ide-picker-sub">
             The editor can only reach your configured project directories and the vault.
@@ -288,19 +289,19 @@ export function IdeView() {
               onClick={() => setSidebarTab("files")}
               title="Files"
             >
-              <FileCode size={13} /> Files
+              <FileCode size={14} /> Files
             </button>
             <button
               className={`ide-side-tab${sidebarTab === "git" ? " ide-side-tab-active" : ""}`}
               onClick={() => setSidebarTab("git")}
               title="Source control"
             >
-              <GitBranch size={13} /> Git
+              <GitBranch size={14} /> Git
             </button>
           </div>
           {sidebarTab === "files" && (
             <button className="btn btn-icon" onClick={handleCloseFolder} title="Close folder">
-              <X size={13} />
+              <X size={14} />
             </button>
           )}
         </div>
@@ -341,7 +342,7 @@ export function IdeView() {
                     closeFile(tab.path);
                   }}
                 >
-                  <X size={11} />
+                  <X size={14} />
                 </button>
               </div>
             ))}
@@ -359,10 +360,10 @@ export function IdeView() {
                       : `${language} language server crashed`
                   }
                 >
-                  {status === "starting" ? <Loader2 size={11} className="spin" /> : "⚠"} {language}
+                  {status === "starting" ? <Loader2 size={14} className="spin" /> : "⚠"} {language}
                 </span>
               ))}
-            {saving && <Loader2 size={13} className="spin" />}
+            {saving && <Loader2 size={14} className="spin" />}
             <button
               className="btn btn-icon"
               onClick={() => void handleSave()}
@@ -398,8 +399,7 @@ export function IdeView() {
             />
           ) : (
             <div className="ide-no-file">
-              <Code2 size={32} />
-              <p>Select a file from the tree to start editing.</p>
+              <EmptyState icon={Code2} size="sm" title="No file open" description="Select a file in the tree to start editing." />
             </div>
           )}
           {diff && (
@@ -424,14 +424,14 @@ export function IdeView() {
               title="Drag to resize terminal · double-click to reset"
             >
               <span className="ide-terminal-header-title">
-                <TerminalSquare size={12} /> Terminal
+                <TerminalSquare size={14} /> Terminal
               </span>
               <button
                 className="btn btn-icon"
                 onClick={() => setShowTerminal(false)}
                 title="Close terminal panel (session stays alive)"
               >
-                <PanelBottomClose size={13} />
+                <PanelBottomClose size={14} />
               </button>
             </div>
             <div className="ide-terminal-body">

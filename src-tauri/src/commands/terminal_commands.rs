@@ -29,15 +29,21 @@ pub async fn cmd_terminal_spawn(
 
     state
         .terminal
-        .spawn(cwd.as_deref(), shell.as_deref(), cols, rows, move |id, output: &[u8]| {
-            let _ = app_handle.emit(
-                "terminal-output",
-                TerminalOutputEvent {
-                    id,
-                    data_base64: &base64::engine::general_purpose::STANDARD.encode(output),
-                },
-            );
-        })
+        .spawn(
+            cwd.as_deref(),
+            shell.as_deref(),
+            cols,
+            rows,
+            move |id, output: &[u8]| {
+                let _ = app_handle.emit(
+                    "terminal-output",
+                    TerminalOutputEvent {
+                        id,
+                        data_base64: &base64::engine::general_purpose::STANDARD.encode(output),
+                    },
+                );
+            },
+        )
         .map_err(|e| e.to_string())
 }
 
@@ -64,16 +70,11 @@ pub async fn cmd_terminal_resize(
 }
 
 #[tauri::command]
-pub async fn cmd_terminal_kill(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn cmd_terminal_kill(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.terminal.kill(&id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn cmd_terminal_list(
-    state: State<'_, AppState>,
-) -> Result<Vec<TerminalSession>, String> {
+pub async fn cmd_terminal_list(state: State<'_, AppState>) -> Result<Vec<TerminalSession>, String> {
     state.terminal.list().map_err(|e| e.to_string())
 }

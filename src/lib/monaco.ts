@@ -4,6 +4,8 @@ import jsonWorker from "monaco-editor/esm/vs/language/json/json.worker?worker";
 import cssWorker from "monaco-editor/esm/vs/language/css/css.worker?worker";
 import htmlWorker from "monaco-editor/esm/vs/language/html/html.worker?worker";
 import tsWorker from "monaco-editor/esm/vs/language/typescript/ts.worker?worker";
+import { useThemeStore } from "./theme";
+import { onTokensChange, readTokens, toHex } from "./tokens";
 
 /**
  * Monaco is wired up entirely from the local bundle — no CDN loader — so the
@@ -18,7 +20,84 @@ declare global {
 
 let configured = false;
 
+/** Monaco theme names; both are generated from the design tokens. */
 export const AETHER_THEME = "aether-dark";
+export const AETHER_LIGHT_THEME = "aether-light";
+
+/** Font stack shared by every Monaco instance. */
+export const MONACO_FONT = '"JetBrains Mono Variable", "SF Mono", Menlo, monospace';
+
+/** The Monaco theme matching the active app theme. */
+export function currentMonacoTheme(): string {
+  return useThemeStore.getState().resolved === "light" ? AETHER_LIGHT_THEME : AETHER_THEME;
+}
+
+const MONACO_TOKENS = [
+  "--color-bg",
+  "--color-overlay",
+  "--color-fg-primary",
+  "--color-fg-secondary",
+  "--color-fg-tertiary",
+  "--color-fg-disabled",
+  "--color-border",
+  "--color-fill-subtle",
+  "--color-fill-active",
+  "--color-fill-strong",
+  "--color-accent",
+  "--color-selection",
+  "--color-accent-soft",
+  "--color-cat-1",
+  "--color-cat-2",
+  "--color-cat-3",
+  "--color-cat-5",
+  "--color-cat-6",
+] as const;
+
+/**
+ * (Re)define the AETHER theme for the *active* app theme from the current
+ * token values. Called on setup and whenever the theme or accent changes.
+ */
+function defineAetherTheme(m: typeof monaco): void {
+  const t = readTokens(MONACO_TOKENS);
+  const hex = (name: (typeof MONACO_TOKENS)[number]) => toHex(t[name]) || "#808080";
+  const bare = (name: (typeof MONACO_TOKENS)[number]) => hex(name).replace("#", "").slice(0, 6);
+  const light = useThemeStore.getState().resolved === "light";
+  m.editor.defineTheme(light ? AETHER_LIGHT_THEME : AETHER_THEME, {
+    base: light ? "vs" : "vs-dark",
+    inherit: true,
+    rules: [
+      { token: "comment", foreground: bare("--color-fg-tertiary"), fontStyle: "italic" },
+      { token: "keyword", foreground: bare("--color-cat-5") },
+      { token: "string", foreground: bare("--color-cat-6") },
+      { token: "number", foreground: bare("--color-cat-3") },
+      { token: "type", foreground: bare("--color-cat-2") },
+      { token: "function", foreground: bare("--color-cat-1") },
+      { token: "variable", foreground: bare("--color-fg-primary") },
+    ],
+    colors: {
+      "editor.background": hex("--color-bg"),
+      "editor.foreground": hex("--color-fg-primary"),
+      "editorLineNumber.foreground": hex("--color-fg-disabled"),
+      "editorLineNumber.activeForeground": hex("--color-fg-secondary"),
+      "editor.selectionBackground": hex("--color-selection"),
+      "editor.lineHighlightBackground": hex("--color-fill-subtle"),
+      "editor.lineHighlightBorder": "#00000000",
+      "editorCursor.foreground": hex("--color-accent"),
+      "editorIndentGuide.background1": hex("--color-fill-active"),
+      "editorWidget.background": hex("--color-overlay"),
+      "editorWidget.border": hex("--color-border"),
+      "editorSuggestWidget.background": hex("--color-overlay"),
+      "editorSuggestWidget.border": hex("--color-border"),
+      "editorSuggestWidget.selectedBackground": hex("--color-accent-soft"),
+      "editorHoverWidget.background": hex("--color-overlay"),
+      "editorHoverWidget.border": hex("--color-border"),
+      "editorGutter.background": hex("--color-bg"),
+      "scrollbarSlider.background": hex("--color-fill-active"),
+      "scrollbarSlider.hoverBackground": hex("--color-fill-strong"),
+      "minimap.background": hex("--color-bg"),
+    },
+  });
+}
 
 export function setupMonaco(): typeof monaco {
   if (configured) return monaco;
@@ -68,35 +147,20 @@ export function setupMonaco(): typeof monaco {
     });
   }
 
-  monaco.editor.defineTheme(AETHER_THEME, {
-    base: "vs-dark",
-    inherit: true,
-    rules: [
-      { token: "comment", foreground: "6b6b78", fontStyle: "italic" },
-      { token: "keyword", foreground: "c084fc" },
-      { token: "string", foreground: "86efac" },
-      { token: "number", foreground: "fbbf24" },
-      { token: "type", foreground: "67e8f9" },
-      { token: "function", foreground: "93c5fd" },
-      { token: "variable", foreground: "e4e4e8" },
-    ],
-    colors: {
-      "editor.background": "#0a0a0c",
-      "editor.foreground": "#e4e4e8",
-      "editorLineNumber.foreground": "#3a3a44",
-      "editorLineNumber.activeForeground": "#8b8b9a",
-      "editor.selectionBackground": "#6b6bf540",
-      "editor.lineHighlightBackground": "#ffffff08",
-      "editorCursor.foreground": "#6b6bf5",
-      "editorIndentGuide.background1": "#ffffff10",
-      "editorWidget.background": "#14141a",
-      "editorWidget.border": "#ffffff18",
-      "editorSuggestWidget.background": "#14141a",
-      "editorSuggestWidget.selectedBackground": "#6b6bf533",
-      "editorGutter.background": "#0a0a0c",
-      "scrollbarSlider.background": "#ffffff14",
-      "scrollbarSlider.hoverBackground": "#ffffff22",
-    },
+  defineAetherTheme(monaco);
+  monaco.editor.setTheme(currentMonacoTheme());
+  // The bundled mono font can finish loading after the first editor
+  // measured its glyphs; re-measure once it is ready.
+  if (typeof document !== "undefined" && document.fonts?.load) {
+    void document.fonts
+      .load(`13px ${MONACO_FONT}`)
+      .then(() => monaco.editor.remeasureFonts())
+      .catch(() => undefined);
+  }
+  // Theme / accent switches restyle every open editor in place.
+  onTokensChange(() => {
+    defineAetherTheme(monaco);
+    monaco.editor.setTheme(currentMonacoTheme());
   });
 
   return monaco;

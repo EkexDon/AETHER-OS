@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="AETHER-OS">
+<title>{{page_title}}</title>
+<meta name="description" content="{{description}}">
+<link rel="stylesheet" href="{{root}}assets/style.css">
+</head>
+<body class="aether-doc aether-site" data-theme="{{theme}}" data-root="{{root}}">
+<a class="skip-link" href="#content">Skip to content</a>
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-title" href="{{root}}index.html">{{site_title}}</a>
+    <nav class="site-nav" aria-label="Site">
+      <a href="{{root}}index.html">Notes</a>
+      <a href="{{root}}tags/index.html">Tags</a>
+    </nav>
+    <div class="site-search" role="search">
+      <input type="search" id="site-search-input" class="site-search-input" placeholder="Search notes" aria-label="Search notes" aria-controls="site-search-results" autocomplete="off" spellcheck="false">
+      <kbd class="site-search-hint" aria-hidden="true">/</kbd>
+      <div class="site-search-results" id="site-search-results" role="listbox" aria-label="Search results" hidden></div>
+    </div>
+  </div>
+</header>
+<main class="doc-main" id="content">
+{{content}}
+</main>
+<footer class="doc-footer">{{footer}}</footer>
+<script src="{{root}}search-index.js" defer></script>
+<script src="{{root}}assets/search.js" defer></script>
+{{scripts}}
+</body>
+</html>

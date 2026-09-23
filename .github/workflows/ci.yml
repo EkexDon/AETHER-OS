@@ -1,0 +1,130 @@
+# Quality gates for every push and pull request (see docs/dev/CI.md).
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["v*"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  NODE_VERSION: "22"
+
+jobs:
+  frontend:
+    name: Frontend (tsc · vitest · vite build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npx vitest run
+
+      - name: Production build
+        run: npx vite build
+
+      - name: Production bundle is free of the mock backend
+        run: |
+          if grep -rq "AETHER mock shell" dist; then
+            echo "::error::dist/ contains the DEV-only mock backend (src/lib/mock)"
+            exit 1
+          fi
+
+  rust:
+    name: Rust (fmt · clippy · test)
+    runs-on: macos-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      # PNG/ICNS/ICO icons are gitignored; `generate_context!` needs them at
+      # compile time, so derive them from the committed SVG.
+      - name: Generate app icons
+        run: npx tauri icon src-tauri/icons/icon.svg
+
+      - name: Frontend dist placeholder
+        run: mkdir -p dist
+
+      - name: cargo fmt --check
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: cargo clippy -- -D warnings
+        working-directory: src-tauri
+        run: cargo clippy -- -D warnings
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test
+
+  linux-build-check:
+    name: Linux build check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Tauri 2 system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libssl-dev libxdo-dev \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate app icons
+        run: npx tauri icon src-tauri/icons/icon.svg
+
+      - name: Frontend dist placeholder
+        run: mkdir -p dist
+
+      - name: cargo check
+        working-directory: src-tauri
+        run: cargo check --all-targets

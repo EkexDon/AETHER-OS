@@ -1,0 +1,90 @@
+/* ── Quick capture (⌘⇧N) ─────────────────────────────────────── */
+.quick-capture-modal {
+  max-width: 560px;
+}
+
+.quick-capture-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.quick-capture-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.quick-capture-hint {
+  font-size: var(--text-sm);
+  color: var(--color-fg-tertiary);
+}
+
+.quick-capture-input {
+  display: block;
+  width: 100%;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: transparent;
+  border: none;
+  color: var(--color-fg-primary);
+  font-size: var(--text-lg);
+  letter-spacing: -0.01em;
+}
+
+.quick-capture-input::placeholder {
+  color: var(--color-fg-tertiary);
+}
+
+.quick-capture-error {
+  margin: 0 var(--space-4) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+
+.quick-capture-success {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 var(--space-4) var(--space-3);
+  color: var(--color-success);
+  font-size: var(--text-sm);
+}
+
+.quick-capture-success .ui-button {
+  margin-left: auto;
+}
+
+.quick-capture-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  height: 38px;
+  padding: 0 var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-fill-subtle);
+}
+
+.quick-capture-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+}
+
+.quick-capture-shortcut .ui-kbd + .ui-kbd,
+.quick-capture-shortcut .ui-kbd:not(:first-child) {
+  margin-left: var(--space-2);
+}

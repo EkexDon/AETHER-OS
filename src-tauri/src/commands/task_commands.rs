@@ -2,9 +2,7 @@
 
 use tauri::State;
 
-use crate::engine::task_board::{
-    TaskItem, TaskItemPatch, TaskProject, TaskProjectPatch,
-};
+use crate::engine::task_board::{TaskItem, TaskItemPatch, TaskProject, TaskProjectPatch};
 use crate::AppState;
 
 #[tauri::command]
@@ -49,10 +47,7 @@ pub async fn cmd_update_task_project(
 }
 
 #[tauri::command]
-pub async fn cmd_delete_task_project(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn cmd_delete_task_project(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state
         .task_board
         .delete_project(&id)
@@ -71,10 +66,7 @@ pub async fn cmd_list_tasks(
 }
 
 #[tauri::command]
-pub async fn cmd_get_task(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<TaskItem, String> {
+pub async fn cmd_get_task(state: State<'_, AppState>, id: String) -> Result<TaskItem, String> {
     state.task_board.get_task(&id).map_err(|e| e.to_string())
 }
 
@@ -119,9 +111,6 @@ pub async fn cmd_update_task(
 }
 
 #[tauri::command]
-pub async fn cmd_delete_task(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn cmd_delete_task(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state.task_board.delete_task(&id).map_err(|e| e.to_string())
 }

@@ -44,10 +44,7 @@ pub fn server_candidates(language: &str) -> &'static [&'static [&'static str]] {
                 &["npx", "--yes", "typescript-language-server", "--stdio"],
             ]
         }
-        "python" => &[
-            &["pyright-langserver", "--stdio"],
-            &["pylsp"],
-        ],
+        "python" => &[&["pyright-langserver", "--stdio"], &["pylsp"]],
         "rust" => &[&["rust-analyzer"]],
         "json" => &[&["vscode-json-language-server", "--stdio"]],
         _ => &[],
@@ -85,6 +82,11 @@ pub fn encode_frame(body: &[u8]) -> Vec<u8> {
     out
 }
 
+/// Largest JSON-RPC body accepted from a language server.
+pub const MAX_FRAME_BYTES: usize = 64 * 1024 * 1024;
+/// Largest header block (without its `\r\n\r\n` terminator) that is buffered.
+pub const MAX_HEADER_BYTES: usize = 8 * 1024;
+
 /// Incremental decoder for the stream of incoming framed bodies. Feed it raw
 /// chunks from the server's stdout; it hands back every complete body.
 #[derive(Debug, Default)]
@@ -97,16 +99,27 @@ impl FrameDecoder {
         Self::default()
     }
 
-    /// Extracts `Content-Length` from the buffered header block.
+    /// Extracts `Content-Length` from the buffered header block (at most
+    /// [`MAX_FRAME_BYTES`]; a header without terminator may not grow past
+    /// [`MAX_HEADER_BYTES`]).
     /// Returns `Ok(None)` when the header is not complete yet.
     fn header_length(&self) -> Result<Option<usize>, AetherError> {
         let sep = b"\r\n\r\n";
         let pos = find_subslice(&self.buf, sep);
-        let Some(pos) = pos else { return Ok(None) };
+        let Some(pos) = pos else {
+            if self.buf.len() > MAX_HEADER_BYTES {
+                return Err(AetherError::InvalidInput(
+                    "LSP server sent an oversized frame header".into(),
+                ));
+            }
+            return Ok(None);
+        };
         let header = String::from_utf8_lossy(&self.buf[..pos]);
         let mut length = None;
         for line in header.split("\r\n") {
-            let Some((name, value)) = line.split_once(':') else { continue };
+            let Some((name, value)) = line.split_once(':') else {
+                continue;
+            };
             if name.trim().eq_ignore_ascii_case("content-length") {
                 length = Some(value.trim().parse::<usize>().map_err(|_| {
                     AetherError::InvalidInput(format!(
@@ -116,6 +129,9 @@ impl FrameDecoder {
             }
         }
         match length {
+            Some(n) if n > MAX_FRAME_BYTES => Err(AetherError::InvalidInput(format!(
+                "LSP server announced a {n}-byte frame (limit {MAX_FRAME_BYTES})"
+            ))),
             Some(n) => Ok(Some(n)),
             None => Err(AetherError::InvalidInput(
                 "LSP frame is missing Content-Length".into(),
@@ -129,8 +145,10 @@ impl FrameDecoder {
             return Ok(None);
         };
         const HEADER_TERMINATOR: usize = 4;
-        let header_end = find_subslice(&self.buf, b"\r\n\r\n")
-            .expect("header_length confirmed a terminator exists");
+        let Some(header_end) = find_subslice(&self.buf, b"\r\n\r\n") else {
+            return Ok(None);
+        };
+        // `length` is capped by `header_length`, so this cannot overflow.
         let total = header_end + HEADER_TERMINATOR + length;
         if self.buf.len() < total {
             return Ok(None);
@@ -189,7 +207,10 @@ impl LspManager {
         on_message: impl Fn(&str, Value) + Send + Sync + 'static,
     ) -> Result<(), AetherError> {
         {
-            let processes = self.processes.lock().expect("processes lock");
+            let processes = self
+                .processes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             if processes.contains_key(key) {
                 // Already running — idempotent restart requests are fine.
                 return Ok(());
@@ -212,14 +233,18 @@ impl LspManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| AetherError::Vault(format!("cannot start language server {program}: {e}")))?;
+            .map_err(|e| {
+                AetherError::Vault(format!("cannot start language server {program}: {e}"))
+            })?;
 
-        let stdin = child.stdin.take().ok_or_else(|| {
-            AetherError::Vault("language server has no stdin".into())
-        })?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            AetherError::Vault("language server has no stdout".into())
-        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| AetherError::Vault("language server has no stdin".into()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| AetherError::Vault("language server has no stdout".into()))?;
         let stderr = child.stderr.take();
 
         let alive = Arc::new(AtomicBool::new(true));
@@ -231,7 +256,7 @@ impl LspManager {
 
         self.processes
             .lock()
-            .expect("processes lock")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(key.to_string(), Arc::clone(&process));
 
         // Reader: decode frames and forward parsed JSON-RPC bodies.
@@ -246,24 +271,22 @@ impl LspManager {
             loop {
                 match stdout.read(&mut chunk) {
                     Ok(0) => break, // EOF: server exited
-                    Ok(n) => {
-                        match decoder.push(&chunk[..n]) {
-                            Ok(bodies) => {
-                                for body in bodies {
-                                    match serde_json::from_slice::<Value>(&body) {
-                                        Ok(value) => reader_on_message(&reader_key, value),
-                                        Err(e) => {
-                                            eprintln!("[lsp] dropping non-JSON frame: {e}");
-                                        }
+                    Ok(n) => match decoder.push(&chunk[..n]) {
+                        Ok(bodies) => {
+                            for body in bodies {
+                                match serde_json::from_slice::<Value>(&body) {
+                                    Ok(value) => reader_on_message(&reader_key, value),
+                                    Err(e) => {
+                                        eprintln!("[lsp] dropping non-JSON frame: {e}");
                                     }
                                 }
                             }
-                            Err(e) => {
-                                eprintln!("[lsp] framing error, stopping read loop: {e}");
-                                break;
-                            }
                         }
-                    }
+                        Err(e) => {
+                            eprintln!("[lsp] framing error, stopping read loop: {e}");
+                            break;
+                        }
+                    },
                     Err(e) => {
                         eprintln!("[lsp] stdout read error: {e}");
                         break;
@@ -294,7 +317,10 @@ impl LspManager {
     /// Send one JSON-RPC message to the server behind `key`.
     pub fn send(&self, key: &str, message: &Value) -> Result<(), AetherError> {
         let process = {
-            let processes = self.processes.lock().expect("processes lock");
+            let processes = self
+                .processes
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             processes.get(key).cloned()
         };
         let Some(process) = process else {
@@ -312,13 +338,11 @@ impl LspManager {
         let mut stdin = process
             .stdin
             .lock()
-            .expect("stdin lock");
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         stdin
             .write_all(&encode_frame(&body))
             .and_then(|_| stdin.flush())
-            .map_err(|e| {
-                AetherError::Vault(format!("cannot write to language server: {e}"))
-            })
+            .map_err(|e| AetherError::Vault(format!("cannot write to language server: {e}")))
     }
 
     /// Stop one server (kill + forget). Stopping an unknown key is fine.
@@ -326,7 +350,7 @@ impl LspManager {
         let process = self
             .processes
             .lock()
-            .expect("processes lock")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .remove(key);
         if let Some(process) = process {
             process.alive.store(false, Ordering::SeqCst);
@@ -342,7 +366,7 @@ impl LspManager {
         let keys: Vec<String> = self
             .processes
             .lock()
-            .expect("processes lock")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .keys()
             .cloned()
             .collect();
@@ -354,7 +378,7 @@ impl LspManager {
     pub fn running(&self) -> Vec<String> {
         self.processes
             .lock()
-            .expect("processes lock")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .keys()
             .cloned()
             .collect()
@@ -380,18 +404,37 @@ mod tests {
         let text = String::from_utf8(frame).unwrap();
         assert_eq!(
             text,
-            format!("Content-Length: {}\r\n\r\n{{\"jsonrpc\":\"2.0\"}}", body.len())
+            format!(
+                "Content-Length: {}\r\n\r\n{{\"jsonrpc\":\"2.0\"}}",
+                body.len()
+            )
         );
+    }
+
+    #[test]
+    fn hostile_frame_headers_are_errors_not_panics() {
+        let mut decoder = FrameDecoder::new();
+        let huge = format!("Content-Length: {}\r\n\r\n{{}}", usize::MAX);
+        assert!(decoder.push(huge.as_bytes()).is_err());
+
+        let mut decoder = FrameDecoder::new();
+        let over = format!("Content-Length: {}\r\n\r\n", MAX_FRAME_BYTES + 1);
+        assert!(decoder.push(over.as_bytes()).is_err());
+
+        let mut decoder = FrameDecoder::new();
+        let endless = vec![b'x'; MAX_HEADER_BYTES + 1];
+        assert!(decoder.push(&endless).is_err());
     }
 
     #[test]
     fn decodes_a_single_frame() {
         let mut decoder = FrameDecoder::new();
-        let bodies = decoder
-            .push(&encode_frame(br#"{"id":1}"#))
-            .expect("decode");
+        let bodies = decoder.push(&encode_frame(br#"{"id":1}"#)).expect("decode");
         assert_eq!(bodies.len(), 1);
-        assert_eq!(serde_json::from_slice::<Value>(&bodies[0]).unwrap()["id"], 1);
+        assert_eq!(
+            serde_json::from_slice::<Value>(&bodies[0]).unwrap()["id"],
+            1
+        );
     }
 
     #[test]
@@ -419,14 +462,19 @@ mod tests {
         let mut decoder = FrameDecoder::new();
         let bodies = decoder.push(&input).expect("decode burst");
         assert_eq!(bodies.len(), 25);
-        assert_eq!(serde_json::from_slice::<Value>(&bodies[24]).unwrap()["i"], 24);
+        assert_eq!(
+            serde_json::from_slice::<Value>(&bodies[24]).unwrap()["i"],
+            24
+        );
     }
 
     #[test]
     fn handles_headers_case_insensitively_and_ignores_extra_header_fields() {
         let body = br#"{}"#;
-        let raw = format!("content-type: application/vscode-jsonrpc\r\nCONTENT-LENGTH: {}\r\n\r\n", body.len())
-            + r#"{}"#;
+        let raw = format!(
+            "content-type: application/vscode-jsonrpc\r\nCONTENT-LENGTH: {}\r\n\r\n",
+            body.len()
+        ) + r#"{}"#;
         let mut decoder = FrameDecoder::new();
         let bodies = decoder.push(raw.as_bytes()).expect("decode");
         assert_eq!(bodies.len(), 1);
@@ -445,13 +493,22 @@ mod tests {
     fn keys_pair_language_with_root() {
         assert_eq!(session_key("rust", "/tmp/a"), "rust::/tmp/a");
         assert_ne!(session_key("rust", "/tmp/a"), session_key("rust", "/tmp/b"));
-        assert_ne!(session_key("rust", "/tmp/a"), session_key("python", "/tmp/a"));
+        assert_ne!(
+            session_key("rust", "/tmp/a"),
+            session_key("python", "/tmp/a")
+        );
     }
 
     #[test]
     fn maps_languages_to_expected_servers() {
-        assert_eq!(server_candidates("typescript")[0][0], "typescript-language-server");
-        assert_eq!(server_candidates("javascript")[0][0], "typescript-language-server");
+        assert_eq!(
+            server_candidates("typescript")[0][0],
+            "typescript-language-server"
+        );
+        assert_eq!(
+            server_candidates("javascript")[0][0],
+            "typescript-language-server"
+        );
         // npx fallback for machines without the global install.
         assert_eq!(server_candidates("typescript")[1][0], "npx");
         assert_eq!(server_candidates("rust")[0][0], "rust-analyzer");
@@ -463,7 +520,12 @@ mod tests {
 
     #[test]
     fn finds_common_tools_on_path() {
-        assert!(find_in_path(if cfg!(target_os = "windows") { "cmd" } else { "ls" }).is_some());
+        assert!(find_in_path(if cfg!(target_os = "windows") {
+            "cmd"
+        } else {
+            "ls"
+        })
+        .is_some());
         assert!(find_in_path("definitely-not-a-real-tool-xyz").is_none());
     }
 
@@ -554,7 +616,10 @@ mod tests {
             .start(
                 "tls::test",
                 dir.path(),
-                &["typescript-language-server".to_string(), "--stdio".to_string()],
+                &[
+                    "typescript-language-server".to_string(),
+                    "--stdio".to_string(),
+                ],
                 |_| {},
                 move |_key, message| {
                     let _ = tx.send(message);
@@ -605,7 +670,10 @@ mod tests {
         assert!(answered, "no initialize response within 30s");
 
         manager
-            .send("tls::test", &json!({"jsonrpc": "2.0", "method": "shutdown"}))
+            .send(
+                "tls::test",
+                &json!({"jsonrpc": "2.0", "method": "shutdown"}),
+            )
             .ok();
         manager.stop_all();
     }

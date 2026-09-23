@@ -17,7 +17,10 @@ import type {
   TaskItem,
 } from "../types";
 
-export type ViewMode = "dashboard" | "search" | "graph" | "notes" | "projects" | "tasks" | "memory" | "terminal" | "monitor" | "browser" | "editor" | "ide" | "calendar";
+import type { ViewMode } from "../views/modes";
+
+/** Re-exported for existing imports; the source of truth is `src/views/modes.ts`. */
+export type { ViewMode };
 
 export type AiProvider = "ollama" | "openrouter";
 

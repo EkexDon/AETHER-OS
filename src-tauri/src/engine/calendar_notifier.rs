@@ -111,13 +111,18 @@ impl CalendarNotifier {
         let app = self.app.clone();
         let state_path = self.state_path.clone();
         let delivered: Arc<Mutex<HashSet<(String, u32)>>> = Arc::new(Mutex::new(
-            self.delivered.lock().expect("delivered lock").clone(),
+            self.delivered
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone(),
         ));
 
         // Initial prune: drop delivered entries whose event no longer exists.
         if let Ok(events) = calendar.list() {
             let ids: HashSet<String> = events.iter().map(|e| e.id.clone()).collect();
-            let mut d = delivered.lock().expect("delivered lock");
+            let mut d = delivered
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
             let before = d.len();
             d.retain(|(id, _)| ids.contains(id));
             if d.len() != before {
@@ -160,7 +165,9 @@ impl CalendarNotifier {
                         let trigger = start - chrono::Duration::minutes(lead as i64);
                         if trigger >= window_start && trigger <= window_end {
                             let key = (event.id.clone(), lead);
-                            let mut d = delivered.lock().expect("delivered lock");
+                            let mut d = delivered
+                                .lock()
+                                .unwrap_or_else(std::sync::PoisonError::into_inner);
                             if d.contains(&key) {
                                 continue;
                             }
@@ -182,7 +189,10 @@ impl CalendarNotifier {
 
     /// Drop delivered entries for a deleted event.
     pub fn prune_delivered(&self, event_id: &str) {
-        let mut d = self.delivered.lock().expect("delivered lock");
+        let mut d = self
+            .delivered
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         d.retain(|(id, _)| id != event_id);
         persist_state_inner(&self.state_path, &d);
     }
@@ -205,7 +215,9 @@ fn fire_notification(app: &AppHandle, event: &crate::engine::calendar::CalendarE
 }
 
 fn persist_state(path: &Path, delivered: &Arc<Mutex<HashSet<(String, u32)>>>) {
-    let d = delivered.lock().expect("delivered lock");
+    let d = delivered
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     persist_state_inner(path, &d);
 }
 
@@ -220,8 +232,7 @@ fn persist_state_inner(path: &Path, delivered: &HashSet<(String, u32)>) {
 
 fn read_settings_static(path: &Path) -> Result<ReminderSettings, AetherError> {
     let content = std::fs::read_to_string(path)?;
-    serde_json::from_str(&content)
-        .map_err(|e| AetherError::Vault(format!("settings parse: {e}")))
+    serde_json::from_str(&content).map_err(|e| AetherError::Vault(format!("settings parse: {e}")))
 }
 
 // --- Test-only helpers ---------------------------------------------------

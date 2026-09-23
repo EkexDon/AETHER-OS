@@ -51,13 +51,53 @@ impl WebClipper {
         }
 
         let final_url = response.url().to_string();
-        let html = response
-            .text()
-            .await
-            .map_err(|e| AetherError::Vault(format!("read body: {e}")))?;
+        let html = read_capped_text(response, MAX_PAGE_BYTES).await?;
 
         Ok(extract_content(&html, &final_url))
     }
+}
+
+/// Largest page body read for clipping.
+pub const MAX_PAGE_BYTES: usize = 10 * 1024 * 1024;
+
+/// Read a response body of at most `cap` bytes and decode it with the
+/// charset from its `Content-Type` (like `Response::text`, but bounded).
+async fn read_capped_text(
+    mut response: reqwest::Response,
+    cap: usize,
+) -> Result<String, AetherError> {
+    let too_large = || AetherError::Vault(format!("page is larger than {} MB", cap / 1024 / 1024));
+    if response
+        .content_length()
+        .is_some_and(|len| len > cap as u64)
+    {
+        return Err(too_large());
+    }
+    let content_type = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .cloned();
+    let mut body = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| AetherError::Vault(format!("read body: {e}")))?
+    {
+        body.extend_from_slice(&chunk);
+        if body.len() > cap {
+            return Err(too_large());
+        }
+    }
+    let mut buffered = tauri::http::Response::new(body);
+    if let Some(value) = content_type {
+        buffered
+            .headers_mut()
+            .insert(reqwest::header::CONTENT_TYPE, value);
+    }
+    reqwest::Response::from(buffered)
+        .text()
+        .await
+        .map_err(|e| AetherError::Vault(format!("read body: {e}")))
 }
 
 /// Extract title, main content HTML and a plain-text excerpt from raw HTML.
@@ -115,7 +155,9 @@ fn extract_title(document: &Html) -> String {
 /// Readability-lite: prefer <article> / <main>; otherwise the element with
 /// the most paragraph text; final fallback is <body>.
 fn extract_main_html(document: &Html) -> String {
-    let strip_selectors = ["script", "style", "noscript", "nav", "header", "footer", "iframe", "form"];
+    let strip_selectors = [
+        "script", "style", "noscript", "nav", "header", "footer", "iframe", "form",
+    ];
 
     for candidate in ["article", "main", "[role='main']"] {
         if let Ok(sel) = Selector::parse(candidate) {
@@ -204,8 +246,7 @@ fn normalize_url(url: &str) -> Result<String, AetherError> {
         };
     }
     let with_scheme = format!("https://{trimmed}");
-    url::Url::parse(&with_scheme)
-        .map_err(|e| AetherError::Vault(format!("invalid URL: {e}")))?;
+    url::Url::parse(&with_scheme).map_err(|e| AetherError::Vault(format!("invalid URL: {e}")))?;
     Ok(with_scheme)
 }
 
@@ -260,6 +301,48 @@ mod tests {
         );
         assert!(normalize_url("file:///etc/passwd").is_err());
         assert!(normalize_url("").is_err());
+    }
+
+    fn serve_once(head: String, body: Vec<u8>) -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 4096];
+                let _ = stream.read(&mut buf);
+                let _ = stream.write_all(head.as_bytes());
+                let _ = stream.write_all(&body);
+            }
+        });
+        format!("http://{addr}/page")
+    }
+
+    #[tokio::test]
+    async fn oversized_pages_are_refused() {
+        let body = vec![b'a'; MAX_PAGE_BYTES + 1];
+        let url = serve_once(
+            format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            ),
+            body,
+        );
+        let err = WebClipper::new().clip(&url).await.expect_err("too large");
+        assert!(err.to_string().contains("larger than"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn pages_are_decoded_with_their_charset() {
+        // "Café" in ISO-8859-1, streamed without a Content-Length.
+        let body = b"<html><head><title>Caf\xe9</title></head><body></body></html>".to_vec();
+        let url = serve_once(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=iso-8859-1\r\nConnection: close\r\n\r\n"
+                .to_owned(),
+            body,
+        );
+        let page = WebClipper::new().clip(&url).await.expect("clip");
+        assert_eq!(page.title, "Café");
     }
 
     #[test]

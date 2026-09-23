@@ -12,6 +12,7 @@ use crate::engine::calendar_ics::{
     export_calendar, import_calendar, IcsExportOptions, IcsImportOptions, IcsImportResult,
 };
 use crate::engine::calendar_notifier::ReminderSettings;
+use crate::engine::fs_guard;
 use crate::AppState;
 
 #[tauri::command]
@@ -106,14 +107,15 @@ pub async fn cmd_export_calendar_ics(
     Ok(export_calendar(&events, &opts))
 }
 
-/// Validate a user-picked .ics path: must end in `.ics` (case-insensitive)
-/// and must not be a directory.
-fn validate_ics_path(path: &str) -> Result<PathBuf, String> {
+/// Largest `.ics` file that is read for an import.
+const MAX_ICS_BYTES: u64 = 16 * 1024 * 1024;
+
+/// A user-picked path must end in `.ics` (case-insensitive).
+fn require_ics_extension(path: &str) -> Result<(), String> {
     if path.trim().is_empty() {
         return Err("path is empty".to_owned());
     }
-    let pb = PathBuf::from(path);
-    let ext_ok = pb
+    let ext_ok = PathBuf::from(path.trim())
         .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.eq_ignore_ascii_case("ics"))
@@ -121,29 +123,36 @@ fn validate_ics_path(path: &str) -> Result<PathBuf, String> {
     if !ext_ok {
         return Err("path must end in .ics".to_owned());
     }
-    Ok(pb)
+    Ok(())
+}
+
+/// Validate the destination of an `.ics` export chosen in the save dialog:
+/// `.ics`, absolute, no `..`, existing parent, not a folder, not a symlink,
+/// not inside a `.git` or system folder (see `fs_guard::user_destination_file`).
+fn validate_ics_destination(path: &str) -> Result<PathBuf, String> {
+    require_ics_extension(path)?;
+    fs_guard::user_destination_file(path).map_err(|e| e.to_string())
+}
+
+/// Validate an `.ics` file picked for import: `.ics`, absolute, an existing
+/// regular file of at most [`MAX_ICS_BYTES`].
+fn validate_ics_source(path: &str) -> Result<PathBuf, String> {
+    require_ics_extension(path)?;
+    let canonical = fs_guard::user_source_file(path, MAX_ICS_BYTES).map_err(|e| e.to_string())?;
+    // A symlink named `*.ics` must still point at an `.ics` file.
+    require_ics_extension(&canonical.to_string_lossy())?;
+    Ok(canonical)
 }
 
 #[tauri::command]
 pub async fn cmd_write_ics_to_path(path: String, content: String) -> Result<(), String> {
-    let pb = validate_ics_path(&path)?;
-    if let Some(parent) = pb.parent() {
-        if !parent.as_os_str().is_empty() && !parent.exists() {
-            return Err(format!("parent directory does not exist: {}", parent.display()));
-        }
-    }
+    let pb = validate_ics_destination(&path)?;
     std::fs::write(&pb, content).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn cmd_read_ics_from_path(path: String) -> Result<String, String> {
-    let pb = validate_ics_path(&path)?;
-    if !pb.exists() {
-        return Err(format!("file does not exist: {}", pb.display()));
-    }
-    if pb.is_dir() {
-        return Err("path is a directory, expected a file".to_owned());
-    }
+    let pb = validate_ics_source(&path)?;
     std::fs::read_to_string(&pb).map_err(|e| e.to_string())
 }
 
@@ -198,7 +207,9 @@ pub async fn cmd_import_calendar_ics(
                     e.source_note_path,
                 )
                 .map_err(|err| {
-                    result.errors.push(format!("create failed for {}: {err}", e.uid));
+                    result
+                        .errors
+                        .push(format!("create failed for {}: {err}", e.uid));
                 });
             result.added += 1;
         }
@@ -236,7 +247,10 @@ pub async fn cmd_set_reminder_settings(
     state: State<'_, AppState>,
     settings: ReminderSettings,
 ) -> Result<(), String> {
-    state.notifier.set_settings(settings).map_err(|e| e.to_string())?;
+    state
+        .notifier
+        .set_settings(settings)
+        .map_err(|e| e.to_string())?;
     state.notifier.reschedule();
     Ok(())
 }
@@ -267,8 +281,51 @@ mod tests {
     //! (Note: serde's default field-name matching is case-insensitive, so
     //! `allDay` in the patch also works — but the IPC wrapper stays on
     //! `all_day` for clarity and to mirror the Rust struct.)
-    use super::*;
+    use super::{validate_ics_destination, validate_ics_source};
     use crate::engine::calendar::EventPatch;
+
+    /// Table: good path, `..` path, symlink escape, wrong extension,
+    /// relative path, missing folder.
+    #[test]
+    fn ics_destinations_are_validated() {
+        let dir = tempfile::tempdir().expect("dir");
+        let root = std::fs::canonicalize(dir.path()).expect("canonicalize");
+        std::fs::create_dir(root.join("sub")).expect("mkdir");
+        let good = root.join("calendar.ics");
+        let cases = [
+            (good.display().to_string(), true),
+            (format!("{}/sub/../calendar.ics", root.display()), false),
+            (root.join("calendar.txt").display().to_string(), false),
+            ("calendar.ics".to_owned(), false),
+            (
+                root.join("missing/calendar.ics").display().to_string(),
+                false,
+            ),
+        ];
+        for (path, ok) in cases {
+            assert_eq!(validate_ics_destination(&path).is_ok(), ok, "{path}");
+        }
+        #[cfg(unix)]
+        {
+            let outside = tempfile::tempdir().expect("outside");
+            let target = outside.path().join("victim.ics");
+            std::fs::write(&target, "keep").expect("write");
+            let link = root.join("link.ics");
+            std::os::unix::fs::symlink(&target, &link).expect("symlink");
+            assert!(validate_ics_destination(&link.display().to_string()).is_err());
+        }
+    }
+
+    #[test]
+    fn ics_sources_must_be_existing_ics_files() {
+        let dir = tempfile::tempdir().expect("dir");
+        let file = dir.path().join("in.ics");
+        std::fs::write(&file, "BEGIN:VCALENDAR").expect("write");
+        assert!(validate_ics_source(&file.display().to_string()).is_ok());
+        assert!(validate_ics_source(&dir.path().display().to_string()).is_err());
+        assert!(validate_ics_source(&dir.path().join("none.ics").display().to_string()).is_err());
+        assert!(validate_ics_source("in.ics").is_err());
+    }
 
     #[test]
     fn event_patch_deserialises_with_snake_case_all_day() {

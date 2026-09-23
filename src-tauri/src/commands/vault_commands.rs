@@ -1,7 +1,7 @@
 use tauri::State;
 
 use crate::engine::vault_reader::{
-    GraphData, VaultIndex, VaultNote, VaultStats,
+    validate_vault_dir, GraphData, VaultAsset, VaultIndex, VaultNote, VaultStats,
 };
 use crate::AppState;
 
@@ -10,18 +10,16 @@ pub async fn cmd_get_vault_path(state: State<'_, AppState>) -> Result<Option<Str
     Ok(state.vault.detect_vault_path())
 }
 
+/// Connect a vault folder: an absolute path to an existing directory that
+/// is not a filesystem root or system folder.
 #[tauri::command]
 pub async fn cmd_set_vault_path(state: State<'_, AppState>, path: String) -> Result<(), String> {
-    state
-        .vault
-        .set_vault_path(&path)
-        .map_err(|e| e.to_string())
+    let path = validate_vault_dir(&path).map_err(|e| e.to_string())?;
+    state.vault.set_vault_path(&path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn cmd_get_vault_notes(
-    state: State<'_, AppState>,
-) -> Result<Vec<VaultNote>, String> {
+pub async fn cmd_get_vault_notes(state: State<'_, AppState>) -> Result<Vec<VaultNote>, String> {
     let vault_path = state
         .vault
         .detect_vault_path()
@@ -41,9 +39,7 @@ pub async fn cmd_get_note_content(
 }
 
 #[tauri::command]
-pub async fn cmd_get_vault_index(
-    state: State<'_, AppState>,
-) -> Result<Option<VaultIndex>, String> {
+pub async fn cmd_get_vault_index(state: State<'_, AppState>) -> Result<Option<VaultIndex>, String> {
     let vault_path = state
         .vault
         .detect_vault_path()
@@ -55,9 +51,7 @@ pub async fn cmd_get_vault_index(
 }
 
 #[tauri::command]
-pub async fn cmd_get_vault_graph(
-    state: State<'_, AppState>,
-) -> Result<GraphData, String> {
+pub async fn cmd_get_vault_graph(state: State<'_, AppState>) -> Result<GraphData, String> {
     let vault_path = state
         .vault
         .detect_vault_path()
@@ -69,9 +63,7 @@ pub async fn cmd_get_vault_graph(
 }
 
 #[tauri::command]
-pub async fn cmd_get_vault_stats(
-    state: State<'_, AppState>,
-) -> Result<VaultStats, String> {
+pub async fn cmd_get_vault_stats(state: State<'_, AppState>) -> Result<VaultStats, String> {
     let vault_path = state
         .vault
         .detect_vault_path()
@@ -79,5 +71,20 @@ pub async fn cmd_get_vault_stats(
     state
         .vault
         .get_vault_stats(&vault_path)
+        .map_err(|e| e.to_string())
+}
+
+/// An image, video, audio or PDF file embedded in a note, base64-encoded.
+/// `path` is vault-relative or absolute and must resolve inside the vault
+/// (see `VaultReader::read_asset` for the allowed types and the size cap).
+#[tauri::command]
+pub async fn cmd_read_vault_asset(
+    state: State<'_, AppState>,
+    path: String,
+) -> Result<VaultAsset, String> {
+    let vault = state.vault.clone();
+    tauri::async_runtime::spawn_blocking(move || vault.read_asset(&path))
+        .await
+        .map_err(|e| format!("asset read failed: {e}"))?
         .map_err(|e| e.to_string())
 }

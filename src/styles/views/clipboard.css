@@ -1,0 +1,499 @@
+/* ── Clipboard history ─────────────────────────────────────────── */
+
+/* Toolbar (second header row): search · kind filter · pinned toggle */
+.clip-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+}
+
+.clip-search {
+  flex: 1 1 220px;
+  max-width: 340px;
+}
+
+.clip-kind-filter .ui-segment-icon {
+  display: none;
+}
+
+.clip-filter-toggle.is-active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-text);
+}
+
+/* Body: notices on top, split below; the panes scroll, not the body. */
+.clipboard-body.view-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  overflow: hidden;
+}
+
+.clip-notice {
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.clip-notice > svg {
+  flex-shrink: 0;
+}
+
+.clip-notice-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-fg-primary);
+}
+
+.clip-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 40%) minmax(0, 1fr);
+  gap: var(--space-4);
+}
+
+.clip-list-panel,
+.clip-detail {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-elevated);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* ── List ── */
+.clip-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-1);
+  outline: none;
+  overscroll-behavior: contain;
+}
+
+.clip-list:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--color-focus);
+  border-radius: var(--radius-lg);
+}
+
+.clip-list-spacer {
+  position: relative;
+}
+
+.clip-list-window {
+  position: absolute;
+  inset: 0 0 auto 0;
+  will-change: transform;
+}
+
+.clip-row.ui-list-row {
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  gap: var(--space-2-5);
+  cursor: default;
+}
+
+.clip-row .ui-list-row-title {
+  color: var(--color-fg-primary);
+  font-weight: var(--weight-regular);
+}
+
+.clip-row-title.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.clip-list:focus .clip-row.is-selected {
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+
+.clip-row-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.clip-row-pin {
+  color: var(--color-accent-text);
+}
+
+.clip-list-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1-5);
+  padding: var(--space-2);
+  color: var(--color-fg-tertiary);
+  font-size: var(--text-sm);
+}
+
+/* Leading visual: kind tile, color swatch or image thumbnail. */
+.clip-thumb {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-fill-subtle);
+  color: var(--color-fg-tertiary);
+  overflow: hidden;
+}
+
+.clip-thumb.is-url {
+  color: var(--color-cat-2);
+}
+
+.clip-thumb.is-code {
+  color: var(--color-cat-4);
+}
+
+.clip-thumb.is-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ui-list-row.is-selected .clip-thumb {
+  background: var(--color-fill-hover);
+}
+
+.clip-swatch {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: var(--radius-xs);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  background-color: var(--color-bg);
+  background-image:
+    linear-gradient(45deg, var(--color-fill-strong) 25%, transparent 25%),
+    linear-gradient(-45deg, var(--color-fill-strong) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, var(--color-fill-strong) 75%),
+    linear-gradient(-45deg, transparent 75%, var(--color-fill-strong) 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+}
+
+.clip-swatch-sm {
+  width: 18px;
+  height: 18px;
+}
+
+.clip-swatch-lg {
+  width: 100%;
+  height: 132px;
+  border-radius: var(--radius-lg);
+}
+
+.clip-swatch-fill {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 1px var(--color-border-subtle);
+  border-radius: inherit;
+}
+
+/* ── Detail ── */
+.clip-detail.is-empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.clip-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  padding: var(--space-4) var(--space-5) var(--space-2);
+}
+
+.clip-detail-badges {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.clip-detail-facts {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-fg-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.clip-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-1) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.clip-detail-actions-spacer {
+  flex: 1;
+}
+
+.clip-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4) var(--space-5) var(--space-6);
+}
+
+.clip-detail-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-8) 0;
+}
+
+.clip-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--color-fg-primary);
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  user-select: text;
+}
+
+.clip-code {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--color-fg-primary);
+  white-space: pre;
+  overflow: auto;
+  tab-size: 4;
+  user-select: text;
+}
+
+.clip-tok-keyword {
+  color: var(--color-cat-5);
+}
+
+.clip-tok-string {
+  color: var(--color-cat-3);
+}
+
+.clip-tok-comment {
+  color: var(--color-fg-tertiary);
+  font-style: italic;
+}
+
+.clip-tok-number {
+  color: var(--color-cat-6);
+}
+
+.clip-tok-function {
+  color: var(--color-cat-2);
+}
+
+.clip-tok-punct {
+  color: var(--color-fg-secondary);
+}
+
+.clip-content-truncated {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-fg-tertiary);
+}
+
+.clip-url {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+}
+
+.clip-url-host {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-fg-tertiary);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.clip-url-link {
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-accent-text);
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.clip-url-link:hover {
+  text-decoration: underline;
+}
+
+.clip-color {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 420px;
+}
+
+.clip-color-value {
+  font-size: var(--text-xl);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-fg-primary);
+}
+
+.clip-color-formats {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.clip-color-format {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
+}
+
+.clip-color-format + .clip-color-format {
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.clip-color-format dt {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  color: var(--color-fg-tertiary);
+}
+
+.clip-color-format dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-fg-primary);
+  user-select: text;
+}
+
+.clip-image {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.clip-image img,
+.clip-image-loading {
+  max-width: 100%;
+  max-height: 62vh;
+  align-self: flex-start;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.clip-image-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 180px;
+  background: var(--color-sunken);
+}
+
+.clip-image figcaption {
+  font-size: var(--text-sm);
+  color: var(--color-fg-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.clip-image-missing {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-fg-tertiary);
+  font-size: var(--text-base);
+}
+
+.clip-save-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Status bar ── */
+.clip-status.is-paused .statusbar-muted,
+.clip-status.is-paused svg {
+  color: var(--color-warning);
+}
+
+/* ── Settings ── */
+.clip-settings-number {
+  width: 110px;
+}
+
+.clip-settings-privacy {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2-5);
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-fg-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+}
+
+.clip-settings-privacy svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-success);
+}
+
+.clip-settings-privacy p {
+  margin: 0;
+}
+
+/* ── Narrow layouts (agent panel + sidebar open at 1024 px) ── */
+@container (max-width: 760px) {
+  .clip-split {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(150px, 0.9fr) minmax(220px, 1.1fr);
+    gap: var(--space-3);
+  }
+  .clip-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+  .clip-detail-header {
+    padding: var(--space-3) var(--space-4) var(--space-1-5);
+  }
+  .clip-detail-actions {
+    padding: var(--space-1) var(--space-4) var(--space-2-5);
+  }
+  .clip-detail-body {
+    padding: var(--space-3) var(--space-4) var(--space-5);
+  }
+}
+
+@container (max-width: 520px) {
+  .clip-kind-filter .ui-segment-label {
+    display: none;
+  }
+  .clip-kind-filter .ui-segment-icon {
+    display: inline-flex;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clip-list-window {
+    will-change: auto;
+  }
+}

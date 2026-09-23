@@ -34,7 +34,8 @@ export function parseAgentActions(output: string): AgentAction[] {
 /**
  * Human-readable one-line description for the approval UI / chips.
  * The full set of action variants is mirrored on the Rust side in
- * `src-tauri/src/engine/agent_actions.rs`; keep them in lockstep.
+ * `src-tauri/src/engine/agent_actions.rs`; keep them in lockstep. The
+ * approval level of each variant lives in `src/lib/intel/risk.ts`.
  */
 export function describeAction(action: AgentAction): string {
   switch (action.action) {
@@ -62,6 +63,18 @@ export function describeAction(action: AgentAction): string {
       return `List calendar events`;
     case "import_calendar_ics":
       return `Import ICS from ${action.path}`;
+    case "run_command":
+      return action.cwd ? `Run \`${clip(action.command, 80)}\` in ${action.cwd}` : `Run \`${clip(action.command, 80)}\` in the vault`;
+    case "delete_note":
+      return `Move ${baseName(action.path)} to the trash`;
+    case "move_note":
+      return `Move ${baseName(action.from)} → ${action.to}`;
+    case "git_commit":
+      return `Commit in ${baseName(action.project_path)}: ${clip(action.message.split("\n")[0] ?? "", 60)}`;
+    case "create_task":
+      return `Create task "${clip(action.title, 60)}"${action.project_id ? ` in ${action.project_id}` : ""}`;
+    case "toggle_vault_task":
+      return `Toggle task on line ${action.line} of ${baseName(action.note_path)}`;
   }
 }
 
@@ -85,16 +98,38 @@ export function actionLabel(action: AgentAction): string {
     case "save_aether_note":
       return "Saved to AETHER Notes";
     case "create_calendar_event":
-      return "📅 New event";
+      return `Created event "${action.title}"`;
     case "update_calendar_event":
-      return "✏️ Edit event";
+      return "Updated event";
     case "delete_calendar_event":
-      return "🗑️ Delete event";
+      return "Deleted event";
     case "list_calendar_events":
-      return "📅 List events";
+      return "Listed events";
     case "import_calendar_ics":
-      return "📥 Import ICS";
+      return "Imported calendar";
+    case "run_command":
+      return `Ran ${clip(action.command, 40)}`;
+    case "delete_note":
+      return `Trashed ${baseName(action.path)}`;
+    case "move_note":
+      return `Moved ${baseName(action.from)}`;
+    case "git_commit":
+      return `Committed in ${baseName(action.project_path)}`;
+    case "create_task":
+      return `Added task "${clip(action.title, 40)}"`;
+    case "toggle_vault_task":
+      return `Toggled task in ${baseName(action.note_path)}`;
   }
+}
+
+function clip(text: string, max: number): string {
+  const chars = Array.from(text.trim());
+  return chars.length <= max ? chars.join("") : `${chars.slice(0, max - 1).join("")}…`;
+}
+
+function baseName(path: string): string {
+  const trimmed = path.trim().replace(/[\\/]+$/, "");
+  return trimmed.split(/[\\/]/).pop() || trimmed;
 }
 
 function shortenUrl(url: string): string {

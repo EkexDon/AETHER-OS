@@ -1,0 +1,35 @@
+{
+  "id": "aether.daily-review",
+  "name": "Daily Review",
+  "version": "1.0.0",
+  "description": "Adds a \"Daily review\" command that asks the AI to summarise today's daily note and writes the summary under ## Review.",
+  "author": "AETHER-OS",
+  "main": "main.js",
+  "minAppVersion": "0.2.0",
+  "permissions": ["vault:read", "vault:write", "ai:query", "ui:commands"],
+  "settings": [
+    {
+      "key": "folder",
+      "type": "string",
+      "label": "Daily notes folder",
+      "description": "Vault folder that holds the YYYY-MM-DD.md daily notes.",
+      "default": "daily"
+    },
+    {
+      "key": "style",
+      "type": "select",
+      "label": "Summary style",
+      "default": "bullets",
+      "options": [
+        { "value": "bullets", "label": "Bullet points" },
+        { "value": "paragraph", "label": "Short paragraph" }
+      ]
+    },
+    {
+      "key": "openAfterReview",
+      "type": "boolean",
+      "label": "Open the daily note afterwards",
+      "default": true
+    }
+  ]
+}

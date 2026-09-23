@@ -1,0 +1,59 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   AETHER-OS stylesheet entry. Order matters: fonts → tokens → base →
+   primitives → shell → views → features. Every stylesheet is imported
+   exactly once, here — components never import CSS themselves, so a
+   feature's styles are there before its first (possibly lazy) render.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* Bundled fonts (no CDN — the Tauri CSP only allows 'self'). */
+@import "@fontsource-variable/ibm-plex-sans/wght.css";
+@import "@fontsource-variable/ibm-plex-sans/wght-italic.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+
+/* Vendor base styles (xterm's viewport, helper textarea, selection layer). */
+@import "@xterm/xterm/css/xterm.css";
+
+@import "./tokens.css";
+@import "./base.css";
+
+/* Primitives (src/ui) */
+@import "./components/button.css";
+@import "./components/form.css";
+@import "./components/display.css";
+@import "./components/navigation.css";
+@import "./components/overlay.css";
+@import "./components/view-header.css";
+@import "./components/legacy.css";
+@import "./components/markdown.css";
+
+/* Application shell */
+@import "./shell.css";
+
+/* Views */
+@import "./views/editor.css";
+@import "./views/ide.css";
+@import "./views/projects.css";
+@import "./views/memory.css";
+@import "./views/search.css";
+@import "./views/graph.css";
+@import "./views/notes.css";
+@import "./views/terminal.css";
+@import "./views/monitor.css";
+@import "./views/browser.css";
+@import "./views/calendar.css";
+@import "./views/tasks.css";
+@import "./views/agent-chat.css";
+@import "./views/settings.css";
+@import "./views/quick-capture.css";
+@import "./views/web-clipper.css";
+
+/* Feature views (v0.2) */
+@import "./views/clipboard.css";
+@import "./views/history.css";
+@import "./views/home.css";
+@import "./views/vaulttasks.css";
+@import "./views/intel.css";
+@import "./views/plugins.css";
+@import "./views/export.css";
+@import "./views/sync.css";
+@import "./views/onboarding.css";

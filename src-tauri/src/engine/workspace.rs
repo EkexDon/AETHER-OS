@@ -89,16 +89,19 @@ impl Workspace {
         let parent = requested.parent().ok_or_else(|| {
             AetherError::InvalidInput(format!("path has no parent directory: {path}"))
         })?;
-        let file_name = requested.file_name().ok_or_else(|| {
-            AetherError::InvalidInput(format!("path has no file name: {path}"))
-        })?;
+        let file_name = requested
+            .file_name()
+            .ok_or_else(|| AetherError::InvalidInput(format!("path has no file name: {path}")))?;
         // Reject names that would re-introduce traversal after the parent
         // has been canonicalized (e.g. a trailing "..").
         if file_name == std::ffi::OsStr::new("..") || file_name == std::ffi::OsStr::new(".") {
             return Err(Self::deny(requested));
         }
         let canonical_parent = std::fs::canonicalize(parent).map_err(|_| {
-            AetherError::InvalidInput(format!("parent directory does not exist: {}", parent.display()))
+            AetherError::InvalidInput(format!(
+                "parent directory does not exist: {}",
+                parent.display()
+            ))
         })?;
         if !self.contains(&canonical_parent) {
             return Err(Self::deny(requested));
@@ -192,7 +195,9 @@ impl Workspace {
 
     pub fn create_file(&self, path: &str, content: &str) -> Result<String, AetherError> {
         let file = self.resolve_new(path)?;
-        if file.exists() {
+        // `symlink_metadata` also sees dangling links, which `write` would
+        // otherwise follow to create a file outside the sandbox.
+        if std::fs::symlink_metadata(&file).is_ok() {
             return Err(AetherError::InvalidInput(format!(
                 "file already exists: {}",
                 file.display()
@@ -204,7 +209,7 @@ impl Workspace {
 
     pub fn create_dir(&self, path: &str) -> Result<String, AetherError> {
         let dir = self.resolve_new(path)?;
-        if dir.exists() {
+        if std::fs::symlink_metadata(&dir).is_ok() {
             return Err(AetherError::InvalidInput(format!(
                 "directory already exists: {}",
                 dir.display()
@@ -287,7 +292,10 @@ mod tests {
 
         let ws = Workspace::new([root.path()]);
         let path = file.to_string_lossy().to_string();
-        assert_eq!(ws.read_file(&path).expect("read must succeed"), "fn main() {}");
+        assert_eq!(
+            ws.read_file(&path).expect("read must succeed"),
+            "fn main() {}"
+        );
 
         ws.write_file(&path, "fn main() { println!(); }")
             .expect("write must succeed");
@@ -339,7 +347,9 @@ mod tests {
         write(&target, "original");
 
         let ws = Workspace::new([root.path()]);
-        assert!(ws.write_file(&target.to_string_lossy(), "overwritten").is_err());
+        assert!(ws
+            .write_file(&target.to_string_lossy(), "overwritten")
+            .is_err());
         assert_eq!(
             std::fs::read_to_string(&target).expect("file must be readable"),
             "original"
@@ -364,6 +374,57 @@ mod tests {
         let blocked = outside.path().join("new.txt");
         assert!(ws.create_file(&blocked.to_string_lossy(), "hello").is_err());
         assert!(!blocked.exists());
+    }
+
+    /// Table: good path, `..` path, symlinked folder escape and a dangling
+    /// symlink, for reads, writes and creation.
+    #[test]
+    fn paths_stay_inside_the_roots() {
+        let root_dir = tempfile::tempdir().expect("root");
+        let outside = tempfile::tempdir().expect("outside");
+        let root = std::fs::canonicalize(root_dir.path()).expect("canonical");
+        std::fs::create_dir(root.join("src")).expect("mkdir");
+        write(&root.join("src/main.rs"), "fn main() {}");
+        write(&outside.path().join("secret.txt"), "secret");
+        let ws = Workspace::new([root.as_path()]);
+        let dotdot = format!(
+            "{}/../{}/secret.txt",
+            root.display(),
+            outside.path().file_name().unwrap().to_string_lossy()
+        );
+
+        assert!(ws
+            .read_file(&root.join("src/main.rs").to_string_lossy())
+            .is_ok());
+        assert!(ws.read_file(&dotdot).is_err());
+        assert!(ws.write_file(&dotdot, "x").is_err());
+        assert!(ws
+            .create_file(&format!("{}/src/../../new.txt", root.display()), "x")
+            .is_err());
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(outside.path(), root.join("link")).expect("symlink");
+            let through = root.join("link/secret.txt");
+            assert!(ws.read_file(&through.to_string_lossy()).is_err());
+            assert!(ws.write_file(&through.to_string_lossy(), "x").is_err());
+            assert!(ws
+                .create_file(&root.join("link/new.txt").to_string_lossy(), "x")
+                .is_err());
+
+            let target = outside.path().join("planted.txt");
+            std::os::unix::fs::symlink(&target, root.join("dangling.txt")).expect("symlink");
+            assert!(ws
+                .create_file(&root.join("dangling.txt").to_string_lossy(), "x")
+                .is_err());
+            assert!(
+                !target.exists(),
+                "a dangling link must not be written through"
+            );
+            assert_eq!(
+                std::fs::read_to_string(outside.path().join("secret.txt")).expect("read"),
+                "secret"
+            );
+        }
     }
 
     #[test]
@@ -441,7 +502,10 @@ mod tests {
     #[test]
     fn drops_roots_that_do_not_exist() {
         let root = tempfile::tempdir().expect("temp dir must be created");
-        let ws = Workspace::new([root.path().to_string_lossy().to_string(), "/nope/missing".to_owned()]);
+        let ws = Workspace::new([
+            root.path().to_string_lossy().to_string(),
+            "/nope/missing".to_owned(),
+        ]);
         assert_eq!(ws.roots().len(), 1);
     }
 
@@ -451,7 +515,9 @@ mod tests {
         write(&root.path().join("a.txt"), "hi");
 
         let ws = Workspace::new(Vec::<String>::new());
-        assert!(ws.read_file(&root.path().join("a.txt").to_string_lossy()).is_err());
+        assert!(ws
+            .read_file(&root.path().join("a.txt").to_string_lossy())
+            .is_err());
         assert!(ws.list_dir(&root.path().to_string_lossy()).is_err());
     }
 

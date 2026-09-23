@@ -79,7 +79,9 @@ pub struct EventPatch {
     pub source_note_path: Option<Option<String>>,
 }
 
-const DEFAULT_COLOR: &str = "#7c3aed";
+/// App accent teal (mirrors `src/lib/calendarColors.ts`). Only applied to
+/// events created without a colour; stored events keep their own.
+const DEFAULT_COLOR: &str = "#0f9d8a";
 const EVENTS_DIR: &str = "events";
 
 /// Calendar event store.
@@ -97,11 +99,19 @@ impl Calendar {
         })
     }
 
-    fn path_for(&self, id: &str) -> PathBuf {
-        self.storage_dir.join(format!("{id}.json"))
+    /// `<events>/<id>.json`; ids from the UI that could leave the folder
+    /// are refused.
+    fn path_for(&self, id: &str) -> Result<PathBuf, AetherError> {
+        crate::engine::fs_guard::check_file_id("event", id)?;
+        Ok(self.storage_dir.join(format!("{id}.json")))
     }
 
     /// Insert a new event. Generates `id` and `uid`, sets timestamps.
+    // The flat parameter list deliberately mirrors the IPC contract of
+    // `cmd_create_calendar_event` (one argument per event field) and the ICS
+    // importer; a wrapper struct would only be re-assembled from the same
+    // fields at every call site.
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         &self,
         title: &str,
@@ -147,7 +157,7 @@ impl Calendar {
     }
 
     fn write(&self, event: &CalendarEvent) -> Result<(), AetherError> {
-        let path = self.path_for(&event.id);
+        let path = self.path_for(&event.id)?;
         let json = serde_json::to_string_pretty(event)
             .map_err(|e| AetherError::Vault(format!("calendar event serialize: {e}")))?;
         std::fs::write(path, json)?;
@@ -155,13 +165,12 @@ impl Calendar {
     }
 
     pub fn get(&self, id: &str) -> Result<CalendarEvent, AetherError> {
-        let path = self.path_for(id);
+        let path = self.path_for(id)?;
         if !path.exists() {
             return Err(AetherError::Vault(format!("event not found: {id}")));
         }
         let content = std::fs::read_to_string(&path)?;
-        serde_json::from_str(&content)
-            .map_err(|e| AetherError::Vault(format!("event parse: {e}")))
+        serde_json::from_str(&content).map_err(|e| AetherError::Vault(format!("event parse: {e}")))
     }
 
     /// Find an event by its iCalendar UID. Scans the storage dir.
@@ -267,7 +276,7 @@ impl Calendar {
     }
 
     pub fn delete(&self, id: &str) -> Result<(), AetherError> {
-        let path = self.path_for(id);
+        let path = self.path_for(id)?;
         if !path.exists() {
             return Err(AetherError::Vault(format!("event not found: {id}")));
         }
@@ -325,8 +334,7 @@ fn validate_range(all_day: bool, start: &str, end: &str) -> Result<(), AetherErr
     Ok(())
 }
 
-/// Convenience: the default color used when an event doesn't specify one.
-#[allow(dead_code)]
+/// The default color used when an event doesn't specify one.
 pub fn default_color() -> &'static str {
     DEFAULT_COLOR
 }
@@ -339,6 +347,19 @@ mod tests {
         let dir = tempfile::tempdir().expect("temp dir");
         let cal = Calendar::new(dir.path()).expect("calendar");
         (cal, dir)
+    }
+
+    #[test]
+    fn ids_from_the_ui_cannot_leave_the_events_folder() {
+        let (cal, dir) = store();
+        let victim = dir.path().join("config.json");
+        std::fs::write(&victim, "{}").expect("write");
+        for bad in ["../config", "../../x", "a/b", ""] {
+            assert!(cal.get(bad).is_err(), "{bad}");
+            assert!(cal.delete(bad).is_err(), "{bad}");
+            assert!(cal.update(bad, EventPatch::default()).is_err(), "{bad}");
+        }
+        assert!(victim.exists());
     }
 
     #[test]
@@ -380,7 +401,7 @@ mod tests {
                 "2026-10-10T09:00:00+00:00",
                 "2026-10-10T10:00:00+00:00",
                 None,
-                "#7c3aed",
+                "#0f9d8a",
                 vec![],
                 vec![],
                 None,
@@ -415,7 +436,7 @@ mod tests {
                 "2026-10-10T09:00:00+00:00",
                 "2026-10-10T10:00:00+00:00",
                 None,
-                "#7c3aed",
+                "#0f9d8a",
                 vec![],
                 vec![],
                 None,
@@ -438,7 +459,7 @@ mod tests {
                 "2026-10-10T09:00:00+00:00",
                 "2026-10-10T10:00:00+00:00",
                 None,
-                "#7c3aed",
+                "#0f9d8a",
                 vec![],
                 vec![],
                 None,
@@ -459,7 +480,7 @@ mod tests {
                 "2026-10-10T10:00:00+00:00",
                 "2026-10-10T09:00:00+00:00",
                 None,
-                "#7c3aed",
+                "#0f9d8a",
                 vec![],
                 vec![],
                 None,
@@ -467,6 +488,29 @@ mod tests {
             )
             .expect_err("must reject");
         assert!(err.to_string().contains("before"));
+    }
+
+    #[test]
+    fn default_colour_is_teal_and_stored_colours_survive() {
+        assert_eq!(default_color(), "#0f9d8a");
+        let (cal, dir) = store();
+        let legacy = cal
+            .create(
+                "Legacy",
+                "",
+                false,
+                "2026-10-10T09:00:00+00:00",
+                "2026-10-10T10:00:00+00:00",
+                None,
+                "#7c3aed",
+                vec![],
+                vec![],
+                None,
+                None,
+            )
+            .expect("create");
+        let reopened = Calendar::new(dir.path()).expect("reopen");
+        assert_eq!(reopened.get(&legacy.id).expect("get").color, "#7c3aed");
     }
 
     #[test]
@@ -501,7 +545,7 @@ mod tests {
                 "2026-10-12T09:00:00+00:00",
                 "2026-10-12T10:00:00+00:00",
                 None,
-                "#7c3aed",
+                "#0f9d8a",
                 vec![],
                 vec![],
                 None,
@@ -516,7 +560,7 @@ mod tests {
                 "2026-10-08T09:00:00+00:00",
                 "2026-10-08T10:00:00+00:00",
                 None,
-                "#7c3aed",
+                "#0f9d8a",
                 vec![],
                 vec![],
                 None,
@@ -539,7 +583,7 @@ mod tests {
                 "2026-10-10T09:00:00+00:00",
                 "2026-10-10T10:00:00+00:00",
                 None,
-                "#7c3aed",
+                "#0f9d8a",
                 vec![],
                 vec![],
                 None,

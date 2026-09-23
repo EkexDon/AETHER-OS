@@ -1,0 +1,114 @@
+/* ── ViewHeader ───────────────────────────────────────────────── */
+.ui-view-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--view-pad-y) var(--view-pad-x) var(--space-4);
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.ui-view-header.is-bordered {
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding-bottom: var(--space-3);
+}
+
+.ui-view-header.is-compact {
+  padding: var(--space-3) var(--space-5);
+  gap: var(--space-2);
+}
+
+.ui-view-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.ui-view-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ui-view-header-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-fg-primary);
+  min-width: 0;
+}
+
+.ui-view-header.is-compact .ui-view-header-title {
+  font-size: var(--text-md);
+  letter-spacing: -0.01em;
+}
+
+.ui-view-header-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-view-header-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-md);
+  background: var(--color-fill-subtle);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-fg-secondary);
+}
+
+.ui-view-header.is-compact .ui-view-header-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+}
+
+.ui-view-header-subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-fg-tertiary);
+  line-height: var(--leading-snug);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ui-view-header-icon + .ui-view-header-title-text {
+  min-width: 0;
+}
+
+.ui-view-header-title:has(.ui-view-header-icon) + .ui-view-header-subtitle {
+  padding-left: 34px;
+}
+
+.ui-view-header.is-compact .ui-view-header-title:has(.ui-view-header-icon) + .ui-view-header-subtitle {
+  padding-left: 30px;
+}
+
+.ui-view-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.ui-view-header-tabs {
+  margin-bottom: calc(var(--space-4) * -1);
+  min-width: 0;
+}
+
+.ui-view-header.is-bordered .ui-view-header-tabs {
+  margin-bottom: calc(var(--space-3) * -1 - 1px);
+}

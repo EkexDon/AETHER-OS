@@ -1,0 +1,49 @@
+import { describe, expect, it, vi } from "vitest";
+import { Zap } from "lucide-react";
+
+vi.mock("../lib/ipc", () => ({
+  isTauriRuntime: () => false,
+  isDesktopRuntime: () => false,
+}));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+
+import { SETTINGS_SECTIONS, getSettingsSections, resolveSettingsSection, type SettingsSection } from "./registry";
+import source from "./registry.tsx?raw";
+
+const Dummy = () => null;
+
+describe("settings registry", () => {
+  // Feature sections interleave with the built-ins, so only the relative
+  // order of the built-ins is pinned: General first, then Vault, About last.
+  it("contains the built-in sections in order, General first and About last", () => {
+    const ids = getSettingsSections().map((s) => s.id);
+    const builtIns = ["general", "vault", "ai", "editor", "appearance", "about"];
+    expect(ids.filter((id) => builtIns.includes(id))).toEqual(builtIns);
+    expect(ids[0]).toBe("general");
+    expect(ids[1]).toBe("vault");
+    expect(ids[ids.length - 1]).toBe("about");
+    expect(new Set(SETTINGS_SECTIONS.map((s) => s.id)).size).toBe(SETTINGS_SECTIONS.length);
+  });
+
+  it("sorts by order and keeps registration order for ties", () => {
+    const list: SettingsSection[] = [
+      { id: "b", title: "B", icon: Zap, order: 20, component: Dummy },
+      { id: "a", title: "A", icon: Zap, order: 10, component: Dummy },
+      { id: "c", title: "C", icon: Zap, order: 20, component: Dummy },
+    ];
+    expect(getSettingsSections(list).map((s) => s.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("resolves the requested section or falls back to the first", () => {
+    expect(resolveSettingsSection("appearance")?.id).toBe("appearance");
+    expect(resolveSettingsSection("nope")?.id).toBe("general");
+    expect(resolveSettingsSection(null)?.id).toBe("general");
+  });
+
+  it("has an anchor for every feature", () => {
+    for (const f of ["clipboard", "search", "history", "home", "vaulttasks", "intel", "plugins", "export", "sync", "onboarding"]) {
+      expect(source).toContain(`// @anchor:settings:${f}`);
+      expect(source).toContain(`// @anchor:settings-import:${f}`);
+    }
+  });
+});

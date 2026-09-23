@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::engine::error::AetherError;
+use crate::engine::fs_guard;
 
 const PROJECTS_DIR: &str = "projects";
 const TASKS_DIR: &str = "items";
@@ -92,6 +93,18 @@ impl TaskBoardEngine {
         })
     }
 
+    /// `<projects>/<id>.json`; ids that could leave the folder are refused.
+    fn project_path(&self, id: &str) -> Result<PathBuf, AetherError> {
+        fs_guard::check_file_id("project", id)?;
+        Ok(self.projects_dir.join(format!("{id}.json")))
+    }
+
+    /// `<tasks>/<id>.json`; ids that could leave the folder are refused.
+    fn task_path(&self, id: &str) -> Result<PathBuf, AetherError> {
+        fs_guard::check_file_id("task", id)?;
+        Ok(self.tasks_dir.join(format!("{id}.json")))
+    }
+
     // ── Project Operations ──
 
     pub fn list_projects(&self) -> Result<Vec<TaskProject>, AetherError> {
@@ -112,17 +125,18 @@ impl TaskBoardEngine {
             }
         }
 
-        projects.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        projects.sort_by_cached_key(|p| p.name.to_lowercase());
         Ok(projects)
     }
 
     pub fn get_project(&self, id: &str) -> Result<TaskProject, AetherError> {
-        let path = self.projects_dir.join(format!("{id}.json"));
+        let path = self.project_path(id)?;
         if !path.exists() {
             return Err(AetherError::InvalidInput(format!("project {id} not found")));
         }
         let content = std::fs::read_to_string(path)?;
-        serde_json::from_str(&content).map_err(|e| AetherError::Vault(format!("project parse: {e}")))
+        serde_json::from_str(&content)
+            .map_err(|e| AetherError::Vault(format!("project parse: {e}")))
     }
 
     pub fn create_project(
@@ -134,7 +148,9 @@ impl TaskBoardEngine {
     ) -> Result<TaskProject, AetherError> {
         let trimmed_name = name.trim();
         if trimmed_name.is_empty() {
-            return Err(AetherError::InvalidInput("project name is required".to_owned()));
+            return Err(AetherError::InvalidInput(
+                "project name is required".to_owned(),
+            ));
         }
 
         let id = uuid::Uuid::new_v4().to_string();
@@ -154,7 +170,7 @@ impl TaskBoardEngine {
             updated_at: now,
         };
 
-        let path = self.projects_dir.join(format!("{id}.json"));
+        let path = self.project_path(&id)?;
         let json = serde_json::to_string_pretty(&project)
             .map_err(|e| AetherError::Vault(format!("project serialize: {e}")))?;
         std::fs::write(path, json)?;
@@ -172,7 +188,9 @@ impl TaskBoardEngine {
         if let Some(name) = patch.name {
             let trimmed = name.trim();
             if trimmed.is_empty() {
-                return Err(AetherError::InvalidInput("project name cannot be empty".to_owned()));
+                return Err(AetherError::InvalidInput(
+                    "project name cannot be empty".to_owned(),
+                ));
             }
             project.name = trimmed.to_owned();
         }
@@ -193,7 +211,7 @@ impl TaskBoardEngine {
 
         project.updated_at = chrono::Utc::now().to_rfc3339();
 
-        let path = self.projects_dir.join(format!("{id}.json"));
+        let path = self.project_path(id)?;
         let json = serde_json::to_string_pretty(&project)
             .map_err(|e| AetherError::Vault(format!("project serialize: {e}")))?;
         std::fs::write(path, json)?;
@@ -202,7 +220,7 @@ impl TaskBoardEngine {
     }
 
     pub fn delete_project(&self, id: &str) -> Result<(), AetherError> {
-        let path = self.projects_dir.join(format!("{id}.json"));
+        let path = self.project_path(id)?;
         if path.exists() {
             std::fs::remove_file(path)?;
         }
@@ -256,7 +274,7 @@ impl TaskBoardEngine {
     }
 
     pub fn get_task(&self, id: &str) -> Result<TaskItem, AetherError> {
-        let path = self.tasks_dir.join(format!("{id}.json"));
+        let path = self.task_path(id)?;
         if !path.exists() {
             return Err(AetherError::InvalidInput(format!("task {id} not found")));
         }
@@ -278,7 +296,9 @@ impl TaskBoardEngine {
     ) -> Result<TaskItem, AetherError> {
         let trimmed_title = title.trim();
         if trimmed_title.is_empty() {
-            return Err(AetherError::InvalidInput("task title is required".to_owned()));
+            return Err(AetherError::InvalidInput(
+                "task title is required".to_owned(),
+            ));
         }
 
         let id = uuid::Uuid::new_v4().to_string();
@@ -321,7 +341,7 @@ impl TaskBoardEngine {
             updated_at: now,
         };
 
-        let path = self.tasks_dir.join(format!("{id}.json"));
+        let path = self.task_path(&id)?;
         let json = serde_json::to_string_pretty(&task)
             .map_err(|e| AetherError::Vault(format!("task serialize: {e}")))?;
         std::fs::write(path, json)?;
@@ -339,7 +359,9 @@ impl TaskBoardEngine {
         if let Some(title) = patch.title {
             let trimmed = title.trim();
             if trimmed.is_empty() {
-                return Err(AetherError::InvalidInput("task title cannot be empty".to_owned()));
+                return Err(AetherError::InvalidInput(
+                    "task title cannot be empty".to_owned(),
+                ));
             }
             task.title = trimmed.to_owned();
         }
@@ -370,7 +392,7 @@ impl TaskBoardEngine {
 
         task.updated_at = chrono::Utc::now().to_rfc3339();
 
-        let path = self.tasks_dir.join(format!("{id}.json"));
+        let path = self.task_path(id)?;
         let json = serde_json::to_string_pretty(&task)
             .map_err(|e| AetherError::Vault(format!("task serialize: {e}")))?;
         std::fs::write(path, json)?;
@@ -379,7 +401,7 @@ impl TaskBoardEngine {
     }
 
     pub fn delete_task(&self, id: &str) -> Result<(), AetherError> {
-        let path = self.tasks_dir.join(format!("{id}.json"));
+        let path = self.task_path(id)?;
         if path.exists() {
             std::fs::remove_file(path)?;
         }
@@ -390,6 +412,24 @@ impl TaskBoardEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ids_from_the_ui_cannot_leave_the_storage_folders() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let engine = TaskBoardEngine::new(&temp.path().join("tasks")).expect("engine");
+        let victim = temp.path().join("config.json");
+        std::fs::write(&victim, "{}").expect("write");
+        for bad in ["../../config", "../config", "a/b", "x.y"] {
+            assert!(engine.get_task(bad).is_err(), "{bad}");
+            assert!(engine.delete_task(bad).is_err(), "{bad}");
+            assert!(engine.get_project(bad).is_err(), "{bad}");
+            assert!(engine.delete_project(bad).is_err(), "{bad}");
+        }
+        assert!(
+            victim.exists(),
+            "files outside the folders are never deleted"
+        );
+    }
 
     #[test]
     fn test_task_project_lifecycle() {

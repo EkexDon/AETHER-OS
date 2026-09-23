@@ -29,6 +29,12 @@ impl AetherNotes {
         })
     }
 
+    /// `<notes>/<id>.json`; ids that could leave the folder are refused.
+    fn note_path(&self, id: &str) -> Result<PathBuf, AetherError> {
+        crate::engine::fs_guard::check_file_id("note", id)?;
+        Ok(self.storage_dir.join(format!("{id}.json")))
+    }
+
     pub fn create(
         &self,
         title: &str,
@@ -52,7 +58,7 @@ impl AetherNotes {
             created_at,
         };
 
-        let path = self.storage_dir.join(format!("{id}.json"));
+        let path = self.note_path(&id)?;
         let json = serde_json::to_string_pretty(&note)
             .map_err(|e| AetherError::Vault(format!("note serialize: {e}")))?;
         std::fs::write(path, json)?;
@@ -82,17 +88,16 @@ impl AetherNotes {
     }
 
     pub fn get(&self, id: &str) -> Result<AetherNote, AetherError> {
-        let path = self.storage_dir.join(format!("{id}.json"));
+        let path = self.note_path(id)?;
         if !path.exists() {
             return Err(AetherError::Vault(format!("note not found: {id}")));
         }
         let content = std::fs::read_to_string(&path)?;
-        serde_json::from_str(&content)
-            .map_err(|e| AetherError::Vault(format!("note parse: {e}")))
+        serde_json::from_str(&content).map_err(|e| AetherError::Vault(format!("note parse: {e}")))
     }
 
     pub fn delete(&self, id: &str) -> Result<(), AetherError> {
-        let path = self.storage_dir.join(format!("{id}.json"));
+        let path = self.note_path(id)?;
         if !path.exists() {
             return Err(AetherError::Vault(format!("note not found: {id}")));
         }
@@ -107,12 +112,30 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn ids_from_the_ui_cannot_leave_the_notes_folder() {
+        let dir = tempdir().expect("temp dir");
+        let store = AetherNotes::new(&dir.path().join("aether")).expect("store");
+        let victim = dir.path().join("aether/config.json");
+        std::fs::write(&victim, "{}").expect("write");
+        for bad in ["../config", "../../x", "a/b"] {
+            assert!(store.get(bad).is_err(), "{bad}");
+            assert!(store.delete(bad).is_err(), "{bad}");
+        }
+        assert!(victim.exists());
+    }
+
+    #[test]
     fn creates_and_lists_notes() {
         let dir = tempdir().expect("temp dir");
         let store = AetherNotes::new(dir.path()).expect("store");
 
         let note = store
-            .create("Summary", "Content here", "What is X?", vec!["/a.md".to_owned()])
+            .create(
+                "Summary",
+                "Content here",
+                "What is X?",
+                vec!["/a.md".to_owned()],
+            )
             .expect("create");
 
         assert_eq!(note.title, "Summary");

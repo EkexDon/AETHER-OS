@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { ArrowLeft, ArrowRight, RotateCcw, ExternalLink, Star, StarOff, Globe, Shield, X, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, RotateCcw, ExternalLink, Star, StarOff, Globe, Shield, X, Plus } from "lucide-react";
 import {
   getBrowserInfo,
   browserOpen,
@@ -20,6 +20,9 @@ import {
   isDesktopRuntime,
 } from "../lib/ipc";
 import type { BrowserInfo } from "../types";
+import { EmptyState, IconButton, Spinner } from "../ui";
+import { resolveBrowserInput } from "../lib/browserUrl";
+import { humanizeError } from "../lib/sync/format";
 
 const BOOKMARKS_KEY = "aether-browser-bookmarks";
 const MAX_HISTORY = 50;
@@ -46,16 +49,6 @@ function saveBookmarks(bm: Bookmark[]) {
   }
 }
 
-function normalizeUrl(input: string): string {
-  const trimmed = input.trim();
-  if (!trimmed) return "";
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  if (/^about:/i.test(trimmed)) return trimmed;
-  if (/\.[a-z]{2,}/i.test(trimmed) && !/\s/.test(trimmed)) {
-    return `https://${trimmed}`;
-  }
-  return `https://duckduckgo.com/?q=${encodeURIComponent(trimmed)}`;
-}
 
 function urlToTitle(url: string): string {
   return url
@@ -120,7 +113,7 @@ export function Browser() {
     if (!isDesktopRuntime()) return;
     void getBrowserInfo()
       .then(setBrowserInfo)
-      .catch((e) => setError(String(e)));
+      .catch((e) => setError(humanizeError(e instanceof Error ? e.message : String(e))));
     void browserWebviewList()
       .then((wins) => {
         if (wins.length > 0) {
@@ -225,8 +218,13 @@ export function Browser() {
 
   const navigate = useCallback(
     async (rawUrl: string, existingLabel?: string | null) => {
-      const normalized = normalizeUrl(rawUrl);
-      if (!normalized) return;
+      const input = resolveBrowserInput(rawUrl);
+      if (input.kind === "empty") return;
+      if (input.kind === "refused") {
+        setError(input.reason);
+        return;
+      }
+      const normalized = input.url;
       setError(null);
       setLoading(true);
 
@@ -255,7 +253,7 @@ export function Browser() {
         }
         setUrl(normalized);
       } catch (e) {
-        setError(String(e));
+        setError(humanizeError(e instanceof Error ? e.message : String(e)));
         setLoading(false);
       }
     },
@@ -287,7 +285,7 @@ export function Browser() {
     try {
       await browserWebviewBack(activeLabel);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     }
   }, [activeLabel]);
 
@@ -296,7 +294,7 @@ export function Browser() {
     try {
       await browserWebviewForward(activeLabel);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     }
   }, [activeLabel]);
 
@@ -306,7 +304,7 @@ export function Browser() {
     try {
       await browserWebviewReload(activeLabel);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
       setLoading(false);
     }
   }, [activeLabel]);
@@ -327,7 +325,7 @@ export function Browser() {
     try {
       await browserOpenLibreWolf(activeTab.url);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     }
   }, [activeTab]);
 
@@ -336,7 +334,7 @@ export function Browser() {
     try {
       await browserOpen(activeTab.url);
     } catch (e) {
-      setError(String(e));
+      setError(humanizeError(e instanceof Error ? e.message : String(e)));
     }
   }, [activeTab]);
 
@@ -349,17 +347,20 @@ export function Browser() {
 
   if (!isDesktopRuntime()) {
     return (
-      <div className="browser-container">
+      <div className="view browser-container">
         <div className="browser-error">
-          <Globe size={48} />
-          <p>Browser requires the desktop runtime. Start with: npm run app</p>
+          <EmptyState
+            icon={Globe}
+            title="The browser runs in the desktop app"
+            description="Browser requires the desktop runtime. Start with: npm run app"
+          />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="browser-container">
+    <div className="view browser-container">
       <div className="browser-tab-bar">
         {tabs.map((tab) => (
           <div
@@ -370,16 +371,18 @@ export function Browser() {
               setUrl(tab.url);
             }}
           >
-            <Globe size={12} />
+            <Globe size={14} />
             <span className="browser-tab-title">{tab.title}</span>
             <button
+              type="button"
               className="browser-tab-close"
+              aria-label="Close tab"
               onClick={(e) => {
                 e.stopPropagation();
                 void closeTab(tab.label);
               }}
             >
-              <X size={12} />
+              <X size={14} />
             </button>
           </div>
         ))}
@@ -396,25 +399,21 @@ export function Browser() {
       </div>
 
       <div className="browser-toolbar">
-        <button
-          className="browser-nav-btn"
+        <IconButton
+          label="Back"
+          icon={<ArrowLeft size={16} />}
           onClick={goBack}
           disabled={!activeTab || activeTab.historyIndex <= 0}
-          title="Back"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <button
-          className="browser-nav-btn"
+          tooltipPlacement="bottom"
+        />
+        <IconButton
+          label="Forward"
+          icon={<ArrowRight size={16} />}
           onClick={goForward}
           disabled={!activeTab || activeTab.historyIndex >= activeTab.history.length - 1}
-          title="Forward"
-        >
-          <ArrowRight size={16} />
-        </button>
-        <button className="browser-nav-btn" onClick={reload} disabled={!activeTab} title="Reload">
-          <RotateCcw size={16} />
-        </button>
+          tooltipPlacement="bottom"
+        />
+        <IconButton label="Reload" icon={<RotateCcw size={16} />} onClick={reload} disabled={!activeTab} tooltipPlacement="bottom" />
 
         <div className="browser-url-bar">
           <Globe size={14} className="browser-url-icon" />
@@ -426,46 +425,43 @@ export function Browser() {
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={handleKeyDown}
             spellCheck={false}
+            aria-label="Address"
           />
-          {loading && <Loader2 size={14} className="browser-loading-spinner" />}
+          {loading && <Spinner size={14} className="browser-loading-spinner" />}
         </div>
 
-        <button
-          className="browser-nav-btn"
+        <IconButton
+          label={isBookmarked ? "Remove bookmark" : "Add bookmark"}
+          icon={isBookmarked ? <Star size={16} className="browser-bookmark-active" /> : <StarOff size={16} />}
           onClick={toggleBookmark}
           disabled={!activeTab}
-          title={isBookmarked ? "Remove bookmark" : "Add bookmark"}
-        >
-          {isBookmarked ? <Star size={16} className="browser-bookmark-active" /> : <StarOff size={16} />}
-        </button>
-
-        <button
-          className="browser-nav-btn"
+          active={isBookmarked}
+          tooltipPlacement="bottom"
+        />
+        <IconButton
+          label="Bookmarks"
+          icon={<Star size={16} />}
           onClick={() => setShowBookmarks((s) => !s)}
-          title="Bookmarks"
-        >
-          <Star size={16} />
-        </button>
-
+          active={showBookmarks}
+          tooltipPlacement="bottom"
+        />
         {browserInfo?.librewolf_installed && (
-          <button
-            className="browser-nav-btn browser-librewolf-btn"
+          <IconButton
+            label="Open in LibreWolf"
+            icon={<Shield size={16} />}
+            className="browser-librewolf-btn"
             onClick={openInLibreWolf}
             disabled={!activeTab}
-            title="Open in LibreWolf"
-          >
-            <Shield size={16} />
-          </button>
+            tooltipPlacement="bottom"
+          />
         )}
-
-        <button
-          className="browser-nav-btn"
+        <IconButton
+          label="Open in external browser"
+          icon={<ExternalLink size={16} />}
           onClick={openExternal}
           disabled={!activeTab}
-          title="Open in external browser"
-        >
-          <ExternalLink size={16} />
-        </button>
+          tooltipPlacement="bottom"
+        />
       </div>
 
       {showBookmarks && bookmarks.length > 0 && (
@@ -479,7 +475,7 @@ export function Browser() {
                 setShowBookmarks(false);
               }}
             >
-              <Globe size={12} />
+              <Globe size={14} />
               <span>{bm.title.slice(0, 30)}</span>
             </button>
           ))}
@@ -490,7 +486,7 @@ export function Browser() {
 
       {browserInfo && (
         <div className="browser-status-bar">
-          <Shield size={11} />
+          <Shield size={14} />
           <span>Embedded native browser — {browserInfo.default_browser} engine</span>
           {browserInfo.librewolf_installed && (
             <span className="browser-librewolf-badge">LibreWolf detected</span>
@@ -501,16 +497,18 @@ export function Browser() {
       <div className="browser-content" ref={contentRef}>
         {!activeLabel && (
           <div className="browser-home">
-            <Globe size={64} className="browser-home-icon" />
+            <span className="browser-home-icon">
+              <Globe size={18} />
+            </span>
             <h2>AETHER-OS Browser</h2>
-            <p>Enter a URL or search query above to get started.</p>
+            <p>Type an address or a search above and press Enter.</p>
             <p className="browser-home-hint">
-              Pages render in a real browser engine embedded in this window —
-              Google, YouTube, GitHub and all other sites work natively.
+              Pages open in the system web engine embedded in this window. Only http and https pages (and
+              about:blank) are loaded — files, scripts and app links are refused.
             </p>
             {bookmarks.length > 0 && (
               <div className="browser-home-bookmarks">
-                <h3>Quick Access</h3>
+                <h3>Quick access</h3>
                 {bookmarks.map((bm) => (
                   <button
                     key={bm.url}

@@ -1,0 +1,133 @@
+/* Crash panel of the root/view error boundary. Deliberately independent
+   of the component library (it must render even if a primitive crashed);
+   colours come from the design tokens with safe fallbacks. */
+.aether-crash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--space-8, 32px) var(--space-4, 16px);
+  background: var(--color-bg, #141519);
+  color: var(--color-fg-primary, #e8e6e1);
+  font-family: var(--font-ui, system-ui, -apple-system, sans-serif);
+  box-sizing: border-box;
+}
+
+.aether-crash--root {
+  min-height: 100vh;
+}
+
+.aether-crash__panel {
+  width: min(560px, 100%);
+  padding: var(--space-6, 24px) var(--space-7, 28px);
+  border: 1px solid var(--color-border, #2c2e33);
+  border-radius: var(--radius-lg, 12px);
+  background: var(--color-surface, #1b1c20);
+  box-shadow:
+    0 1px 2px rgba(10, 10, 12, 0.28),
+    0 12px 32px -8px rgba(10, 10, 12, 0.42);
+}
+
+.aether-crash__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5, 6px);
+  margin: 0 0 var(--space-3, 12px);
+  padding: 2px 8px;
+  border-radius: var(--radius-xs, 4px);
+  background: var(--color-danger-soft, rgba(229, 72, 77, 0.14));
+  color: var(--color-danger, #e5484d);
+  font-size: var(--text-xs, 12px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.aether-crash__title {
+  margin: 0 0 var(--space-2, 8px);
+  font-size: var(--text-xl, 20px);
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+
+.aether-crash__message {
+  margin: 0 0 var(--space-4, 16px);
+  color: var(--color-fg-secondary, #b4b2ac);
+  font-size: var(--text-sm, 13px);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.aether-crash__details {
+  margin: 0 0 var(--space-5, 20px);
+  font-size: var(--text-xs, 12px);
+  color: var(--color-fg-tertiary, #8a8882);
+}
+
+.aether-crash__details summary {
+  cursor: pointer;
+  user-select: none;
+}
+
+.aether-crash__stack {
+  max-height: 220px;
+  margin: var(--space-2, 8px) 0 0;
+  padding: var(--space-3, 12px);
+  overflow: auto;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-sunken, #111215);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.aether-crash__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+}
+
+.aether-crash__button {
+  height: var(--control-h-md, 32px);
+  padding: 0 var(--space-3, 12px);
+  border: 1px solid var(--color-border, #2c2e33);
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-fill-subtle, #202126);
+  color: var(--color-fg-primary, #e8e6e1);
+  font: inherit;
+  font-size: var(--text-sm, 13px);
+  cursor: pointer;
+  transition: background-color var(--motion-fast, 120ms) ease, border-color var(--motion-fast, 120ms) ease;
+}
+
+.aether-crash__button:hover:not(:disabled) {
+  background: var(--color-fill-hover, #26282e);
+  border-color: var(--color-border-strong, #3a3d44);
+}
+
+.aether-crash__button:focus-visible {
+  outline: 2px solid var(--color-focus, #6aa2ff);
+  outline-offset: 2px;
+}
+
+.aether-crash__button:disabled {
+  cursor: not-allowed;
+  color: var(--color-fg-disabled, #6b6a66);
+}
+
+.aether-crash__button--primary {
+  border-color: var(--color-accent-border, transparent);
+  background: var(--color-accent, #d9774b);
+  color: var(--color-accent-fg, #1a1917);
+}
+
+.aether-crash__button--primary:hover:not(:disabled) {
+  background: var(--color-accent-hover, #e2885e);
+}
+
+.aether-crash__status {
+  margin: var(--space-3, 12px) 0 0;
+  font-size: var(--text-xs, 12px);
+  color: var(--color-fg-tertiary, #8a8882);
+}

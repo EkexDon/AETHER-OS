@@ -1,50 +1,73 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Send, Bot, Loader, FileText, Save, User, X, Check, Layers, History, Plus, Zap, Cloud, HardDrive } from "lucide-react";
+import {
+  Archive,
+  ArrowUp,
+  Bot,
+  Check,
+  Cloud,
+  FileText,
+  FoldVertical,
+  HardDrive,
+  History,
+  Layers,
+  RotateCcw,
+  Save,
+  SquarePen,
+  User,
+  X,
+  Zap,
+} from "lucide-react";
+import { IconButton, Select, Spinner, cx, useToast } from "../ui";
 import { useAetherStore, type AiProvider } from "../lib/store";
 import {
-  agentQueryWithNotes, onStreamChunk, createAetherNote, getAetherNotes,
-  saveConversation, getRecentConversations, deleteConversation,
-  executeAgentAction, getVaultNotes, listLocalModels, listCloudModels,
-  agentOpenUrl, agentClipUrl, agentAddMemoryFact, agentSaveAetherNote,
-  agentCreateCalendarEvent, agentUpdateCalendarEvent, agentDeleteCalendarEvent,
-  agentListCalendarEvents, agentImportCalendarIcs,
-  type AgentActionResult,
+  agentQueryWithConversation,
+  createAetherNote,
+  deleteConversation,
+  getAetherNotes,
+  getRecentConversations,
+  isDesktopRuntime,
+  listCloudModels,
+  listLocalModels,
+  onStreamChunk,
 } from "../lib/ipc";
-import { parseAgentActions, describeAction, actionLabel } from "../lib/agentActions";
+import { parseAgentActions, stripActionBlocks } from "../lib/agentActions";
 import { supportsAgentActions } from "../lib/agentModelSupport";
-import { buildClipNote, clipNoteName } from "../lib/clipper";
-import { createNote } from "../lib/ipc";
 import { filterModels, parseSlashInput } from "../lib/slash";
-import type { AgentAction } from "../types";
+import { activeMessages, useIntelStore, type ChatMessage } from "../lib/intelStore";
+import { persistSession, processAgentActions, shouldAutoCompact } from "../lib/intel/pipeline";
+import { compactNow } from "../lib/intel/commands";
+import { conversationTitle, isCompactionSummary } from "../lib/intel/summary";
+import { estimateConversationTokens } from "../lib/intel/tokens";
+import { MarkdownRenderer } from "./MarkdownRenderer";
+import { ActionRunList } from "./intel/ActionRunList";
+import { ApprovalModal } from "./intel/ApprovalModal";
+import { CompactionCard } from "./intel/CompactionCard";
+import { RelatedContextChip } from "./intel/RelatedContextChip";
+import { TokenMeter } from "./intel/TokenMeter";
 
-type ChatMessage = { role: "user" | "assistant"; content: string };
-
-/** Memoized so streaming updates never re-render the whole history. */
-const ChatMessageRow = React.memo(function ChatMessageRow({
-  role,
-  content,
-}: ChatMessage) {
+/** Memoized so streaming updates never re-render the whole history. The
+ *  ```action blocks are hidden — the "Tools used" panel shows them. */
+const ChatMessageRow = React.memo(function ChatMessageRow({ role, content }: ChatMessage) {
   return (
     <div className={`chat-msg chat-msg-${role}`}>
-      <div className="chat-msg-icon">
-        {role === "user" ? <User size={14} /> : <Bot size={14} />}
+      <div className="chat-msg-icon">{role === "user" ? <User size={14} /> : <Bot size={14} />}</div>
+      <div className="chat-msg-content">
+        {role === "assistant" ? <MarkdownRenderer content={stripActionBlocks(content) || content} /> : content}
       </div>
-      <div className="chat-msg-content">{content}</div>
     </div>
   );
 });
 
 export function AgentChat({ width = 340 }: { width?: number }) {
+  const toast = useToast();
   const {
     agentOutput,
     appendAgentOutput,
     clearAgentOutput,
-    agentContext,
     setAgentContext,
     setAetherNotes,
     busy,
     setBusy,
-    selectedNotePath,
     vaultNotes,
     contextNotes,
     allNotesInContext,
@@ -58,40 +81,50 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     setModelForProvider,
     health,
     setChatOpen,
-    upsertCalendarEvent,
-    removeCalendarEvent,
   } = useAetherStore();
+
+  const session = useIntelStore((s) => s.session);
+  const runs = useIntelStore((s) => s.runs);
+  const settings = useIntelStore((s) => s.settings);
+  const settingsLoaded = useIntelStore((s) => s.settingsLoaded);
+  const compacting = useIntelStore((s) => s.compacting);
 
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const pendingUserMsg = useRef<string | null>(null);
   const [showContextPicker, setShowContextPicker] = useState(false);
   const [contextSearch, setContextSearch] = useState("");
   const [showHistory, setShowHistory] = useState(false);
-  const [pendingActions, setPendingActions] = useState<AgentAction[]>([]);
-  const [actionResults, setActionResults] = useState<Record<number, string>>({});
-  const [actionExecuting, setActionExecuting] = useState<number | null>(null);
+  const [showEarlier, setShowEarlier] = useState(false);
   const [localModels, setLocalModels] = useState<string[]>([]);
   const [cloudModels, setCloudModels] = useState<string[]>([]);
   const [slashIndex, setSlashIndex] = useState(0);
 
   const currentModel = modelByProvider[provider];
+  const compactedCount = session.compaction?.compactedCount ?? 0;
+  const windowMessages = useMemo(() => activeMessages(session), [session]);
+  const earlierMessages = useMemo(() => session.messages.slice(0, compactedCount), [session.messages, compactedCount]);
+  const windowTokens = useMemo(
+    () => estimateConversationTokens(session.compaction?.summary, windowMessages),
+    [session.compaction?.summary, windowMessages]
+  );
+  const compactable = !busy && !compacting && windowMessages.length > Math.max(1, settings.keep_recent_messages);
 
   const providerModels = useMemo(
     () =>
       provider === "ollama"
-        ? (localModels.length > 0 ? localModels : [currentModel])
-        : (cloudModels.length > 0 ? cloudModels : [currentModel]),
+        ? localModels.length > 0
+          ? localModels
+          : [currentModel]
+        : cloudModels.length > 0
+          ? cloudModels
+          : [currentModel],
     [provider, localModels, cloudModels, currentModel]
   );
 
   const slash = parseSlashInput(input);
-  const slashMatches = useMemo(
-    () => (slash ? filterModels(providerModels, slash.query) : []),
-    [slash, providerModels]
-  );
+  const slashMatches = useMemo(() => (slash ? filterModels(providerModels, slash.query) : []), [slash, providerModels]);
 
   useEffect(() => {
     setSlashIndex(0);
@@ -100,6 +133,10 @@ export function AgentChat({ width = 340 }: { width?: number }) {
   useEffect(() => {
     void getRecentConversations(20).then(setConversations).catch(() => {});
   }, [setConversations]);
+
+  useEffect(() => {
+    if (!settingsLoaded && isDesktopRuntime()) void useIntelStore.getState().loadSettings().catch(() => {});
+  }, [settingsLoaded]);
 
   useEffect(() => {
     if (provider !== "ollama" || localModels.length > 0) return;
@@ -140,11 +177,8 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     let cancelled = false;
     void onStreamChunk(appendAgentOutput)
       .then((fn) => {
-        if (cancelled) {
-          fn();
-        } else {
-          unlisten = fn;
-        }
+        if (cancelled) fn();
+        else unlisten = fn;
       })
       .catch((reason) => {
         setError(reason instanceof Error ? reason.message : String(reason));
@@ -156,43 +190,53 @@ export function AgentChat({ width = 340 }: { width?: number }) {
   }, [appendAgentOutput]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [agentOutput, messages]);
+    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+  }, [agentOutput, session.messages.length, runs.length]);
 
+  const runCompaction = useCallback(
+    async (auto: boolean) => {
+      try {
+        await compactNow();
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e);
+        if (auto) toast.error("Automatic compaction failed", { description: message });
+        else toast.error("Could not compact the conversation", { description: message });
+      }
+    },
+    [toast]
+  );
+
+  /** Save the session and compact it when auto mode says so. */
+  const afterTurn = useCallback(async () => {
+    const context = useAetherStore.getState().agentContext;
+    try {
+      await persistSession(context);
+    } catch (e) {
+      toast.error("The conversation could not be saved", { description: e instanceof Error ? e.message : String(e) });
+    }
+    if (shouldAutoCompact()) await runCompaction(true);
+  }, [runCompaction, toast]);
+
+  // A reply finished streaming: add the turn, run its actions, save.
   useEffect(() => {
     if (!busy && agentOutput && pendingUserMsg.current) {
       const userMsg = pendingUserMsg.current;
       const aiMsg = agentOutput;
-      setMessages((prev) => [...prev, { role: "user", content: userMsg }, { role: "assistant", content: aiMsg }]);
-      // Parse agent actions from the AI output and auto-execute the
-      // safe ones. v1 has no destructive tools, so every action is
-      // safe to run immediately. Future versions that add terminal /
-      // git / file-delete will gate those behind the existing
-      // approval panel (which is still wired up below).
-      const actions = parseAgentActions(aiMsg);
-      if (actions.length > 0) {
-        setPendingActions((prev) => [...prev, ...actions]);
-        void runActionBatch(actions);
-      }
       pendingUserMsg.current = null;
       clearAgentOutput();
-      void saveConversation(
-        [{ role: "user", content: userMsg }, { role: "assistant", content: aiMsg }],
-        agentContext
-      ).then((conv) => {
-        setConversations([conv, ...useAetherStore.getState().conversations].slice(0, 20));
-      }).catch(() => {});
+      useIntelStore.getState().appendTurn(userMsg, aiMsg);
+      const actions = parseAgentActions(aiMsg);
+      if (actions.length > 0) void processAgentActions(actions);
+      void afterTurn();
     }
-  }, [busy, agentOutput, clearAgentOutput, agentContext, setConversations]);
+  }, [busy, agentOutput, clearAgentOutput, afterTurn]);
 
   const loadConversation = (convId: string) => {
     const conv = conversations.find((c) => c.id === convId);
-    if (!conv) return;
-    setMessages(
-      conv.messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))
-    );
+    if (!conv || busy) return;
+    useIntelStore.getState().loadConversation(conv);
+    clearAgentOutput();
+    setShowEarlier(false);
     setShowHistory(false);
   };
 
@@ -201,14 +245,17 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     try {
       await deleteConversation(id);
       setConversations(conversations.filter((c) => c.id !== id));
+      if (useIntelStore.getState().session.conversationId === id) useIntelStore.getState().setConversationId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
 
   const startNewChat = () => {
-    setMessages([]);
+    if (busy) return;
+    useIntelStore.getState().resetSession();
     clearAgentOutput();
+    setShowEarlier(false);
     setShowHistory(false);
   };
 
@@ -224,8 +271,18 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     try {
       const notePaths = activeContextPaths.length > 0 ? activeContextPaths : vaultNotes.map((n) => n.path);
       setAgentContext(notePaths);
-      await agentQueryWithNotes(prompt, notePaths, currentModel, provider);
+      const current = useIntelStore.getState().session;
+      await agentQueryWithConversation(prompt, notePaths, currentModel, provider, {
+        id: current.conversationId,
+        summary: current.compaction?.summary ?? null,
+        history: activeMessages(current),
+      });
     } catch (e) {
+      // Nothing was answered: give the prompt back so it can be retried.
+      if (!useAetherStore.getState().agentOutput) {
+        pendingUserMsg.current = null;
+        setInput(prompt);
+      }
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
@@ -233,8 +290,8 @@ export function AgentChat({ width = 340 }: { width?: number }) {
   };
 
   const lastAssistantMsg = useMemo(
-    () => [...messages].reverse().find((m) => m.role === "assistant"),
-    [messages]
+    () => [...session.messages].reverse().find((m) => m.role === "assistant"),
+    [session.messages]
   );
   const savableContent = agentOutput.trim() || lastAssistantMsg?.content.trim() || "";
 
@@ -242,262 +299,133 @@ export function AgentChat({ width = 340 }: { width?: number }) {
     if (!savableContent) return;
     try {
       const title = `AI Response — ${new Date().toLocaleString()}`;
-      const lastUserMsg = [...messages].reverse().find((m) => m.role === "user")?.content || "";
-      await createAetherNote(title, savableContent, lastUserMsg, agentContext);
-      const notes = await getAetherNotes();
-      setAetherNotes(notes);
+      const lastUserMsg = [...session.messages].reverse().find((m) => m.role === "user")?.content || "";
+      await createAetherNote(title, savableContent, lastUserMsg, useAetherStore.getState().agentContext);
+      setAetherNotes(await getAetherNotes());
+      toast.success("Saved to AETHER Notes");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   };
 
-  const handleExecuteAction = async (index: number) => {
-    const action = pendingActions[index];
-    if (!action) return;
-    setActionExecuting(index);
-    try {
-      const result = await executeOneAction(action);
-      setActionResults((prev) => ({ ...prev, [index]: result }));
-      await maybeRefreshVaultAfter(action);
-    } catch (e) {
-      setActionResults((prev) => ({ ...prev, [index]: `Error: ${e}` }));
-    } finally {
-      setActionExecuting(null);
-    }
-  };
-
-  /**
-   * Execute a list of agent actions sequentially. Used as the v1
-   * default — every action is safe-write or read+save, so the user
-   * sees the result in the chat without a per-action modal.
-   */
-  const runActionBatch = async (actions: AgentAction[]) => {
-    // Track which pending action indices these are. They were appended
-    // to `pendingActions` right before this call, so the offsets are
-    // `length - actions.length .. length - 1`.
-    const baseIndex = pendingActions.length - actions.length;
-    for (let i = 0; i < actions.length; i++) {
-      const idx = baseIndex + i;
-      setActionExecuting(idx);
-      try {
-        const result = await executeOneAction(actions[i]);
-        setActionResults((prev) => ({ ...prev, [idx]: result }));
-        await maybeRefreshVaultAfter(actions[i]);
-      } catch (e) {
-        setActionResults((prev) => ({ ...prev, [idx]: `Error: ${e}` }));
-      } finally {
-        setActionExecuting(null);
-      }
-    }
-  };
-
-  /** Route a single action to the right IPC command and return a
-   *  human-readable result string for the chat. */
-  const executeOneAction = async (action: AgentAction): Promise<string> => {
-    switch (action.action) {
-      case "create_note":
-      case "append_note":
-      case "append_daily": {
-        const result = await executeAgentAction(action);
-        return result;
-      }
-      case "add_memory_fact": {
-        const result = await agentAddMemoryFact(action.fact, action.category);
-        return result.kind === "fact_saved" ? `Remembered fact: "${action.fact}"` : "Fact saved";
-      }
-      case "save_aether_note": {
-        const result = await agentSaveAetherNote(action.title, action.content);
-        return result.kind === "aether_note_saved" ? `Saved to AETHER Notes: "${action.title}"` : "Saved to AETHER Notes";
-      }
-      case "open_url": {
-        await agentOpenUrl(action.url);
-        return `Opened ${action.url}`;
-      }
-      case "clip_url": {
-        // Backend returns the extracted HTML; we convert to MD in the
-        // frontend (turndown is a JS dep) and create the note here.
-        const result: AgentActionResult = await agentClipUrl(action.url);
-        if (result.kind !== "clipped_page") return "Clip failed";
-        const noteName = clipNoteName(result.path.title, new Date());
-        const noteBody = buildClipNote(result.path, new Date());
-        const relPath = `clips/${noteName}`;
-        const created = await createNote(relPath, noteBody);
-        return `Clipped to ${created}`;
-      }
-      case "create_calendar_event": {
-        const result = await agentCreateCalendarEvent({
-          title: action.title,
-          description: action.description,
-          all_day: action.all_day,
-          start: action.start,
-          end: action.end,
-          due: action.due,
-          color: action.color ?? "#7c3aed",
-          tags: action.tags,
-          attendees: action.attendees,
-          location: action.location,
-          source_note_path: null,
-        });
-        if (result.kind === "calendar_event_created") {
-          upsertCalendarEvent(result.event);
-          return `Created event: "${action.title}"`;
-        }
-        return "Event created";
-      }
-      case "update_calendar_event": {
-        const patch: import("../types").CalendarEventPatch = {};
-        if (action.title !== null) patch.title = action.title;
-        if (action.description !== null) patch.description = action.description;
-        if (action.all_day !== null) patch.all_day = action.all_day;
-        if (action.start !== null) patch.start = action.start;
-        if (action.end !== null) patch.end = action.end;
-        if (action.due !== null) patch.due = action.due;
-        if (action.color !== null) patch.color = action.color;
-        if (action.tags !== null) patch.tags = action.tags;
-        if (action.attendees !== null) patch.attendees = action.attendees;
-        if (action.location !== null) patch.location = action.location;
-        const result = await agentUpdateCalendarEvent(action.id, patch);
-        if (result.kind === "calendar_event_updated") {
-          upsertCalendarEvent(result.event);
-          return `Updated event ${action.id}`;
-        }
-        return "Event updated";
-      }
-      case "delete_calendar_event": {
-        const result = await agentDeleteCalendarEvent(action.id);
-        removeCalendarEvent(action.id);
-        return result.kind === "calendar_event_deleted"
-          ? `Deleted event ${action.id}`
-          : "Event deleted";
-      }
-      case "list_calendar_events": {
-        const result = await agentListCalendarEvents(action.from, action.to);
-        if (result.kind === "calendar_events_listed") {
-          return `Found ${result.events.length} event(s)`;
-        }
-        return "Listed events";
-      }
-      case "import_calendar_ics": {
-        const result = await agentImportCalendarIcs(
-          action.path,
-          action.overwrite_existing,
-          action.default_color ?? "#7c3aed"
-        );
-        if (result.kind === "calendar_ics_imported") {
-          const r = result.result;
-          return `Imported: ${r.added} added, ${r.updated} updated, ${r.skipped} skipped`;
-        }
-        return "Import complete";
-      }
-    }
-  };
-
-  /** After actions that change vault state, refresh the sidebar. */
-  const maybeRefreshVaultAfter = async (action: AgentAction) => {
-    if (
-      action.action === "create_note" ||
-      action.action === "append_note" ||
-      action.action === "append_daily" ||
-      action.action === "clip_url"
-    ) {
-      const notes = await getVaultNotes();
-      useAetherStore.getState().setVaultNotes(notes);
-    }
-    if (action.action === "save_aether_note") {
-      const notes = await getAetherNotes();
-      setAetherNotes(notes);
-    }
-  };
-
-  const handleDismissAction = (index: number) => {
-    setPendingActions((prev) => prev.filter((_, i) => i !== index));
-  };
+  const showPlaceholder = session.messages.length === 0 && !agentOutput && !busy;
 
   return (
     <div className="agent-chat" style={{ width, minWidth: width }}>
       <div className="agent-header">
-        <Bot size={18} />
-        <span className="agent-title">AETHER Agent</span>
-        <span className={`agent-status ${busy ? "agent-busy" : ""}`}>
-          {busy ? "Thinking..." : "Ready"}
+        <span className="agent-avatar" aria-hidden="true">
+          <Bot size={16} />
         </span>
-        <button
-          className="btn btn-icon agent-header-btn"
-          onClick={() => setShowHistory((v) => !v)}
-          title="Conversation history"
-        >
-          <History size={14} />
-        </button>
-        <button
-          className="btn btn-icon agent-header-btn"
-          onClick={startNewChat}
-          title="New chat"
-        >
-          <Plus size={14} />
-        </button>
-        <button
-          className="btn btn-icon agent-header-btn"
-          onClick={() => setChatOpen(false)}
-          title="Close panel"
-        >
-          <X size={14} />
-        </button>
+        <span className="agent-title">AETHER Agent</span>
+        <span className={cx("agent-status", (busy || compacting) && "agent-busy")} role="status">
+          <span className="agent-status-dot" aria-hidden="true" />
+          {busy ? "Thinking…" : compacting ? "Compacting…" : "Ready"}
+        </span>
+        <span className="agent-header-actions">
+          <IconButton
+            label="Compact conversation now"
+            size="sm"
+            icon={compacting ? <Spinner size={14} /> : <FoldVertical size={14} />}
+            onClick={() => void runCompaction(false)}
+            disabled={!compactable}
+            tooltipPlacement="bottom"
+          />
+          <IconButton
+            label="Conversation history"
+            size="sm"
+            active={showHistory}
+            icon={<History size={14} />}
+            onClick={() => setShowHistory((v) => !v)}
+            tooltipPlacement="bottom"
+          />
+          <IconButton
+            label="New chat"
+            size="sm"
+            icon={<SquarePen size={14} />}
+            onClick={startNewChat}
+            disabled={busy}
+            tooltipPlacement="bottom"
+          />
+          <IconButton
+            label="Close panel"
+            shortcut="mod+j"
+            size="sm"
+            icon={<X size={14} />}
+            onClick={() => setChatOpen(false)}
+            tooltipPlacement="bottom"
+          />
+        </span>
       </div>
 
       <div className="agent-engine-bar">
-        <select
+        <Select
+          size="sm"
           className="agent-provider-select"
           value={provider}
           onChange={(e) => setProvider(e.target.value as AiProvider)}
-          title="AI provider"
+          title={provider === "ollama" ? "AI provider: Ollama, runs on this machine" : "AI provider: OpenRouter, cloud models"}
+          aria-label="AI provider"
+          iconLeft={provider === "ollama" ? <HardDrive size={14} /> : <Cloud size={14} />}
         >
-          <option value="ollama">Ollama · Local</option>
-          <option value="openrouter">OpenRouter · Cloud</option>
-        </select>
-        <select
+          <option value="ollama">Ollama</option>
+          <option value="openrouter">OpenRouter</option>
+        </Select>
+        <Select
+          size="sm"
           className="agent-model-select"
           value={currentModel}
           onChange={(e) => handleModelChange(e.target.value)}
-          title="Model"
+          title={`Model: ${currentModel}`}
+          aria-label="Model"
         >
-          {(provider === "ollama"
-            ? (localModels.length > 0 ? localModels : [currentModel])
-            : (cloudModels.length > 0 ? cloudModels : [currentModel])
-          ).map((model) => (
-            <option key={model} value={model}>{model}</option>
+          {providerModels.map((model) => (
+            <option key={model} value={model}>
+              {model}
+            </option>
           ))}
-        </select>
-        {provider === "ollama" ? (
-          <span
-            className={`engine-badge ${health?.ollama_online ? "engine-online" : "engine-offline"}`}
-            title={health?.ollama_online ? "Ollama is running locally" : "Ollama is offline"}
-          >
-            {health?.ollama_online ? <HardDrive size={11} /> : <HardDrive size={11} />}
-            {health?.ollama_online ? "connected" : "offline"}
-          </span>
-        ) : (
-          <span
-            className={`engine-badge ${health?.openrouter_configured ? "engine-online" : "engine-offline"}`}
-            title={
-              health?.openrouter_configured
+        </Select>
+        {(windowTokens > 0 || compacting) && (
+          <TokenMeter
+            tokens={windowTokens}
+            threshold={settings.compact_threshold_tokens}
+            autoCompact={settings.auto_compact}
+            compacting={compacting}
+            onCompact={compactable ? () => void runCompaction(false) : undefined}
+          />
+        )}
+        {(() => {
+          const online = provider === "ollama" ? !!health?.ollama_online : !!health?.openrouter_configured;
+          const tip =
+            provider === "ollama"
+              ? online
+                ? "Ollama is running locally"
+                : "Ollama is offline — start it with `ollama serve`"
+              : online
                 ? "OpenRouter API key configured"
-                : "Add your OpenRouter key in Settings"
-            }
-          >
-            <Cloud size={11} />
-            {health?.openrouter_configured ? "connected" : "no key"}
-          </span>
-        )}
-        {!supportsAgentActions(currentModel, provider) && (
-          <span
-            className="engine-badge engine-warn"
-            title="This model may not emit tool calls reliably. Actions will still be parsed from the reply if present."
-          >
-            <Zap size={11} />
-            tools: unreliable
-          </span>
-        )}
+                : "Add your OpenRouter key in Settings → AI providers";
+          // Connected is the normal state: a quiet dot. Problems get words.
+          return (
+            <span
+              className={cx("engine-badge", online ? "engine-online is-dot" : "engine-offline")}
+              title={tip}
+              role="status"
+              aria-label={tip}
+            >
+              <span className="engine-dot" aria-hidden="true" />
+              {!online && (provider === "ollama" ? "offline" : "no key")}
+            </span>
+          );
+        })()}
       </div>
+      {!supportsAgentActions(currentModel, provider) && (
+        <div
+          className="agent-engine-warning"
+          title="This model may not emit tool calls reliably. Actions will still be parsed from the reply if present."
+        >
+          <Zap size={14} />
+          <span>tools: unreliable — this model may not emit tool calls</span>
+        </div>
+      )}
 
       {showHistory && (
         <div className="agent-history">
@@ -505,16 +433,22 @@ export function AgentChat({ width = 340 }: { width?: number }) {
             <div className="agent-history-empty">No past conversations</div>
           ) : (
             conversations.map((c) => (
-              <div key={c.id} className="agent-history-item" onClick={() => loadConversation(c.id)}>
-                <span className="agent-history-summary">{c.summary || "Conversation"}</span>
-                <span className="agent-history-time">
-                  {new Date(c.timestamp * 1000).toLocaleDateString()}
-                </span>
+              <div
+                key={c.id}
+                className={cx("agent-history-item", c.id === session.conversationId && "is-active")}
+                onClick={() => loadConversation(c.id)}
+                title={isCompactionSummary(c.summary) ? "Compacted conversation" : undefined}
+              >
+                {isCompactionSummary(c.summary) && <Archive size={14} className="context-note-icon" aria-hidden="true" />}
+                <span className="agent-history-summary">{conversationTitle(c.summary)}</span>
+                <span className="agent-history-time">{new Date(c.timestamp * 1000).toLocaleDateString()}</span>
                 <button
+                  type="button"
                   className="agent-history-delete"
+                  aria-label="Delete conversation"
                   onClick={(e) => void handleDeleteConversation(c.id, e)}
                 >
-                  <X size={12} />
+                  <X size={14} />
                 </button>
               </div>
             ))
@@ -524,44 +458,51 @@ export function AgentChat({ width = 340 }: { width?: number }) {
 
       <div className="agent-context-bar">
         <button
-          className="btn btn-icon agent-context-toggle"
+          type="button"
+          className={cx("agent-context-toggle", showContextPicker && "is-active")}
           onClick={() => setShowContextPicker((v) => !v)}
           title="Select context notes"
+          aria-expanded={showContextPicker}
         >
           <Layers size={14} />
+          <span className="agent-context-label">
+            {allNotesInContext
+              ? `All notes (${vaultNotes.length})`
+              : `${activeContextPaths.length} of ${vaultNotes.length} notes`}
+          </span>
         </button>
-        <span className="agent-context-label">
-          {allNotesInContext
-            ? `All notes (${vaultNotes.length})`
-            : `${activeContextPaths.length} of ${vaultNotes.length} notes`}
-        </span>
         {!allNotesInContext && (
-          <button
-            className="btn btn-icon agent-context-reset"
+          <IconButton
+            label="Reset to all notes"
+            size="sm"
+            className="agent-context-reset"
+            icon={<RotateCcw size={14} />}
             onClick={resetContextToAll}
-            title="Reset to all notes"
-          >
-            <Check size={12} />
-          </button>
+          />
         )}
+        <RelatedContextChip />
       </div>
 
       {showContextPicker && (
         <div className="context-picker">
           <div className="context-picker-header">
-            <span className="context-picker-title">Context Notes</span>
-            <button className="btn btn-icon" onClick={() => setShowContextPicker(false)}>
-              <X size={14} />
-            </button>
+            <span className="context-picker-title">Context notes</span>
+            <IconButton
+              label="Close"
+              size="sm"
+              icon={<X size={14} />}
+              onClick={() => setShowContextPicker(false)}
+              tooltip={false}
+            />
           </div>
           <div className="context-picker-search">
             <input
               type="text"
-              placeholder="Filter notes..."
+              placeholder="Filter notes…"
               value={contextSearch}
               onChange={(e) => setContextSearch(e.target.value)}
-              className="sidebar-search-input"
-              style={{ paddingLeft: "10px" }}
+              className="settings-input context-picker-filter"
+              autoFocus
             />
           </div>
           <div className="context-picker-list">
@@ -583,7 +524,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
                   <span className="context-check-wrapper">
                     {isSelected && <Check size={14} className="context-check" />}
                   </span>
-                  <FileText size={12} className="context-note-icon" />
+                  <FileText size={14} className="context-note-icon" />
                   <span className="context-note-name">{note.name.replace(/\.md$/i, "")}</span>
                 </div>
               );
@@ -593,18 +534,37 @@ export function AgentChat({ width = 340 }: { width?: number }) {
       )}
 
       <div className="agent-output" ref={scrollRef}>
-        {messages.length === 0 && !agentOutput && !busy && (
+        {showPlaceholder && (
           <div className="agent-placeholder">
-            <Bot size={32} />
-            <p>Ask AETHER anything about your vault</p>
+            <span className="agent-placeholder-icon">
+              <Bot size={18} />
+            </span>
+            <p className="agent-placeholder-title">Ask AETHER anything about your vault</p>
+            <p className="agent-placeholder-hint">Answers use your notes as context. Type /model to switch models.</p>
           </div>
         )}
-        {messages.map((msg, i) => (
-          <ChatMessageRow key={i} role={msg.role} content={msg.content} />
+        {session.compaction && (
+          <CompactionCard
+            compaction={session.compaction}
+            showEarlier={showEarlier}
+            onToggleEarlier={() => setShowEarlier((v) => !v)}
+          />
+        )}
+        {showEarlier && earlierMessages.length > 0 && (
+          <div className="intel-earlier" aria-label="Summarised messages">
+            {earlierMessages.map((msg, i) => (
+              <ChatMessageRow key={`e${i}`} role={msg.role} content={msg.content} />
+            ))}
+          </div>
+        )}
+        {windowMessages.map((msg, i) => (
+          <ChatMessageRow key={compactedCount + i} role={msg.role} content={msg.content} />
         ))}
         {busy && (
           <div className="chat-msg chat-msg-assistant">
-            <div className="chat-msg-icon"><Bot size={14} /></div>
+            <div className="chat-msg-icon">
+              <Bot size={14} />
+            </div>
             <div className="chat-msg-content">
               {agentOutput ? (
                 <span className="agent-stream">
@@ -613,7 +573,9 @@ export function AgentChat({ width = 340 }: { width?: number }) {
                 </span>
               ) : (
                 <span className="chat-typing" aria-label="Assistant is typing">
-                  <span /><span /><span />
+                  <span />
+                  <span />
+                  <span />
                 </span>
               )}
             </div>
@@ -621,33 +583,9 @@ export function AgentChat({ width = 340 }: { width?: number }) {
         )}
       </div>
 
-      {pendingActions.length > 0 && (
-        <div className="agent-actions-panel">
-          <div className="agent-actions-header">
-            <Zap size={14} />
-            <span>Tools used ({pendingActions.length})</span>
-          </div>
-          {pendingActions.map((action, idx) => (
-            <div key={idx} className="agent-action-card">
-              <div className="agent-action-desc">
-                {actionResults[idx]
-                  ? actionLabel(action)
-                  : (
-                    <>
-                      {actionExecuting === idx && <Loader size={12} className="spin" />}
-                      <span>{describeAction(action)}</span>
-                    </>
-                  )}
-              </div>
-              {actionResults[idx] && (
-                <div className="agent-action-result">{actionResults[idx]}</div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      <ActionRunList runs={runs} onClear={() => useIntelStore.getState().clearRuns()} />
 
-      {error && <div className="agent-error">{error}</div>}
+      {error && <div className="agent-error ui-notice ui-notice-danger">{error}</div>}
 
       {slash && (
         <div className="slash-menu" role="listbox" aria-label="Model picker">
@@ -656,9 +594,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
             {health?.openrouter_configured === false && provider === "openrouter" && " (no key)"}
           </div>
           <div className="slash-menu-list">
-            {slashMatches.length === 0 && (
-              <div className="slash-menu-empty">No matching models</div>
-            )}
+            {slashMatches.length === 0 && <div className="slash-menu-empty">No matching models</div>}
             {slashMatches.map((model, i) => (
               <div
                 key={model}
@@ -681,7 +617,8 @@ export function AgentChat({ width = 340 }: { width?: number }) {
       <div className="agent-input-row">
         <textarea
           className="agent-input"
-          placeholder="Ask about your notes... (/model to switch)"
+          placeholder="Ask about your notes… (/model to switch)"
+          aria-label="Message the agent"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -709,29 +646,33 @@ export function AgentChat({ width = 340 }: { width?: number }) {
             }
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
-              handleSubmit();
+              void handleSubmit();
             }
           }}
           rows={2}
         />
         <div className="agent-actions">
-          <button
-            className="btn btn-icon"
-            onClick={handleSave}
+          <IconButton
+            label="Save as AETHER Note"
+            size="sm"
+            icon={<Save size={14} />}
+            onClick={() => void handleSave()}
             disabled={!savableContent || busy}
-            title="Save as AETHER Note"
-          >
-            <Save size={16} />
-          </button>
+          />
           <button
-            className="btn btn-primary btn-send"
-            onClick={handleSubmit}
+            type="button"
+            className="agent-send"
+            onClick={() => void handleSubmit()}
             disabled={!input.trim() || busy}
+            aria-label="Send"
+            title="Send (Enter)"
           >
-            {busy ? <Loader size={16} className="spin" /> : <Send size={16} />}
+            {busy ? <Spinner size={14} /> : <ArrowUp size={16} strokeWidth={2.4} />}
           </button>
         </div>
       </div>
+
+      <ApprovalModal />
     </div>
   );
 }

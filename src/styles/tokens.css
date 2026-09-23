@@ -1,0 +1,373 @@
+/* ─────────────────────────────────────────────────────────────────────────
+   AETHER-OS design tokens
+   ─────────────────────────────────────────────────────────────────────────
+   Every color, size, radius, shadow and duration in the app comes from
+   here. Components never hardcode values; they reference these semantic
+   tokens so both themes, the accent choice and the density setting apply
+   everywhere at once.
+
+   Theme:   <html data-theme="dark|light">   (dark is the fallback)
+   Accent:  <html data-accent="teal|ember|cobalt|graphite">
+   Density: <html data-density="comfortable|compact">
+
+   See docs/dev/DESIGN-SYSTEM.md for the rationale behind each value.
+   ───────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Theme-independent control shading ─────────────────────────
+     Raised accent surfaces (primary button, send), pressed controls,
+     switch knobs, inset wells and swatch rings look the same in both
+     themes; tooltips are always dark, so their kbd chips too. */
+  --shadow-accent-raised: inset 0 1px 0 rgba(255, 253, 248, 0.16), 0 1px 2px rgba(10, 9, 8, 0.22);
+  --shadow-pressed: inset 0 1px 2px rgba(10, 9, 8, 0.2);
+  --shadow-knob: 0 1px 2px rgba(10, 9, 8, 0.3), 0 0 0 0.5px rgba(10, 9, 8, 0.12);
+  --shadow-well: inset 0 1px 1px rgba(10, 9, 8, 0.06);
+  --shadow-swatch-ring: inset 0 0 0 1px rgba(10, 9, 8, 0.12);
+  --color-tooltip-kbd-bg: rgba(255, 253, 248, 0.08);
+  --color-tooltip-kbd-border: rgba(255, 253, 248, 0.12);
+
+  /* ── Typography ─────────────────────────────────────────────── */
+  --font-ui: "IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --text-2xs: 10px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 650;
+
+  --tracking-tighter: -0.035em;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.06em;
+
+  /* ── Spacing (4px scale) ────────────────────────────────────── */
+  --space-0-5: 2px;
+  --space-1: 4px;
+  --space-1-5: 6px;
+  --space-2: 8px;
+  --space-2-5: 10px;
+  --space-3: 12px;
+  --space-3-5: 14px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-9: 36px;
+  --space-10: 40px;
+  --space-11: 44px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* ── Radii (contextual) ─────────────────────────────────────── */
+  --radius-xs: 4px;   /* badges, kbd, chips */
+  --radius-sm: 6px;   /* rows, small controls */
+  --radius-md: 8px;   /* buttons, inputs */
+  --radius-lg: 12px;  /* cards, panels */
+  --radius-xl: 16px;  /* modals, sheets */
+  --radius-full: 9999px; /* avatars, status dots, pill toggles only */
+
+  /* ── Layers ─────────────────────────────────────────────────── */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 20;
+  --z-rail: 30;
+  --z-dropdown: 100;
+  --z-overlay: 300;
+  --z-modal: 310;
+  --z-popover: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+  --z-titlebar: 40;
+
+  /* ── Motion ─────────────────────────────────────────────────── */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 280ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ── Shell metrics ──────────────────────────────────────────── */
+  --titlebar-height: 38px;
+  --statusbar-height: 26px;
+  --rail-width: 52px;
+  --rail-width-expanded: 204px;
+
+  /* ── Density: comfortable (default) ─────────────────────────── */
+  --control-h-sm: 26px;
+  --control-h-md: 32px;
+  --control-h-lg: 38px;
+  --row-h: 28px;
+  --row-pad-x: var(--space-2);
+  --view-pad-x: var(--space-7);
+  --view-pad-y: var(--space-6);
+  --panel-pad: var(--space-4);
+
+  /* ── Focus ring ─────────────────────────────────────────────── */
+  --focus-ring: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-focus);
+  --focus-ring-inset: inset 0 0 0 2px var(--color-focus);
+}
+
+:root[data-density="compact"] {
+  --control-h-sm: 24px;
+  --control-h-md: 28px;
+  --control-h-lg: 34px;
+  --row-h: 24px;
+  --row-pad-x: var(--space-1-5);
+  --view-pad-x: var(--space-5);
+  --view-pad-y: var(--space-4);
+  --panel-pad: var(--space-3);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Dark theme — warm graphite. Chrome sits one step lighter than the
+   content canvas; cards and inputs one step lighter again.
+   ───────────────────────────────────────────────────────────────────────── */
+:root,
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #131312;          /* content canvas */
+  --color-surface: #181817;     /* rail, sidebars, toolbars, status bar */
+  --color-elevated: #1e1e1c;    /* cards, inputs */
+  --color-overlay: #242422;     /* menus, popovers, modals, tooltips */
+  --color-sunken: #0f0f0e;      /* terminal + code wells */
+  --color-backdrop: rgba(10, 9, 8, 0.62);
+
+  --color-fill-subtle: rgba(236, 232, 222, 0.035);
+  --color-fill-hover: rgba(236, 232, 222, 0.055);
+  --color-fill-active: rgba(236, 232, 222, 0.085);
+  --color-fill-strong: rgba(236, 232, 222, 0.12);
+
+  --color-border-subtle: rgba(236, 232, 222, 0.06);
+  --color-border: rgba(236, 232, 222, 0.095);
+  --color-border-strong: rgba(236, 232, 222, 0.16);
+
+  --color-fg-primary: #ecebe6;
+  --color-fg-secondary: #adaba3;
+  --color-fg-tertiary: #918f87;
+  --color-fg-disabled: #5d5c56;
+  --color-fg-inverse: #161614;
+
+  --color-success: #7fb85e;
+  --color-success-soft: rgba(127, 184, 94, 0.14);
+  --color-warning: #d9a441;
+  --color-warning-soft: rgba(217, 164, 65, 0.14);
+  --color-danger: #e5625b;
+  --color-danger-soft: rgba(229, 98, 91, 0.14);
+  --color-info: #6f9fe3;
+  --color-info-soft: rgba(111, 159, 227, 0.14);
+
+  /* Categorical palette for data (graph nodes, labels). Muted so it never
+     competes with the accent. */
+  --color-cat-1: #7fa7d9;
+  --color-cat-2: #6fb8a4;
+  --color-cat-3: #c8a55a;
+  --color-cat-4: #d18a6a;
+  --color-cat-5: #b494c9;
+  --color-cat-6: #8fb56a;
+  --color-cat-7: #d58fa6;
+  --color-cat-8: #9aa3ad;
+
+  --color-selection: rgba(63, 176, 163, 0.28);
+
+  --color-knob: #f1efe9;
+  --color-tooltip-bg: #2e2e2b;
+  --color-tooltip-fg: #ecebe6;
+
+  --shadow-sm: 0 1px 0 rgba(10, 9, 8, 0.24), 0 1px 2px rgba(10, 9, 8, 0.32);
+  --shadow-md: 0 1px 2px rgba(10, 9, 8, 0.3), 0 4px 12px -2px rgba(10, 9, 8, 0.4);
+  --shadow-lg: 0 2px 4px rgba(10, 9, 8, 0.28), 0 12px 32px -6px rgba(10, 9, 8, 0.55);
+  --shadow-pop:
+    0 0 0 1px rgba(236, 232, 222, 0.06),
+    0 4px 8px -2px rgba(10, 9, 8, 0.4),
+    0 16px 40px -8px rgba(10, 9, 8, 0.6);
+  --shadow-inset-top: inset 0 1px 0 rgba(236, 232, 222, 0.04);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Light theme — warm paper. Chrome is a touch darker than the canvas,
+   cards are the lightest layer.
+   ───────────────────────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg: #f8f7f4;
+  --color-surface: #f1efeb;
+  --color-elevated: #fdfcfa;
+  --color-overlay: #fefdfb;
+  --color-sunken: #f4f2ee;
+  --color-backdrop: rgba(38, 34, 28, 0.28);
+
+  --color-fill-subtle: rgba(40, 36, 28, 0.035);
+  --color-fill-hover: rgba(40, 36, 28, 0.055);
+  --color-fill-active: rgba(40, 36, 28, 0.085);
+  --color-fill-strong: rgba(40, 36, 28, 0.12);
+
+  --color-border-subtle: rgba(40, 36, 28, 0.07);
+  --color-border: rgba(40, 36, 28, 0.115);
+  --color-border-strong: rgba(40, 36, 28, 0.2);
+
+  --color-fg-primary: #1d1c1a;
+  --color-fg-secondary: #56544e;
+  --color-fg-tertiary: #6e6c65;
+  --color-fg-disabled: #a8a59d;
+  --color-fg-inverse: #f8f7f4;
+
+  --color-success: #3d7a2a;
+  --color-success-soft: rgba(61, 122, 42, 0.11);
+  --color-warning: #94620e;
+  --color-warning-soft: rgba(148, 98, 14, 0.11);
+  --color-danger: #c03b33;
+  --color-danger-soft: rgba(192, 59, 51, 0.1);
+  --color-info: #2c5fb3;
+  --color-info-soft: rgba(44, 95, 179, 0.1);
+
+  --color-cat-1: #4a78b3;
+  --color-cat-2: #2f8a74;
+  --color-cat-3: #9a7424;
+  --color-cat-4: #b0603d;
+  --color-cat-5: #8660a3;
+  --color-cat-6: #5a8a36;
+  --color-cat-7: #b05a78;
+  --color-cat-8: #6b747e;
+
+  --color-selection: rgba(27, 122, 112, 0.2);
+
+  --color-knob: #fefdfb;
+  --color-tooltip-bg: #2a2926;
+  --color-tooltip-fg: #f4f2ee;
+
+  --shadow-sm: 0 1px 0 rgba(38, 34, 28, 0.04), 0 1px 2px rgba(38, 34, 28, 0.06);
+  --shadow-md: 0 1px 2px rgba(38, 34, 28, 0.06), 0 4px 12px -2px rgba(38, 34, 28, 0.08);
+  --shadow-lg: 0 2px 4px rgba(38, 34, 28, 0.05), 0 12px 32px -6px rgba(38, 34, 28, 0.14);
+  --shadow-pop:
+    0 0 0 1px rgba(38, 34, 28, 0.07),
+    0 4px 8px -2px rgba(38, 34, 28, 0.08),
+    0 16px 40px -8px rgba(38, 34, 28, 0.18);
+  --shadow-inset-top: inset 0 1px 0 rgba(255, 253, 248, 0.6);
+}
+
+/* Before the theme script runs (or if it is blocked), follow the OS. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --color-bg: #f8f7f4;
+    --color-surface: #f1efeb;
+    --color-elevated: #fdfcfa;
+    --color-overlay: #fefdfb;
+    --color-fg-primary: #1d1c1a;
+    --color-fg-secondary: #56544e;
+    --color-fg-tertiary: #6e6c65;
+    --color-border: rgba(40, 36, 28, 0.115);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Accents — exactly one is active. Used sparingly: primary actions, the
+   active navigation indicator, focus rings, links and selection.
+   ───────────────────────────────────────────────────────────────────────── */
+:root,
+:root[data-accent="teal"] {
+  --color-accent: #3fb0a3;
+  --color-accent-hover: #52bdb0;
+  --color-accent-fg: #0e1a18;
+  --color-accent-text: #5cc2b5;
+  --color-accent-soft: rgba(63, 176, 163, 0.13);
+  --color-accent-border: rgba(63, 176, 163, 0.42);
+  --color-focus: rgba(92, 194, 181, 0.75);
+}
+
+:root[data-theme="light"],
+:root[data-theme="light"][data-accent="teal"] {
+  --color-accent: #1b7a70;
+  --color-accent-hover: #166a61;
+  --color-accent-fg: #f6fbfa;
+  --color-accent-text: #17736a;
+  --color-accent-soft: rgba(27, 122, 112, 0.1);
+  --color-accent-border: rgba(27, 122, 112, 0.38);
+  --color-focus: rgba(27, 122, 112, 0.6);
+}
+
+:root[data-accent="ember"] {
+  --color-accent: #e27a4e;
+  --color-accent-hover: #ea8b62;
+  --color-accent-fg: #1c120d;
+  --color-accent-text: #ec8d65;
+  --color-accent-soft: rgba(226, 122, 78, 0.13);
+  --color-accent-border: rgba(226, 122, 78, 0.42);
+  --color-focus: rgba(236, 141, 101, 0.75);
+  --color-selection: rgba(226, 122, 78, 0.26);
+}
+
+:root[data-theme="light"][data-accent="ember"] {
+  --color-accent: #b04e27;
+  --color-accent-hover: #9c4321;
+  --color-accent-fg: #fdf8f5;
+  --color-accent-text: #a9491f;
+  --color-accent-soft: rgba(176, 78, 39, 0.09);
+  --color-accent-border: rgba(176, 78, 39, 0.36);
+  --color-focus: rgba(176, 78, 39, 0.55);
+  --color-selection: rgba(176, 78, 39, 0.16);
+}
+
+:root[data-accent="cobalt"] {
+  --color-accent: #6d9cf0;
+  --color-accent-hover: #81abf3;
+  --color-accent-fg: #0d1422;
+  --color-accent-text: #86adf4;
+  --color-accent-soft: rgba(109, 156, 240, 0.13);
+  --color-accent-border: rgba(109, 156, 240, 0.42);
+  --color-focus: rgba(134, 173, 244, 0.75);
+  --color-selection: rgba(109, 156, 240, 0.26);
+}
+
+:root[data-theme="light"][data-accent="cobalt"] {
+  --color-accent: #2d5fc4;
+  --color-accent-hover: #2552ad;
+  --color-accent-fg: #f6f8fd;
+  --color-accent-text: #2a59b9;
+  --color-accent-soft: rgba(45, 95, 196, 0.09);
+  --color-accent-border: rgba(45, 95, 196, 0.36);
+  --color-focus: rgba(45, 95, 196, 0.55);
+  --color-selection: rgba(45, 95, 196, 0.16);
+}
+
+:root[data-accent="graphite"] {
+  --color-accent: #e3e0d8;
+  --color-accent-hover: #f0ede6;
+  --color-accent-fg: #171715;
+  --color-accent-text: #e3e0d8;
+  --color-accent-soft: rgba(227, 224, 216, 0.1);
+  --color-accent-border: rgba(227, 224, 216, 0.34);
+  --color-focus: rgba(227, 224, 216, 0.6);
+  --color-selection: rgba(227, 224, 216, 0.2);
+}
+
+:root[data-theme="light"][data-accent="graphite"] {
+  --color-accent: #2b2a27;
+  --color-accent-hover: #3b3a36;
+  --color-accent-fg: #f8f7f4;
+  --color-accent-text: #2b2a27;
+  --color-accent-soft: rgba(43, 42, 39, 0.07);
+  --color-accent-border: rgba(43, 42, 39, 0.3);
+  --color-focus: rgba(43, 42, 39, 0.5);
+  --color-selection: rgba(43, 42, 39, 0.14);
+}

@@ -13,7 +13,10 @@ pub async fn cmd_write_note(
     path: String,
     content: String,
 ) -> Result<(), String> {
-    state.vault.write_note(&path, &content).map_err(|e| e.to_string())
+    state
+        .vault
+        .write_note(&path, &content)
+        .map_err(|e| e.to_string())
 }
 
 /// Create a new note in the vault. `rel_path` is vault-relative
@@ -24,7 +27,10 @@ pub async fn cmd_create_note(
     rel_path: String,
     content: String,
 ) -> Result<String, String> {
-    state.vault.create_note(&rel_path, &content).map_err(|e| e.to_string())
+    state
+        .vault
+        .create_note(&rel_path, &content)
+        .map_err(|e| e.to_string())
 }
 
 /// Append content to an existing note.
@@ -34,7 +40,10 @@ pub async fn cmd_append_note(
     path: String,
     content: String,
 ) -> Result<(), String> {
-    state.vault.append_note(&path, &content).map_err(|e| e.to_string())
+    state
+        .vault
+        .append_note(&path, &content)
+        .map_err(|e| e.to_string())
 }
 
 /// All notes linking to `note_name` via [[wikilinks]], with line context.
@@ -66,7 +75,10 @@ pub async fn cmd_daily_note(state: State<'_, AppState>) -> Result<String, String
 /// Append a timestamped bullet to today's daily note. Returns its path.
 #[tauri::command]
 pub async fn cmd_append_daily(state: State<'_, AppState>, text: String) -> Result<String, String> {
-    state.vault.append_daily_note(&text).map_err(|e| e.to_string())
+    state
+        .vault
+        .append_daily_note(&text)
+        .map_err(|e| e.to_string())
 }
 
 /// Fetch a web page and extract its main content for clipping.

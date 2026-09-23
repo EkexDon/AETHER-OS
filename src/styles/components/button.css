@@ -1,0 +1,203 @@
+/* ── Button ───────────────────────────────────────────────────── */
+.ui-button {
+  --btn-h: var(--control-h-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1-5);
+  height: var(--btn-h);
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard);
+}
+
+.ui-button-sm {
+  --btn-h: var(--control-h-sm);
+  padding: 0 var(--space-2);
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  border-radius: var(--radius-sm);
+}
+
+.ui-button-full {
+  width: 100%;
+}
+
+.ui-button-icon {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 -1px;
+}
+
+.ui-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ui-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.ui-button.is-loading {
+  opacity: 0.8;
+  cursor: progress;
+}
+
+/* Primary — the accent, used for the one main action on screen. */
+.ui-button-primary {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  box-shadow: var(--shadow-accent-raised);
+}
+
+.ui-button-primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.ui-button-primary:active:not(:disabled) {
+  box-shadow: var(--shadow-pressed);
+}
+
+/* A disabled primary reads as neutral, not as a muddy accent. */
+.ui-button-primary:disabled:not(.is-loading) {
+  background: var(--color-fill-strong);
+  color: var(--color-fg-disabled);
+  box-shadow: none;
+  opacity: 1;
+}
+
+/* Secondary — raised neutral. */
+.ui-button-secondary {
+  background: var(--color-elevated);
+  border-color: var(--color-border);
+  color: var(--color-fg-primary);
+  box-shadow: var(--shadow-sm), var(--shadow-inset-top);
+}
+
+.ui-button-secondary:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background-image: linear-gradient(var(--color-fill-hover), var(--color-fill-hover));
+}
+
+.ui-button-secondary:active:not(:disabled) {
+  background-image: linear-gradient(var(--color-fill-active), var(--color-fill-active));
+  box-shadow: none;
+}
+
+/* Ghost — toolbar / low emphasis. */
+.ui-button-ghost {
+  background: transparent;
+  color: var(--color-fg-secondary);
+}
+
+.ui-button-ghost:hover:not(:disabled) {
+  background: var(--color-fill-hover);
+  color: var(--color-fg-primary);
+}
+
+.ui-button-ghost:active:not(:disabled) {
+  background: var(--color-fill-active);
+}
+
+/* Danger — soft by default so it never competes with primary. */
+.ui-button-danger {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  border-color: transparent;
+}
+
+.ui-button-danger:hover:not(:disabled) {
+  background: var(--color-danger);
+  color: var(--color-fg-inverse);
+}
+
+/* ── IconButton ───────────────────────────────────────────────── */
+.ui-icon-button {
+  --ib-size: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--ib-size);
+  height: var(--ib-size);
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-tertiary);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard);
+}
+
+.ui-icon-button-sm {
+  --ib-size: 24px;
+  border-radius: var(--radius-sm);
+}
+
+.ui-icon-button-md {
+  border-radius: var(--radius-md);
+}
+
+.ui-icon-button:hover:not(:disabled) {
+  background: var(--color-fill-hover);
+  color: var(--color-fg-primary);
+}
+
+.ui-icon-button:active:not(:disabled),
+.ui-icon-button.is-active {
+  background: var(--color-fill-active);
+  color: var(--color-fg-primary);
+}
+
+.ui-icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ui-icon-button-secondary {
+  background: var(--color-elevated);
+  border-color: var(--color-border);
+  color: var(--color-fg-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-icon-button-secondary:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-elevated);
+}
+
+.ui-icon-button-danger:hover:not(:disabled) {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+/* Hit area: compact buttons keep their visual size but are at least 28 px
+   to point at (an invisible ring around small variants; md and larger are
+   unaffected). */
+.ui-button,
+.ui-icon-button {
+  position: relative;
+}
+
+.ui-button::after,
+.ui-icon-button::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, calc((var(--btn-h, var(--ib-size, 28px)) - 28px) / 2));
+}

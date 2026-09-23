@@ -1,0 +1,188 @@
+/* ── Tabs ─────────────────────────────────────────────────────── */
+.ui-tabs {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ui-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.ui-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  flex-shrink: 0;
+  color: var(--color-fg-tertiary);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard);
+}
+
+.ui-tab:hover:not(:disabled) {
+  color: var(--color-fg-primary);
+}
+
+.ui-tab.is-selected {
+  color: var(--color-fg-primary);
+}
+
+.ui-tab:disabled {
+  opacity: 0.4;
+}
+
+.ui-tab-icon {
+  display: inline-flex;
+}
+
+.ui-tab-count {
+  min-width: 18px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: var(--radius-xs);
+  background: var(--color-fill-active);
+  color: var(--color-fg-tertiary);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Underline variant — view-level tabs. */
+.ui-tabs-underline {
+  gap: var(--space-5);
+  box-shadow: inset 0 -1px 0 var(--color-border-subtle);
+}
+
+.ui-tabs-underline .ui-tab {
+  height: 34px;
+  padding: 0 1px;
+}
+
+.ui-tabs-underline .ui-tab::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: transparent;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+
+.ui-tabs-underline .ui-tab.is-selected::after {
+  background: var(--color-accent);
+}
+
+.ui-tabs-underline .ui-tab:focus-visible {
+  outline-offset: -2px;
+}
+
+.ui-tabs-underline.ui-tabs-sm .ui-tab {
+  height: 30px;
+  font-size: var(--text-sm);
+}
+
+/* Pill variant — compact in-panel tabs. */
+.ui-tabs-pill {
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-fill-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.ui-tabs-pill .ui-tab {
+  height: 24px;
+  padding: 0 var(--space-2-5);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+}
+
+.ui-tabs-pill .ui-tab:hover:not(.is-selected):not(:disabled) {
+  background: var(--color-fill-hover);
+}
+
+.ui-tabs-pill .ui-tab.is-selected {
+  background: var(--color-elevated);
+  box-shadow: var(--shadow-sm), 0 0 0 1px var(--color-border-subtle);
+}
+
+.ui-tabs-pill.ui-tabs-md .ui-tab {
+  height: 26px;
+}
+
+/* ── SegmentedControl ─────────────────────────────────────────── */
+.ui-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-fill-subtle);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-well);
+}
+
+.ui-segmented.is-full {
+  display: flex;
+  width: 100%;
+}
+
+.ui-segmented.is-full .ui-segment {
+  flex: 1;
+}
+
+.ui-segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1-5);
+  height: calc(var(--control-h-md) - 6px);
+  padding: 0 var(--space-2-5);
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+
+.ui-segmented-sm .ui-segment {
+  height: calc(var(--control-h-sm) - 6px);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.ui-segment:hover:not(.is-selected):not(:disabled) {
+  color: var(--color-fg-primary);
+  background: var(--color-fill-hover);
+}
+
+.ui-segment.is-selected {
+  background: var(--color-elevated);
+  color: var(--color-fg-primary);
+  box-shadow: var(--shadow-sm), 0 0 0 1px var(--color-border-subtle);
+}
+
+.ui-segment:disabled {
+  opacity: 0.4;
+}
+
+.ui-segment-icon {
+  display: inline-flex;
+}
