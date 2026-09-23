@@ -23,6 +23,8 @@ import {
 import { useAetherStore } from "../lib/store";
 import { Button, EmptyState, Input, Modal } from "../ui";
 import { writeNote, createNote, getBacklinks, getVaultNotes, getNoteContent } from "../lib/ipc";
+import { createAutosaveScheduler } from "../lib/autosave";
+import { subscribeNoteReload } from "../lib/noteEditorBus";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { findUnlinkedMentions, linkMentions } from "../lib/mentions";
 import type { Backlink, VaultNote } from "../types";
@@ -88,10 +90,12 @@ export function NoteEditor() {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState("https://");
 
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadSeqRef = useRef(0);
   const currentTabRef = useRef<string | null>(selectedNotePath);
   currentTabRef.current = selectedNotePath;
+  // Bumped by requestNoteReload() when a feature (history restore, sync, an
+  // agent action) rewrote the open note on disk and the canvas must re-read it.
+  const [reloadToken, setReloadToken] = useState(0);
 
   const COLORS = ["#e8e8e8", "#ffffff", "#a78bfa", "#60a5fa", "#34d399", "#fbbf24", "#f87171", "#f472b6"];
   const SIZES = ["12px", "14px", "16px", "18px", "20px", "24px", "28px", "32px"];
@@ -101,16 +105,15 @@ export function NoteEditor() {
     return selectedNotePath.split("/").pop()?.replace(/\.md$/i, "") ?? "";
   }, [selectedNotePath]);
 
-  // Debounced note save
-  const saveCurrentNote = useCallback(async (contentToSave: string) => {
-    const targetPath = currentTabRef.current;
-    if (!targetPath) return;
-
+  // Writes `contentToSave` to `targetPath`. The path is passed explicitly —
+  // never read from the current selection — so a save scheduled for note A
+  // can never land in note B after the user switched tabs.
+  const saveCurrentNote = useCallback(async (contentToSave: string, targetPath: string) => {
     setSaving(true);
     setError(null);
     try {
       await writeNote(targetPath, contentToSave);
-      setNoteDirty(false);
+      if (currentTabRef.current === targetPath) setNoteDirty(false);
       const notes = await getVaultNotes();
       setVaultNotes(notes);
     } catch (e) {
@@ -119,6 +122,15 @@ export function NoteEditor() {
       setSaving(false);
     }
   }, [setNoteDirty, setVaultNotes]);
+
+  // One scheduler for the editor's lifetime; it binds path + content at
+  // scheduling time and is flushed before the selection changes.
+  const saveRef = useRef(saveCurrentNote);
+  saveRef.current = saveCurrentNote;
+  const autosave = useMemo(
+    () => createAutosaveScheduler({ delayMs: 1200, save: (path, content) => saveRef.current(content, path) }),
+    []
+  );
 
   // Initialize TipTap WYSIWYG Editor
   const editor = useEditor({
@@ -147,14 +159,13 @@ export function NoteEditor() {
     ],
     content: "",
     onUpdate: ({ editor: currentEditor }) => {
+      // No open note (e.g. the canvas was just cleared): nothing to save.
+      const target = currentTabRef.current;
+      if (!target) return;
       setNoteDirty(true);
       const md = (currentEditor.storage as any).markdown?.getMarkdown?.() ?? "";
       setNoteContent(md);
-
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = setTimeout(() => {
-        void saveCurrentNote(md);
-      }, 1200);
+      autosave.schedule(target, md);
     },
     editorProps: {
       attributes: {
@@ -164,15 +175,36 @@ export function NoteEditor() {
     },
   });
 
-  // Load note content when selectedNotePath changes
+  // Re-read the open note when another feature changed it on disk.
+  useEffect(
+    () =>
+      subscribeNoteReload((path) => {
+        if (path === currentTabRef.current) setReloadToken((t) => t + 1);
+      }),
+    []
+  );
+
+  // Unmounting (view switch) must not lose the last keystrokes.
+  useEffect(
+    () => () => {
+      void autosave.flush();
+    },
+    [autosave]
+  );
+
+  // Load note content when selectedNotePath changes (or a reload is requested)
   useEffect(() => {
+    // Flush the previous note's pending autosave first so its last edits
+    // land in the previous note, not in the one being opened.
+    void autosave.flushIfNot(selectedNotePath);
+
     if (!selectedNotePath) {
       setNoteContent(null);
       setNoteDirty(false);
       setBacklinks([]);
       setUnlinkedMentions([]);
       if (editor && !editor.isDestroyed) {
-        editor.commands.setContent("");
+        editor.commands.setContent("", { emitUpdate: false } as any);
       }
       return;
     }
@@ -207,7 +239,7 @@ export function NoteEditor() {
         setLoadingContent(false);
         setError(err instanceof Error ? err.message : String(err));
       });
-  }, [selectedNotePath, editor, setNoteContent, setNoteDirty]);
+  }, [selectedNotePath, reloadToken, editor, autosave, setNoteContent, setNoteDirty]);
 
   // Scan unlinked mentions
   useEffect(() => {
@@ -251,11 +283,12 @@ export function NoteEditor() {
   }, [activeNoteName]);
 
   const handleManualSave = useCallback(() => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    if (!editor) return;
+    const target = currentTabRef.current;
+    if (!editor || !target) return;
+    autosave.cancel();
     const md = (editor.storage as any).markdown?.getMarkdown?.() ?? "";
-    void saveCurrentNote(md);
-  }, [editor, saveCurrentNote]);
+    void saveCurrentNote(md, target);
+  }, [editor, autosave, saveCurrentNote]);
 
   const handleCreateNote = useCallback(async () => {
     const name = newNoteName.trim();

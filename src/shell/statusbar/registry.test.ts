@@ -15,8 +15,10 @@ describe("status bar registry", () => {
   });
 
   it("sorts by order and unregisters", () => {
-    const offLate = registerStatusItem({ id: "test.late", order: 999, component: A });
-    const offEarly = registerStatusItem({ id: "test.early", order: 1, component: A, align: "right" });
+    // Feature items may use very large/small orders (hosts sit at 10 000),
+    // so the probes go beyond any realistic feature order.
+    const offLate = registerStatusItem({ id: "test.late", order: 1_000_000, component: A });
+    const offEarly = registerStatusItem({ id: "test.early", order: -1, component: A, align: "right" });
     const ids = getStatusItems().map((i) => i.id);
     expect(ids[0]).toBe("test.early");
     expect(ids[ids.length - 1]).toBe("test.late");

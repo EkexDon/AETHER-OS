@@ -1,0 +1,27 @@
+{
+  "id": "aether.word-count",
+  "name": "Word Count",
+  "version": "1.0.0",
+  "description": "Word count and reading time of the open note in the status bar, with a per-heading breakdown in the plugin panel.",
+  "author": "AETHER-OS",
+  "main": "main.js",
+  "minAppVersion": "0.1.0",
+  "permissions": ["vault:read", "ui:statusbar", "ui:panel"],
+  "settings": [
+    {
+      "key": "wordsPerMinute",
+      "type": "number",
+      "label": "Reading speed",
+      "description": "Words per minute used for the reading-time estimate.",
+      "default": 230,
+      "min": 60,
+      "max": 1000
+    },
+    {
+      "key": "showCharacters",
+      "type": "boolean",
+      "label": "Show characters in the panel",
+      "default": true
+    }
+  ]
+}

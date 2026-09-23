@@ -25,13 +25,23 @@ export * from "./ipc/tasks";
 export * from "./ipc/agentActions";
 export * from "./ipc/diagnostics";
 export * from "./ipc/updater";
+export * from "./ipc/clipboard";
 // @anchor:ipc:clipboard
+export * from "./ipc/search";
 // @anchor:ipc:search
+export * from "./ipc/history";
 // @anchor:ipc:history
+export * from "./ipc/home";
 // @anchor:ipc:home
+export * from "./ipc/vaulttasks";
 // @anchor:ipc:vaulttasks
+export * from "./ipc/intel";
 // @anchor:ipc:intel
+export * from "./ipc/plugins";
 // @anchor:ipc:plugins
+export * from "./ipc/export";
 // @anchor:ipc:export
+export * from "./ipc/sync";
 // @anchor:ipc:sync
+export * from "./ipc/onboarding";
 // @anchor:ipc:onboarding

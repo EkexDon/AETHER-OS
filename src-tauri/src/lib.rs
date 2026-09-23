@@ -39,15 +39,32 @@ pub struct AppState {
     pub diagnostics: Arc<Diagnostics>,
     // Feature state (SWARM-CONTRACT §3): add `pub <feature>: Arc<…>,`
     // directly above your own anchor.
+    pub clipboard: Arc<engine::clipboard::ClipboardEngine>,
     // @anchor:state-field:clipboard
+    /// Launcher + Universal Search index (`engine/search_index.rs`).
+    pub search: Arc<engine::search_index::SearchIndex>,
     // @anchor:state-field:search
+    pub history: Arc<engine::note_history::NoteHistory>,
     // @anchor:state-field:history
+    pub focus_log: Arc<engine::focus_log::FocusLog>,
     // @anchor:state-field:home
+    /// Checkbox tasks aggregated from all notes (mtime-cached).
+    pub vaulttasks: Arc<engine::vault_tasks::VaultTasksEngine>,
     // @anchor:state-field:vaulttasks
+    /// Compaction, suggestions, agent approvals + audit log (`intel`).
+    pub intel: Arc<engine::intel::IntelEngine>,
     // @anchor:state-field:intel
+    /// Installed plugins, their state, settings and storage.
+    pub plugins: Arc<engine::plugins::PluginManager>,
     // @anchor:state-field:plugins
+    /// Export & publishing: recent exports, safe "open" targets.
+    pub export: Arc<engine::export::ExportEngine>,
     // @anchor:state-field:export
+    /// Encrypted backup & folder sync (`sync`).
+    pub sync: Arc<engine::sync::SyncEngine>,
     // @anchor:state-field:sync
+    /// First-run wizard state, vault prefs and Ollama model pulls.
+    pub onboarding: Arc<engine::onboarding::OnboardingEngine>,
     // @anchor:state-field:onboarding
 }
 
@@ -79,15 +96,31 @@ pub fn run() {
             let task_board = Arc::new(TaskBoardEngine::new(&data_dir.join("tasks"))?);
             // Feature engine construction: add your `let <feature> = …;`
             // directly above your own anchor.
+            let clipboard = engine::clipboard::ClipboardEngine::launch(&data_dir, app.handle())?;
             // @anchor:state-init:clipboard
+            let search = commands::search_commands::init(app, &data_dir)?;
             // @anchor:state-init:search
+            let history = commands::history_commands::start_note_history(app.handle(), &data_dir)?;
             // @anchor:state-init:history
+            let focus_log = Arc::new(engine::focus_log::FocusLog::new(&data_dir.join("focus"))?);
             // @anchor:state-init:home
+            let vaulttasks_dir = data_dir.join("vaulttasks");
+            let vaulttasks = Arc::new(engine::vault_tasks::VaultTasksEngine::new(&vaulttasks_dir)?);
             // @anchor:state-init:vaulttasks
+            let intel = Arc::new(engine::intel::IntelEngine::new(
+                &data_dir.join("intel"),
+                &data_dir.join("memory"),
+            )?);
             // @anchor:state-init:intel
+            let plugins = Arc::new(engine::plugins::PluginManager::new(
+                &data_dir.join("plugins"),
+            )?);
             // @anchor:state-init:plugins
+            let export = Arc::new(engine::export::ExportEngine::new(&data_dir.join("export"))?);
             // @anchor:state-init:export
+            let sync = commands::sync_commands::init_sync(app.handle(), &data_dir)?;
             // @anchor:state-init:sync
+            let onboarding = Arc::new(engine::onboarding::OnboardingEngine::new(&data_dir)?);
             // @anchor:state-init:onboarding
             app.manage(AppState {
                 vault: Arc::new(vault),
@@ -109,15 +142,25 @@ pub fn run() {
                 task_board,
                 diagnostics,
                 // Feature fields: add `<feature>,` directly above your anchor.
+                clipboard,
                 // @anchor:state-manage:clipboard
+                search,
                 // @anchor:state-manage:search
+                history,
                 // @anchor:state-manage:history
+                focus_log,
                 // @anchor:state-manage:home
+                vaulttasks,
                 // @anchor:state-manage:vaulttasks
+                intel,
                 // @anchor:state-manage:intel
+                plugins,
                 // @anchor:state-manage:plugins
+                export,
                 // @anchor:state-manage:export
+                sync,
                 // @anchor:state-manage:sync
+                onboarding,
                 // @anchor:state-manage:onboarding
             });
             Ok(())
@@ -237,15 +280,134 @@ pub fn run() {
             commands::updater_commands::cmd_check_for_updates,
             // Feature commands: add `commands::<feature>_commands::cmd_…,`
             // lines directly above your own anchor.
+            commands::clipboard_commands::cmd_clipboard_list,
+            commands::clipboard_commands::cmd_clipboard_get,
+            commands::clipboard_commands::cmd_clipboard_copy,
+            commands::clipboard_commands::cmd_clipboard_pin,
+            commands::clipboard_commands::cmd_clipboard_delete,
+            commands::clipboard_commands::cmd_clipboard_clear,
+            commands::clipboard_commands::cmd_clipboard_get_settings,
+            commands::clipboard_commands::cmd_clipboard_set_settings,
+            commands::clipboard_commands::cmd_clipboard_set_paused,
+            commands::clipboard_commands::cmd_clipboard_stats,
+            commands::clipboard_commands::cmd_clipboard_save_as_note,
+            commands::clipboard_commands::cmd_clipboard_image,
+            commands::clipboard_commands::cmd_clipboard_copy_latest,
             // @anchor:handlers:clipboard
+            commands::search_commands::cmd_search_query,
+            commands::search_commands::cmd_search_reindex,
+            commands::search_commands::cmd_search_apps,
+            commands::search_commands::cmd_launch_app,
+            commands::search_commands::cmd_search_recents_record,
+            commands::search_commands::cmd_search_recents_list,
+            commands::search_commands::cmd_search_recents_clear,
+            commands::search_commands::cmd_search_get_settings,
+            commands::search_commands::cmd_search_set_settings,
+            commands::search_commands::cmd_search_status,
             // @anchor:handlers:search
+            commands::history_commands::cmd_history_status,
+            commands::history_commands::cmd_history_list,
+            commands::history_commands::cmd_history_read,
+            commands::history_commands::cmd_history_diff,
+            commands::history_commands::cmd_history_restore,
+            commands::history_commands::cmd_history_recent,
+            commands::history_commands::cmd_history_set_enabled,
+            commands::history_commands::cmd_history_commit_now,
             // @anchor:handlers:history
+            commands::home_commands::cmd_focus_log_session,
+            commands::home_commands::cmd_focus_stats,
+            commands::home_commands::cmd_focus_list,
             // @anchor:handlers:home
+            commands::vaulttasks_commands::cmd_vault_tasks_list,
+            commands::vaulttasks_commands::cmd_vault_tasks_toggle,
+            commands::vaulttasks_commands::cmd_vault_tasks_set_status,
+            commands::vaulttasks_commands::cmd_vault_tasks_set_due,
+            commands::vaulttasks_commands::cmd_vault_tasks_set_priority,
+            commands::vaulttasks_commands::cmd_vault_tasks_append,
+            commands::vaulttasks_commands::cmd_vault_tasks_stats,
+            commands::vaulttasks_commands::cmd_vault_tasks_rescan,
             // @anchor:handlers:vaulttasks
+            commands::intel_commands::cmd_intel_get_settings,
+            commands::intel_commands::cmd_intel_set_settings,
+            commands::intel_commands::cmd_intel_compact,
+            commands::intel_commands::cmd_intel_save_conversation,
+            commands::intel_commands::cmd_intel_suggest_related,
+            commands::intel_commands::cmd_intel_suggest_tags,
+            commands::intel_commands::cmd_intel_add_tag,
+            commands::intel_commands::cmd_intel_run_command,
+            commands::intel_commands::cmd_intel_delete_note,
+            commands::intel_commands::cmd_intel_move_note,
+            commands::intel_commands::cmd_intel_git_commit,
+            commands::intel_commands::cmd_intel_create_task,
+            commands::intel_commands::cmd_intel_toggle_vault_task,
+            commands::intel_commands::cmd_intel_preview_action,
+            commands::intel_commands::cmd_intel_audit_list,
+            commands::intel_commands::cmd_intel_audit_record,
+            commands::intel_commands::cmd_intel_audit_clear,
             // @anchor:handlers:intel
+            commands::plugins_commands::cmd_plugins_list,
+            commands::plugins_commands::cmd_plugins_install_examples,
+            commands::plugins_commands::cmd_plugins_read_source,
+            commands::plugins_commands::cmd_plugins_set_enabled,
+            commands::plugins_commands::cmd_plugins_set_permissions,
+            commands::plugins_commands::cmd_plugins_install_from_path,
+            commands::plugins_commands::cmd_plugins_uninstall,
+            commands::plugins_commands::cmd_plugins_get_settings,
+            commands::plugins_commands::cmd_plugins_set_settings,
+            commands::plugins_commands::cmd_plugins_storage_get,
+            commands::plugins_commands::cmd_plugins_storage_set,
+            commands::plugins_commands::cmd_plugins_open_folder,
+            commands::plugins_commands::cmd_plugins_vault_list,
+            commands::plugins_commands::cmd_plugins_vault_read,
+            commands::plugins_commands::cmd_plugins_vault_write,
+            commands::plugins_commands::cmd_plugins_note_create,
+            commands::plugins_commands::cmd_plugins_fetch,
             // @anchor:handlers:plugins
+            commands::export_commands::cmd_export_preview_html,
+            commands::export_commands::cmd_export_preview_markdown,
+            commands::export_commands::cmd_export_note_html,
+            commands::export_commands::cmd_export_print_document,
+            commands::export_commands::cmd_export_site,
+            commands::export_commands::cmd_export_bundle,
+            commands::export_commands::cmd_export_open_path,
+            commands::export_commands::cmd_export_list_recent,
+            commands::export_commands::cmd_export_clear_recent,
+            commands::export_commands::cmd_export_resolve_scope,
+            commands::export_commands::cmd_export_list_tags,
             // @anchor:handlers:export
+            commands::sync_commands::cmd_sync_get_settings,
+            commands::sync_commands::cmd_sync_set_settings,
+            commands::sync_commands::cmd_sync_inspect_folder,
+            commands::sync_commands::cmd_sync_unlock,
+            commands::sync_commands::cmd_sync_lock,
+            commands::sync_commands::cmd_sync_now,
+            commands::sync_commands::cmd_sync_status,
+            commands::sync_commands::cmd_sync_list_conflicts,
+            commands::sync_commands::cmd_sync_get_conflict,
+            commands::sync_commands::cmd_sync_resolve_conflict,
+            commands::sync_commands::cmd_sync_change_passphrase,
+            commands::sync_commands::cmd_sync_devices,
+            commands::sync_commands::cmd_sync_backup_create,
+            commands::sync_commands::cmd_sync_backup_list,
+            commands::sync_commands::cmd_sync_backup_verify,
+            commands::sync_commands::cmd_sync_backup_preview,
+            commands::sync_commands::cmd_sync_backup_restore,
             // @anchor:handlers:sync
+            commands::onboarding_commands::cmd_onboarding_get_state,
+            commands::onboarding_commands::cmd_onboarding_set_state,
+            commands::onboarding_commands::cmd_onboarding_create_vault,
+            commands::onboarding_commands::cmd_onboarding_detect_vaults,
+            commands::onboarding_commands::cmd_onboarding_suggest_vault_path,
+            commands::onboarding_commands::cmd_onboarding_system_profile,
+            commands::onboarding_commands::cmd_onboarding_pull_model,
+            commands::onboarding_commands::cmd_onboarding_cancel_pull,
+            commands::onboarding_commands::cmd_onboarding_get_vault_prefs,
+            commands::onboarding_commands::cmd_onboarding_set_vault_prefs,
+            commands::onboarding_commands::cmd_onboarding_reveal_vault,
+            commands::onboarding_commands::cmd_onboarding_data_locations,
+            commands::onboarding_commands::cmd_onboarding_read_app_log,
+            commands::onboarding_commands::cmd_onboarding_read_changelog,
+            commands::onboarding_commands::cmd_onboarding_reset_app_data,
             // @anchor:handlers:onboarding
         ])
         .build(tauri::generate_context!())

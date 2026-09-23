@@ -101,6 +101,42 @@ The agent can take seven kinds of actions on the vault, emitted as
 
 When 2.4 grows to include terminal, git, or file-delete actions, the same routing pattern applies: each gets its own `cmd_agent_*` command, but the frontend will gate the call on a per-action approval modal because those actions are not safe to auto-execute.
 
+### Approval-gated actions, audit log and conversation memory (`intel`, v0.2)
+
+Destructive tools landed with the `intel` feature (details:
+`docs/features/intel.md`). Every action has a risk level — `action_risk` in
+`engine/agent_actions.rs`, mirrored by `actionRisk` in `src/lib/intel/risk.ts`:
+**safe** actions run automatically as before; **confirm** and **dangerous**
+actions wait for the `ApprovalModal` (details resolved by
+`cmd_intel_preview_action`; "always allow" rules per kind, commands scoped to a
+directory; dangerous rules never survive a restart). `src/lib/intel/pipeline.ts`
+queues all gated actions of a reply at once and executes the reply's actions in
+order; `src/lib/intel/executeAction.ts` routes each one. Actions executed by the
+`cmd_intel_*` commands are audited in Rust; the others (and every denial) are
+recorded through `cmd_intel_audit_record` in `<app data>/intel/audit.jsonl`.
+
+| Action | Risk | Command |
+| --- | --- | --- |
+| `run_command { command, cwd? }` | dangerous | `cmd_intel_run_command` — `sh -lc`, cwd inside project roots or the vault, 60 s timeout, process group killed on timeout, 64 KB output per stream |
+| `delete_note { path }` | dangerous | `cmd_intel_delete_note` — moves to `<vault>/.trash/<timestamp>-<name>.md` |
+| `delete_calendar_event { id }` | dangerous | `cmd_delete_calendar_event` |
+| `move_note { from, to }` | confirm | `cmd_intel_move_note` — never overwrites |
+| `git_commit { project_path, message }` | confirm | `cmd_intel_git_commit` — staged changes, or all changes when nothing is staged (`git_repo.rs`) |
+| `toggle_vault_task { note_path, line }` | confirm | `cmd_intel_toggle_vault_task` — one-character checkbox rewrite |
+| `update_calendar_event`, `import_calendar_ics` | confirm | calendar commands |
+| `create_task { project_id?, title, … }` | safe | `cmd_intel_create_task` — project id or name, default "Inbox" |
+| all v0.1 actions | safe | unchanged routing (audited via `cmd_intel_audit_record`) |
+
+Conversation memory: `cmd_agent_query_with_notes` accepts an optional
+`conversation { id, summary, history }`; the prompt builder
+(`engine/intel/compaction.rs`, called from `ai_commands.rs`) adds the summary and
+the newest messages within a per-provider budget (smaller note context for local
+4k-context models) and lists recent conversation *titles* in the system prompt.
+`cmd_intel_compact` summarises all but the last N messages with the current
+model and falls back to an extractive summary; sessions are saved as one
+`MemoryStore` record each (`cmd_intel_save_conversation`) with the summary in
+the `summary` field.
+
 ## Embedded IDE — Language Servers (LSP)
 
 Project-wide IntelliSense in the IDE comes from standard LSP servers spawned

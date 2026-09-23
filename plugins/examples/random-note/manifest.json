@@ -1,0 +1,19 @@
+{
+  "id": "aether.random-note",
+  "name": "Random Note",
+  "version": "1.0.0",
+  "description": "Adds an \"Open random note\" command for rediscovering old ideas in your vault.",
+  "author": "AETHER-OS",
+  "main": "main.js",
+  "minAppVersion": "0.1.0",
+  "permissions": ["vault:read", "ui:commands"],
+  "settings": [
+    {
+      "key": "excludeFolders",
+      "type": "string",
+      "label": "Skip folders",
+      "description": "Comma-separated vault folders that are never picked, e.g. daily, templates.",
+      "default": "daily, templates"
+    }
+  ]
+}

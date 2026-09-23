@@ -39,7 +39,7 @@ export function Titlebar() {
 
       <button type="button" className="titlebar-command" onClick={toggleCommandBar} aria-label="Open command palette">
         <Search size={13} />
-        <span className="titlebar-command-text">Search notes, views and commands</span>
+        <span className="titlebar-command-text">Search notes, files, apps and commands</span>
         <Kbd shortcut="mod+k" />
       </button>
 

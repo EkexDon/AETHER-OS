@@ -4,13 +4,17 @@ use crate::engine::error::AetherError;
 use crate::engine::vault_reader::VaultReader;
 
 /// A structured action the AI agent proposes. The frontend parses these
-/// from ```action fenced blocks in the AI output and asks the user for
-/// approval before calling `cmd_execute_agent_action`.
+/// from ```action fenced blocks in the AI output, classifies them with
+/// [`action_risk`] and asks the user for approval before running anything
+/// that is not [`ActionRisk::Safe`].
 ///
 /// `OpenUrl` and `ClipUrl` are async-capable (they hit the network) and
-/// the dedicated commands `cmd_execute_open_url` and `cmd_execute_clip_url`
-/// handle them end-to-end. The remaining variants are pure vault writes
-/// and go through `execute_action` synchronously.
+/// the dedicated commands `cmd_agent_open_url` and `cmd_agent_clip_url`
+/// handle them end-to-end. The approval-gated variants added by the `intel`
+/// feature (`RunCommand`, `DeleteNote`, `MoveNote`, `GitCommit`,
+/// `CreateTask`, `ToggleVaultTask`) are routed through the `cmd_intel_*`
+/// commands, which also write the audit log. The remaining variants are
+/// pure vault writes and go through `execute_action` synchronously.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum AgentAction {
@@ -74,29 +78,119 @@ pub enum AgentAction {
         overwrite_existing: bool,
         default_color: Option<String>,
     },
+    /// Run a shell command (`sh -lc`) inside a project root or the vault.
+    /// Routed through `cmd_intel_run_command`. Dangerous — always approved.
+    RunCommand {
+        command: String,
+        #[serde(default)]
+        cwd: Option<String>,
+    },
+    /// Move a vault note to `<vault>/.trash/` (never a hard delete). Routed
+    /// through `cmd_intel_delete_note`. Dangerous — always approved.
+    DeleteNote { path: String },
+    /// Move or rename a vault note. Routed through `cmd_intel_move_note`.
+    MoveNote { from: String, to: String },
+    /// Stage all changes (when nothing is staged) and commit them in a
+    /// project repository. Routed through `cmd_intel_git_commit`.
+    GitCommit {
+        project_path: String,
+        message: String,
+    },
+    /// Create a task on the task board (`project_id` may be an id or a
+    /// project name; defaults to an "Inbox" project). Routed through
+    /// `cmd_intel_create_task`.
+    CreateTask {
+        #[serde(default)]
+        project_id: Option<String>,
+        title: String,
+        #[serde(default)]
+        description: Option<String>,
+        #[serde(default)]
+        priority: Option<String>,
+        #[serde(default)]
+        due_date: Option<String>,
+    },
+    /// Toggle the Markdown checkbox on a 1-based line of a vault note.
+    /// Routed through `cmd_intel_toggle_vault_task`.
+    ToggleVaultTask { note_path: String, line: usize },
 }
 
-/// True if this action is "safe" — i.e. only touches the local vault and
-/// requires no user approval beyond the initial one. Used by the frontend
-/// to decide whether to auto-execute on Approve vs. always show a diff.
+/// How much user involvement an action needs before it runs. Mirrors
+/// `actionRisk` in `src/lib/intel/risk.ts`; keep both in lockstep.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ActionRisk {
+    /// Additive or read-only: runs automatically.
+    Safe,
+    /// Changes or reorganises existing data: needs one approval.
+    Confirm,
+    /// Executes code or removes data: needs an explicit approval, and
+    /// "always allow" rules for it never survive an app restart.
+    Dangerous,
+}
+
+/// Classify an action for the approval flow.
+pub fn action_risk(action: &AgentAction) -> ActionRisk {
+    match action {
+        AgentAction::CreateNote { .. }
+        | AgentAction::AppendNote { .. }
+        | AgentAction::AppendDaily { .. }
+        | AgentAction::OpenUrl { .. }
+        | AgentAction::ClipUrl { .. }
+        | AgentAction::AddMemoryFact { .. }
+        | AgentAction::SaveAetherNote { .. }
+        | AgentAction::CreateCalendarEvent { .. }
+        | AgentAction::ListCalendarEvents { .. }
+        | AgentAction::CreateTask { .. } => ActionRisk::Safe,
+        AgentAction::UpdateCalendarEvent { .. }
+        | AgentAction::ImportCalendarIcs { .. }
+        | AgentAction::MoveNote { .. }
+        | AgentAction::GitCommit { .. }
+        | AgentAction::ToggleVaultTask { .. } => ActionRisk::Confirm,
+        AgentAction::DeleteCalendarEvent { .. }
+        | AgentAction::DeleteNote { .. }
+        | AgentAction::RunCommand { .. } => ActionRisk::Dangerous,
+    }
+}
+
+/// The `action` discriminator as it appears in the JSON block.
+pub fn action_kind(action: &AgentAction) -> &'static str {
+    match action {
+        AgentAction::CreateNote { .. } => "create_note",
+        AgentAction::AppendNote { .. } => "append_note",
+        AgentAction::AppendDaily { .. } => "append_daily",
+        AgentAction::OpenUrl { .. } => "open_url",
+        AgentAction::ClipUrl { .. } => "clip_url",
+        AgentAction::AddMemoryFact { .. } => "add_memory_fact",
+        AgentAction::SaveAetherNote { .. } => "save_aether_note",
+        AgentAction::CreateCalendarEvent { .. } => "create_calendar_event",
+        AgentAction::UpdateCalendarEvent { .. } => "update_calendar_event",
+        AgentAction::DeleteCalendarEvent { .. } => "delete_calendar_event",
+        AgentAction::ListCalendarEvents { .. } => "list_calendar_events",
+        AgentAction::ImportCalendarIcs { .. } => "import_calendar_ics",
+        AgentAction::RunCommand { .. } => "run_command",
+        AgentAction::DeleteNote { .. } => "delete_note",
+        AgentAction::MoveNote { .. } => "move_note",
+        AgentAction::GitCommit { .. } => "git_commit",
+        AgentAction::CreateTask { .. } => "create_task",
+        AgentAction::ToggleVaultTask { .. } => "toggle_vault_task",
+    }
+}
+
+/// True if this action is "safe" *and* purely local: it is
+/// [`ActionRisk::Safe`] and does not touch the network (`open_url` and
+/// `clip_url` are auto-executed but reach outside the machine).
 #[allow(dead_code)]
 pub fn is_safe_action(action: &AgentAction) -> bool {
-    matches!(
-        action,
-        AgentAction::CreateNote { .. }
-            | AgentAction::AppendNote { .. }
-            | AgentAction::AppendDaily { .. }
-            | AgentAction::AddMemoryFact { .. }
-            | AgentAction::SaveAetherNote { .. }
-            | AgentAction::CreateCalendarEvent { .. }
-            | AgentAction::ListCalendarEvents { .. }
-    )
+    action_risk(action) == ActionRisk::Safe
+        && !matches!(
+            action,
+            AgentAction::OpenUrl { .. } | AgentAction::ClipUrl { .. }
+        )
 }
 
-/// Human-readable one-line summary for the approval UI. The frontend
-/// owns the runtime copy (`src/lib/agentActions.ts::describeAction`);
-/// this one is kept here for future Rust-side UI and for tests.
-#[allow(dead_code)]
+/// Human-readable one-line summary, used for the audit log. The frontend
+/// owns the UI copy (`src/lib/agentActions.ts::describeAction`).
 pub fn describe_action(action: &AgentAction) -> String {
     match action {
         AgentAction::CreateNote { title, .. } => format!("Create note \"{title}\""),
@@ -129,6 +223,28 @@ pub fn describe_action(action: &AgentAction) -> String {
         },
         AgentAction::ImportCalendarIcs { path, .. } => {
             format!("Import ICS file: {}", truncate(path, 60))
+        }
+        AgentAction::RunCommand { command, cwd } => match cwd {
+            Some(dir) if !dir.trim().is_empty() => {
+                format!("Run `{}` in {}", truncate(command, 80), truncate(dir, 60))
+            }
+            _ => format!("Run `{}` in the vault", truncate(command, 80)),
+        },
+        AgentAction::DeleteNote { path } => format!("Move note {} to trash", truncate(path, 80)),
+        AgentAction::MoveNote { from, to } => {
+            format!("Move note {} → {}", truncate(from, 60), truncate(to, 60))
+        }
+        AgentAction::GitCommit {
+            project_path,
+            message,
+        } => format!(
+            "Commit in {}: {}",
+            truncate(project_path, 60),
+            truncate(message.lines().next().unwrap_or(""), 60)
+        ),
+        AgentAction::CreateTask { title, .. } => format!("Create task \"{}\"", truncate(title, 60)),
+        AgentAction::ToggleVaultTask { note_path, line } => {
+            format!("Toggle task on line {line} of {}", truncate(note_path, 60))
         }
     }
 }
@@ -195,10 +311,18 @@ pub fn execute_action(reader: &VaultReader, action: &AgentAction) -> Result<Stri
                 "import_calendar_ics must go through cmd_import_calendar_ics (got path={path})"
             )))
         }
+        AgentAction::RunCommand { .. }
+        | AgentAction::DeleteNote { .. }
+        | AgentAction::MoveNote { .. }
+        | AgentAction::GitCommit { .. }
+        | AgentAction::CreateTask { .. }
+        | AgentAction::ToggleVaultTask { .. } => Err(AetherError::InvalidInput(format!(
+            "{} needs approval and must go through its cmd_intel_* command",
+            action_kind(action)
+        ))),
     }
 }
 
-#[allow(dead_code)]
 fn truncate(s: &str, max: usize) -> String {
     let s = s.trim();
     if s.chars().count() <= max {
@@ -352,5 +476,137 @@ mod tests {
         let json = r##"{"action":"import_calendar_ics","path":"/tmp/foo.ics","overwrite_existing":false,"default_color":"#7c3aed"}"##;
         let action: AgentAction = serde_json::from_str(json).expect("parse");
         assert!(matches!(action, AgentAction::ImportCalendarIcs { .. }));
+    }
+
+    #[test]
+    fn parses_run_command_with_and_without_cwd() {
+        let with: AgentAction =
+            serde_json::from_str(r#"{"action":"run_command","command":"ls -la","cwd":"/tmp"}"#)
+                .expect("parse");
+        match with {
+            AgentAction::RunCommand { command, cwd } => {
+                assert_eq!(command, "ls -la");
+                assert_eq!(cwd.as_deref(), Some("/tmp"));
+            }
+            other => panic!("wrong variant: {other:?}"),
+        }
+        let without: AgentAction =
+            serde_json::from_str(r#"{"action":"run_command","command":"pwd"}"#).expect("parse");
+        assert!(matches!(without, AgentAction::RunCommand { cwd: None, .. }));
+    }
+
+    #[test]
+    fn parses_the_intel_note_and_task_variants() {
+        let cases = [
+            (r#"{"action":"delete_note","path":"Old.md"}"#, "delete_note"),
+            (
+                r#"{"action":"move_note","from":"a.md","to":"archive/a.md"}"#,
+                "move_note",
+            ),
+            (
+                r#"{"action":"git_commit","project_path":"/p","message":"fix"}"#,
+                "git_commit",
+            ),
+            (
+                r#"{"action":"create_task","title":"Ship it"}"#,
+                "create_task",
+            ),
+            (
+                r#"{"action":"create_task","project_id":"Inbox","title":"x","description":"d","priority":"high","due_date":"2026-10-01"}"#,
+                "create_task",
+            ),
+            (
+                r#"{"action":"toggle_vault_task","note_path":"todo.md","line":3}"#,
+                "toggle_vault_task",
+            ),
+        ];
+        for (json, kind) in cases {
+            let action: AgentAction = serde_json::from_str(json).expect(json);
+            assert_eq!(action_kind(&action), kind);
+            // Round-trips through serde with the same discriminator.
+            let value = serde_json::to_value(&action).expect("serialize");
+            assert_eq!(value["action"], kind);
+        }
+    }
+
+    #[test]
+    fn risk_classification_matches_the_approval_policy() {
+        let run = AgentAction::RunCommand {
+            command: "rm -rf build".into(),
+            cwd: None,
+        };
+        let delete = AgentAction::DeleteNote {
+            path: "x.md".into(),
+        };
+        let delete_event = AgentAction::DeleteCalendarEvent { id: "e".into() };
+        assert_eq!(action_risk(&run), ActionRisk::Dangerous);
+        assert_eq!(action_risk(&delete), ActionRisk::Dangerous);
+        assert_eq!(action_risk(&delete_event), ActionRisk::Dangerous);
+
+        let confirm = [
+            AgentAction::MoveNote {
+                from: "a".into(),
+                to: "b".into(),
+            },
+            AgentAction::GitCommit {
+                project_path: "/p".into(),
+                message: "m".into(),
+            },
+            AgentAction::ToggleVaultTask {
+                note_path: "n.md".into(),
+                line: 1,
+            },
+        ];
+        for action in &confirm {
+            assert_eq!(action_risk(action), ActionRisk::Confirm, "{action:?}");
+            assert!(!is_safe_action(action));
+        }
+
+        let task = AgentAction::CreateTask {
+            project_id: None,
+            title: "t".into(),
+            description: None,
+            priority: None,
+            due_date: None,
+        };
+        assert_eq!(action_risk(&task), ActionRisk::Safe);
+        assert!(is_safe_action(&task));
+        // Auto-executed but not purely local.
+        assert_eq!(
+            action_risk(&AgentAction::OpenUrl { url: "x".into() }),
+            ActionRisk::Safe
+        );
+    }
+
+    #[test]
+    fn describes_the_intel_variants() {
+        let run = AgentAction::RunCommand {
+            command: "npm test".into(),
+            cwd: Some("/work/app".into()),
+        };
+        assert_eq!(describe_action(&run), "Run `npm test` in /work/app");
+        let run_vault = AgentAction::RunCommand {
+            command: "ls".into(),
+            cwd: None,
+        };
+        assert_eq!(describe_action(&run_vault), "Run `ls` in the vault");
+        let commit = AgentAction::GitCommit {
+            project_path: "/p".into(),
+            message: "feat: x\n\nbody".into(),
+        };
+        assert_eq!(describe_action(&commit), "Commit in /p: feat: x");
+    }
+
+    #[test]
+    fn execute_rejects_the_intel_variants() {
+        let (_vault, _config, reader) = reader_with_vault();
+        let err = execute_action(
+            &reader,
+            &AgentAction::DeleteNote {
+                path: "x.md".into(),
+            },
+        )
+        .expect_err("must be routed");
+        assert!(err.to_string().contains("cmd_intel_"));
     }
 }

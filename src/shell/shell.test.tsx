@@ -22,7 +22,6 @@ import { useAetherStore } from "../lib/store";
 import { useThemeStore } from "../lib/theme";
 import { useAppearanceStore } from "../lib/appearance";
 import { isMacPlatform } from "../lib/shortcuts";
-import { CommandBar } from "../components/CommandBar";
 import { buildTree } from "../components/VaultSidebar";
 
 function modKey(key: string, extra: Partial<KeyboardEventInit> = {}) {
@@ -140,42 +139,6 @@ describe("ViewHost", () => {
     const terminal = container.querySelector('[data-view="terminal"]');
     expect(terminal).not.toBeNull();
     expect(terminal).toHaveClass("is-hidden");
-  });
-});
-
-describe("CommandBar", () => {
-  it("lists navigation first, filters by query and runs the selection", async () => {
-    const onClose = vi.fn();
-    useAetherStore.setState({
-      vaultNotes: [{ path: "/vault/Second-Brain/01-Projects/Garden.md", name: "Garden.md" } as never],
-    });
-    render(<CommandBar onClose={onClose} />);
-    const options = await screen.findAllByRole("option");
-    expect(options[0]).toHaveTextContent("Go to Home");
-    const input = screen.getByRole("combobox");
-    fireEvent.change(input, { target: { value: "calendar" } });
-    expect(screen.getAllByRole("option")[0]).toHaveTextContent("Go to Calendar");
-    fireEvent.keyDown(input, { key: "Enter" });
-    await act(async () => undefined);
-    expect(onClose).toHaveBeenCalled();
-    expect(useAetherStore.getState().view).toBe("calendar");
-  });
-
-  it("finds notes and opens them in the editor", async () => {
-    useAetherStore.setState({
-      vaultNotes: [{ path: "/vault/Second-Brain/01-Projects/Garden.md", name: "Garden.md" } as never],
-    });
-    render(<CommandBar onClose={() => undefined} />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "garden" } });
-    fireEvent.click(screen.getByRole("option", { name: /Garden/ }));
-    expect(useAetherStore.getState().view).toBe("editor");
-    expect(useAetherStore.getState().selectedNotePath).toBe("/vault/Second-Brain/01-Projects/Garden.md");
-  });
-
-  it("shows an empty state for no matches", () => {
-    render(<CommandBar onClose={() => undefined} />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "zzzzqqq" } });
-    expect(screen.getByText(/No results/)).toBeInTheDocument();
   });
 });
 

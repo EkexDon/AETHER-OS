@@ -17,7 +17,6 @@ import {
 } from "lucide-react";
 import { Dashboard } from "../components/Dashboard";
 import { NoteEditor } from "../components/NoteEditor";
-import { SemanticSearch } from "../components/SemanticSearch";
 import { AetherNotes } from "../components/AetherNotes";
 import { MemoryPanel } from "../components/MemoryPanel";
 import { Projects } from "../components/Projects";
@@ -27,14 +26,26 @@ import { Browser } from "../components/Browser";
 import { registerCommands, viewNavigationCommands } from "../lib/commands/registry";
 import type { ViewGroup, ViewMode } from "./modes";
 // Feature view imports go directly above your anchor:
+import { ClipboardList as ClipboardViewIcon } from "lucide-react";
+const ClipboardView = lazy(() => import("../components/clipboard/ClipboardView").then((m) => ({ default: m.ClipboardView })));
 // @anchor:view-import:clipboard
+import { UniversalSearch } from "../components/search/UniversalSearch";
 // @anchor:view-import:search
+import { History as HistoryIcon } from "lucide-react";
+const HistoryView = lazy(() => import("../components/history/HistoryView").then((m) => ({ default: m.HistoryView })));
 // @anchor:view-import:history
 // @anchor:view-import:home
+import { ListChecks } from "lucide-react";
+const VaultTasksView = lazy(() => import("../components/vaulttasks/VaultTasksView").then((m) => ({ default: m.VaultTasksView })));
 // @anchor:view-import:vaulttasks
 // @anchor:view-import:intel
+import { Blocks as PluginsIcon } from "lucide-react";
+const PluginsView = lazy(() => import("../components/plugins/PluginsView").then((m) => ({ default: m.PluginsView })));
 // @anchor:view-import:plugins
+import { exportView } from "../components/export/view";
 // @anchor:view-import:export
+import { ShieldCheck as SyncViewIcon } from "lucide-react";
+const SyncView = lazy(() => import("../components/sync/SyncView").then((m) => ({ default: m.SyncView })));
 // @anchor:view-import:sync
 // @anchor:view-import:onboarding
 
@@ -88,8 +99,8 @@ export const VIEWS: ViewDefinition[] = [
     icon: Search,
     group: "knowledge",
     shortcut: "mod+3",
-    component: SemanticSearch,
-    description: "Semantic search across the vault",
+    component: UniversalSearch,
+    description: "Search notes, files, apps, events, tasks and memory",
   },
   {
     mode: "graph",
@@ -182,14 +193,20 @@ export const VIEWS: ViewDefinition[] = [
     component: Browser,
     description: "Embedded web browser",
   },
+  { mode: "clipboard", label: "Clipboard", icon: ClipboardViewIcon, group: "system", component: ClipboardView, description: "Clipboard history — search, pin and re-copy" },
   // @anchor:view:clipboard
   // @anchor:view:search
+  { mode: "history", label: "History", icon: HistoryIcon, group: "knowledge", component: HistoryView, description: "Every version of every note" },
   // @anchor:view:history
   // @anchor:view:home
+  { mode: "vaulttasks", label: "Note Tasks", icon: ListChecks, group: "life", shortcut: "mod+alt+c", component: VaultTasksView, description: "Checkbox tasks from every note" },
   // @anchor:view:vaulttasks
   // @anchor:view:intel
+  { mode: "plugins", label: "Plugins", icon: PluginsIcon, group: "system", component: PluginsView, description: "Sandboxed plugins, permissions and panels" },
   // @anchor:view:plugins
+  exportView,
   // @anchor:view:export
+  { mode: "sync", label: "Sync & Backup", icon: SyncViewIcon, group: "system", component: SyncView, description: "Encrypted multi-device sync and backups" },
   // @anchor:view:sync
   // @anchor:view:onboarding
 ];

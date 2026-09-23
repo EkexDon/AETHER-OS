@@ -18,13 +18,23 @@ export * from "./tasks";
 export * from "./agentActions";
 export * from "./diagnostics";
 export * from "./updater";
+export * from "./clipboard";
 // @anchor:types:clipboard
+export * from "./search";
 // @anchor:types:search
+export * from "./history";
 // @anchor:types:history
+export * from "./home";
 // @anchor:types:home
+export * from "./vaulttasks";
 // @anchor:types:vaulttasks
+export * from "./intel";
 // @anchor:types:intel
+export * from "./plugins";
 // @anchor:types:plugins
+export * from "./export";
 // @anchor:types:export
+export * from "./sync";
 // @anchor:types:sync
+export * from "./onboarding";
 // @anchor:types:onboarding

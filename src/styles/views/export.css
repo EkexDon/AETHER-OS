@@ -1,0 +1,723 @@
+/* ── Export & publishing ─────────────────────────────────────────── */
+.export-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  container: export-body / inline-size;
+}
+
+/* Flow cards: the site card leads (≈60 %), the two single-file flows stack
+   on the right. */
+.export-flows {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: var(--space-3);
+}
+
+.export-flow {
+  display: flex;
+  min-width: 0;
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-base) var(--ease-out);
+}
+
+.export-flow:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.export-flow.is-featured {
+  grid-row: span 2;
+  flex-direction: column;
+}
+
+.export-flow-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-4) var(--space-5);
+}
+
+.export-flow.is-featured .export-flow-main {
+  padding: var(--space-6) var(--space-6) var(--space-5);
+  gap: var(--space-2-5);
+}
+
+.export-flow-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.export-flow-top .ui-kbd,
+.export-flow-top kbd {
+  opacity: 0.8;
+}
+
+.export-flow-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--color-fill-subtle);
+  border: 1px solid var(--color-border-subtle);
+  color: var(--color-fg-secondary);
+}
+
+.export-flow.is-featured .export-flow-icon {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-border);
+  color: var(--color-accent-text);
+}
+
+.export-flow-title {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-fg-primary);
+}
+
+.export-flow.is-featured .export-flow-title {
+  font-size: var(--text-xl);
+  letter-spacing: -0.03em;
+}
+
+.export-flow-description {
+  margin: 0;
+  max-width: 62ch;
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg-secondary);
+}
+
+.export-flow-features {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-flow-features li {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-xs);
+  background: var(--color-fill-subtle);
+  color: var(--color-fg-tertiary);
+  font-size: var(--text-xs);
+}
+
+.export-flow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-3);
+}
+
+.export-flow.is-featured .export-flow-main {
+  flex: 0 0 auto;
+}
+
+.export-flow.is-featured .export-flow-actions {
+  margin-top: var(--space-2);
+}
+
+/* Folder sketch on the site card. */
+.export-site-sketch {
+  margin: auto var(--space-6) var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-sunken);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.9;
+}
+
+.export-site-sketch-head {
+  color: var(--color-fg-secondary);
+}
+
+.export-site-sketch-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-left: var(--space-4);
+  border-left: 1px solid var(--color-border);
+  margin-left: var(--space-1);
+}
+
+.export-site-sketch-name {
+  color: var(--color-fg-primary);
+}
+
+.export-site-sketch-note {
+  color: var(--color-fg-tertiary);
+  font-family: var(--font-ui);
+  white-space: nowrap;
+}
+
+/* Recent exports. */
+.export-recents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.export-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--control-h-sm);
+}
+
+.export-section-head .ui-section-label {
+  margin: 0;
+}
+
+.export-recents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+.export-recent-meta {
+  color: var(--color-fg-tertiary);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.export-recents-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+/* ── Wizard ──────────────────────────────────────────────────────── */
+.export-wizard-modal .export-wizard-body {
+  padding: 0;
+}
+
+.export-wizard {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  height: min(62vh, 620px);
+  min-height: 380px;
+}
+
+.export-wizard-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-4) var(--space-5) var(--space-6);
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border-subtle);
+}
+
+.export-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2-5);
+}
+
+.export-step-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--color-fg-primary);
+}
+
+.export-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-xs);
+  background: var(--color-fill-active);
+  color: var(--color-fg-secondary);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.export-scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.export-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 188px;
+  overflow-y: auto;
+  padding: var(--space-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-sunken);
+}
+
+.export-pick-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.export-check-row {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.export-check-row:hover {
+  background: var(--color-fill-hover);
+}
+
+.export-selection-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+}
+
+.export-selection-bar > span {
+  margin-right: auto;
+}
+
+.export-scope-vault {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-fill-subtle);
+  color: var(--color-fg-secondary);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.export-scope-vault > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-fg-tertiary);
+}
+
+.export-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.export-options-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2-5);
+}
+
+.export-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.export-options-label {
+  font-size: var(--text-sm);
+  color: var(--color-fg-secondary);
+}
+
+.export-options-switches {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2-5);
+}
+
+.export-advanced {
+  border-top: 1px solid var(--color-border-subtle);
+  padding-top: var(--space-2);
+}
+
+.export-advanced > summary {
+  cursor: pointer;
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  color: var(--color-fg-secondary);
+}
+
+.export-advanced[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+.export-destination {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.export-destination-row {
+  display: flex;
+  gap: var(--space-1-5);
+}
+
+.export-destination-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.export-inside-vault > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.export-inside-switch {
+  color: var(--color-fg-primary);
+}
+
+.export-error {
+  word-break: break-word;
+}
+
+/* Preview pane. */
+.export-preview {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface);
+}
+
+.export-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  min-height: 44px;
+}
+
+.export-preview-bar .ui-section-label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.export-preview-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.export-preview-select {
+  max-width: 220px;
+}
+
+.export-preview-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Rendered at 125 % and scaled down, so the preview shows a page's real
+   proportions instead of an oversized crop. */
+.export-preview-iframe {
+  display: block;
+  width: 125%;
+  height: 125%;
+  border: 0;
+  background: transparent;
+  transform: scale(0.8);
+  transform-origin: 0 0;
+}
+
+.export-preview-markdown {
+  height: 100%;
+  margin: 0;
+  padding: var(--space-4);
+  overflow: auto;
+  background: var(--color-sunken);
+  color: var(--color-fg-primary);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.export-preview-error {
+  padding: var(--space-4);
+}
+
+.export-preview-loading {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  display: inline-flex;
+  padding: var(--space-1-5);
+  border-radius: var(--radius-sm);
+  background: var(--color-overlay);
+  box-shadow: var(--shadow-md);
+}
+
+.export-preview-frame .ui-empty {
+  height: 100%;
+  justify-content: center;
+}
+
+/* Footer: summary and progress. */
+.export-footer-summary {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  color: var(--color-fg-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-footer-summary strong {
+  color: var(--color-fg-primary);
+  font-weight: var(--weight-semibold);
+}
+
+.export-footer-error {
+  color: var(--color-danger);
+}
+
+.export-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  width: min(360px, 42vw);
+  min-width: 0;
+}
+
+.export-progress-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--color-fill-active);
+}
+
+.export-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  transition: width var(--motion-base) var(--ease-out);
+}
+
+.export-progress-label {
+  overflow: hidden;
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-footer-kbd {
+  margin-right: var(--space-1);
+  opacity: 0.7;
+}
+
+/* Report. */
+.export-report {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-8);
+  overflow-y: auto;
+}
+
+.export-report-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.export-report-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.export-report-titles {
+  min-width: 0;
+}
+
+.export-report-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.03em;
+  color: var(--color-fg-primary);
+}
+
+.export-report-path {
+  margin: var(--space-1) 0 0;
+  overflow: hidden;
+  color: var(--color-fg-tertiary);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-report-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.export-stat {
+  padding: var(--space-3) var(--space-3-5);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--color-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+.export-stat dt {
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+}
+
+.export-stat dd {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-fg-primary);
+}
+
+.export-stat.is-warning dd {
+  color: var(--color-warning);
+}
+
+.export-report-notices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.export-report-notices svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.export-missing {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.export-missing > summary {
+  cursor: pointer;
+  color: var(--color-fg-secondary);
+}
+
+.export-missing ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 180px;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.export-missing li {
+  display: flex;
+  gap: var(--space-2);
+  color: var(--color-fg-tertiary);
+  font-size: var(--text-xs);
+}
+
+.export-missing-note {
+  color: var(--color-fg-secondary);
+}
+
+.export-report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* The view shares its width with the vault sidebar and the agent panel,
+   so the card layout follows the container, not the viewport. */
+@container export-body (max-width: 820px) {
+  .export-flows {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .export-flow.is-featured {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+  .export-site-sketch {
+    display: none;
+  }
+}
+
+@container export-body (max-width: 520px) {
+  .export-flows {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .export-wizard {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  .export-wizard-form {
+    border-right: 0;
+  }
+  .export-preview {
+    min-height: 320px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .export-flow,
+  .export-progress-fill {
+    transition: none;
+  }
+}

@@ -1,5 +1,6 @@
 use tauri::{AppHandle, Emitter, State};
 
+use crate::engine::intel::compaction::{self, ConversationContext};
 use crate::engine::vector_db::VectorMatch;
 use crate::AppState;
 
@@ -21,14 +22,37 @@ Available action discriminators (emit ONLY these):\n\
 - `open_url { url }` — open a URL in the user's default browser.\n\
 - `clip_url { url }` — fetch a web page and save it as a clean Markdown note in the vault.\n\
 - `add_memory_fact { fact, category }` — persist a fact the user wants you to remember forever. Category is one of: general, preferences, projects, people, work, personal.\n\
-- `save_aether_note { title, content }` — save the current answer to the AETHER Notes library.\n\n\
+- `save_aether_note { title, content }` — save the current answer to the AETHER Notes library.\n\
+- `create_task { title, project_id?, description?, priority?, due_date? }` — add a task to the task board. `project_id` may be a project name (default: Inbox); priority is none|low|medium|high|urgent; due_date is YYYY-MM-DD.\n\n\
+These actions only run after the user approves them in an approval dialog:\n\
+- `run_command { command, cwd? }` — run a shell command in a project folder or the vault (cwd defaults to the vault; stops after 60 s; the output is shown to the user).\n\
+- `delete_note { path }` — move a vault note to the trash (`.trash/`).\n\
+- `move_note { from, to }` — move or rename a vault note (`to` is vault-relative, e.g. `archive/Old idea.md`).\n\
+- `git_commit { project_path, message }` — commit the changes of a project repository.\n\
+- `toggle_vault_task { note_path, line }` — tick or untick the Markdown checkbox on a 1-based line of a note.\n\n\
+```action\n{\"action\":\"run_command\",\"command\":\"npm test\",\"cwd\":\"/Users/me/Developer/app\"}\n```\n\n\
 Rules:\n\
 1. You may emit MULTIPLE action blocks in one reply (e.g. `add_memory_fact` AND `append_daily` for the same new fact).\n\
 2. NEVER emit a tool call for a request the user hasn't made. If the user just wants to chat, do not emit any action block.\n\
 3. The `action` block is parsed by the app — do not wrap it in extra text inside the block. JSON only, on a single line, or pretty-printed, both work.\n\
-4. For destructive actions (currently none — every action is safe-write or open-in-browser) the app will ask the user for approval. You do not need to ask permission in your prose.\n\
+4. Approval-gated actions run only after the user approves them; say what you propose and why, never claim they already happened. Prefer the least destructive option and never propose `sudo`, `rm -rf` or force pushes unless the user explicitly asked for exactly that.\n\
 5. When you emit a tool call, ALSO write a one-sentence natural-language summary above it so the user knows what you did. Example: 'I'll remember that for you.' before `add_memory_fact`.\n\
-6. Never invent URLs. Never invent note paths that the user did not mention. If unsure, ask before acting.";
+6. Never invent URLs. Never invent note paths that the user did not mention. If unsure, ask before acting.\n\
+7. When a summary of the earlier conversation is provided, treat it as what was said before and stay consistent with it.";
+
+/// The system prompt plus the memory block: remembered facts and recent
+/// conversation topics (without the current conversation, whose summary
+/// travels in the user prompt).
+fn build_system_prompt(state: &AppState, conversation_id: Option<&str>) -> String {
+    let facts = state.memory.load_facts().unwrap_or_default();
+    let recent = state.memory.load_recent(6).unwrap_or_default();
+    let memory = compaction::build_memory_section(&facts, &recent, conversation_id);
+    if memory.is_empty() {
+        SYSTEM_PROMPT.to_string()
+    } else {
+        format!("{SYSTEM_PROMPT}\n\n{memory}")
+    }
+}
 
 /// Extract media references from markdown content and append a description
 /// so the AI knows what media is present in each note.
@@ -195,16 +219,14 @@ pub async fn cmd_agent_query(
         context_parts.join("\n\n")
     };
 
-    let user_prompt = format!(
-        "Context from the user's knowledge base:\n\n{context_str}\n\n---\n\nUser question: {prompt}"
+    let user_prompt = compaction::build_chat_user_prompt(
+        "Context from the user's knowledge base:",
+        &context_str,
+        None,
+        &compaction::prompt_budget(None, false),
+        &prompt,
     );
-
-    let memory_summary = state.memory.build_context_summary();
-    let system_prompt = if memory_summary.is_empty() {
-        SYSTEM_PROMPT.to_string()
-    } else {
-        format!("{SYSTEM_PROMPT}\n\n{memory_summary}")
-    };
+    let system_prompt = build_system_prompt(&state, None);
 
     let paths_for_return = context_paths.clone();
 
@@ -219,6 +241,9 @@ pub async fn cmd_agent_query(
     Ok(paths_for_return)
 }
 
+/// Ask the agent with explicitly selected notes as context. `conversation`
+/// (optional) carries the chat window — its compaction summary and the
+/// messages after it — so the model can follow up on earlier turns.
 #[tauri::command]
 pub async fn cmd_agent_query_with_notes(
     app_handle: AppHandle,
@@ -227,10 +252,13 @@ pub async fn cmd_agent_query_with_notes(
     note_paths: Vec<String>,
     model: String,
     provider: Option<String>,
+    conversation: Option<ConversationContext>,
 ) -> Result<(), String> {
     let mut context_parts = Vec::new();
     let mut total_chars = 0usize;
-    const MAX_CONTEXT_CHARS: usize = 6000;
+    let has_conversation = conversation.as_ref().is_some_and(|c| !c.is_empty());
+    let budget = compaction::prompt_budget(provider.as_deref(), has_conversation);
+    let max_context_chars = budget.notes_chars;
 
     for path in &note_paths {
         match state.vault.read_note(path) {
@@ -249,7 +277,7 @@ pub async fn cmd_agent_query_with_notes(
                 let part = format!("--- Note: {name} ---\n{truncated}");
                 total_chars += part.len();
                 context_parts.push(part);
-                if total_chars >= MAX_CONTEXT_CHARS {
+                if total_chars >= max_context_chars {
                     break;
                 }
             }
@@ -265,17 +293,15 @@ pub async fn cmd_agent_query_with_notes(
         context_parts.join("\n\n")
     };
 
-    let memory_summary = state.memory.build_context_summary();
-
-    let user_prompt = format!(
-        "The user has selected these notes as context:\n\n{context_str}\n\n---\n\nUser question: {prompt}"
+    let user_prompt = compaction::build_chat_user_prompt(
+        "The user has selected these notes as context:",
+        &context_str,
+        conversation.as_ref(),
+        &budget,
+        &prompt,
     );
-
-    let system_prompt = if memory_summary.is_empty() {
-        SYSTEM_PROMPT.to_string()
-    } else {
-        format!("{SYSTEM_PROMPT}\n\n{memory_summary}")
-    };
+    let system_prompt =
+        build_system_prompt(&state, conversation.as_ref().and_then(|c| c.id.as_deref()));
 
     if provider.as_deref() == Some("openrouter") {
         let api_key = state

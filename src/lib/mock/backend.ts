@@ -19,19 +19,29 @@ import { agentActionsHandlers } from "./agentActions";
 import { aiHandlers } from "./ai";
 import { browserHandlers } from "./browser";
 import { calendarHandlers } from "./calendar";
+import { clipboardHandlers } from "./clipboard";
 import { diagnosticsHandlers } from "./diagnostics";
+import { exportHandlers } from "./export";
 import { gitHandlers } from "./git";
+import { historyHandlers } from "./history";
+import { homeHandlers } from "./home";
 import { ideHandlers } from "./ide";
+import { intelHandlers } from "./intel";
 import { lspHandlers } from "./lsp";
 import { memoryHandlers } from "./memory";
 import { notesHandlers } from "./notes";
+import { onboardingHandlers } from "./onboarding";
+import { pluginsHandlers } from "./plugins";
 import { projectsHandlers } from "./projects";
 import { mockEvents, resetMockState, type MockArgs, type MockHandlerMap } from "./runtime";
+import { searchHandlers } from "./search";
 import { systemHandlers } from "./system";
+import { syncHandlers } from "./sync";
 import { tasksHandlers } from "./tasks";
 import { terminalHandlers } from "./terminal";
 import { updaterHandlers } from "./updater";
 import { vaultHandlers } from "./vault";
+import { vaulttasksHandlers } from "./vaulttasks";
 
 export { mockEvents, resetMockState };
 export type { MockArgs, MockHandler, MockHandlerMap } from "./runtime";
@@ -55,15 +65,25 @@ export const mockHandlers: MockHandlerMap = {
   ...agentActionsHandlers,
   ...diagnosticsHandlers,
   ...updaterHandlers,
+  ...clipboardHandlers,
   // @anchor:mock:clipboard
+  ...searchHandlers,
   // @anchor:mock:search
+  ...historyHandlers,
   // @anchor:mock:history
+  ...homeHandlers,
   // @anchor:mock:home
+  ...vaulttasksHandlers,
   // @anchor:mock:vaulttasks
+  ...intelHandlers,
   // @anchor:mock:intel
+  ...pluginsHandlers,
   // @anchor:mock:plugins
+  ...exportHandlers,
   // @anchor:mock:export
+  ...syncHandlers,
   // @anchor:mock:sync
+  ...onboardingHandlers,
   // @anchor:mock:onboarding
 };
 

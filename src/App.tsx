@@ -6,7 +6,7 @@ import { getVaultPath, getVaultNotes, getVaultStats, getVaultGraph, getHealth } 
 import { getView } from "./views/registry";
 import { VaultSidebar } from "./components/VaultSidebar";
 import { AgentChat } from "./components/AgentChat";
-import { CommandBar } from "./components/CommandBar";
+import { Launcher } from "./components/launcher/Launcher";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { QuickCapture } from "./components/QuickCapture";
 import { WebClipper } from "./components/WebClipper";
@@ -183,7 +183,7 @@ export function App() {
             onSectionChange={shell.setSettingsSection}
           />
         )}
-        {shell.commandBarOpen && <CommandBar onClose={() => shell.setCommandBarOpen(false)} />}
+        <Launcher open={shell.commandBarOpen} onClose={() => shell.setCommandBarOpen(false)} />
         {showQuickCapture && <QuickCapture />}
         {shell.webClipperOpen && <WebClipper onClose={() => shell.setWebClipperOpen(false)} />}
         <ShortcutsOverlay open={shell.shortcutsOpen} onClose={() => shell.setShortcutsOpen(false)} />

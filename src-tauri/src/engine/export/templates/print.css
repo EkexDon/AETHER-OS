@@ -1,0 +1,67 @@
+/* Print document ("Print / Save as PDF…"). Appended to style.css; the
+   app mounts the document in a shadow root and hides its own UI while
+   printing. Always light, no screen chrome. */
+
+.aether-doc.aether-print {
+  --doc-bg: #fdfcfa;
+  --doc-surface: #f1efeb;
+  --doc-elevated: #fdfcfa;
+  --doc-sunken: #f4f2ee;
+  --doc-fg: #1d1c1a;
+  --doc-fg-2: #56544e;
+  --doc-fg-3: #6e6c65;
+  --doc-accent: #1b7a70;
+  --doc-accent-text: #17736a;
+  color-scheme: light;
+  background: none;
+  font-size: 11pt;
+  line-height: 1.55;
+}
+
+.aether-doc.aether-print .doc-main {
+  max-width: none;
+  padding: 0;
+}
+
+.aether-doc.aether-print .doc-header {
+  margin-bottom: 24pt;
+  padding-bottom: 12pt;
+  border-bottom: 1px solid var(--doc-border);
+}
+
+.aether-doc.aether-print .doc-title {
+  font-size: 24pt;
+}
+
+.aether-doc.aether-print .doc-content h1 { font-size: 18pt; margin-top: 24pt; }
+.aether-doc.aether-print .doc-content h2 { font-size: 15pt; margin-top: 20pt; }
+.aether-doc.aether-print .doc-content h3 { font-size: 12.5pt; margin-top: 14pt; }
+
+.aether-doc.aether-print pre {
+  font-size: 9pt;
+  white-space: pre-wrap;
+  word-break: break-word;
+  break-inside: avoid;
+}
+
+.aether-doc.aether-print img,
+.aether-doc.aether-print table,
+.aether-doc.aether-print blockquote {
+  break-inside: avoid;
+}
+
+.aether-doc.aether-print h1,
+.aether-doc.aether-print h2,
+.aether-doc.aether-print h3 {
+  break-after: avoid;
+}
+
+.aether-doc.aether-print .backlinks {
+  margin-top: 28pt;
+  break-inside: avoid;
+}
+
+.aether-doc.aether-print .backlinks a,
+.aether-doc.aether-print .backlinks .wikilink {
+  box-shadow: none;
+}

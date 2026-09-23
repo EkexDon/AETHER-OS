@@ -17,14 +17,20 @@ export type ViewMode =
   | "tasks"
   | "monitor"
   | "browser"
+  | "clipboard"
   // @anchor:mode:clipboard
   // @anchor:mode:search
+  | "history"
   // @anchor:mode:history
   // @anchor:mode:home
+  | "vaulttasks"
   // @anchor:mode:vaulttasks
   // @anchor:mode:intel
+  | "plugins"
   // @anchor:mode:plugins
+  | "export"
   // @anchor:mode:export
+  | "sync"
   // @anchor:mode:sync
   // @anchor:mode:onboarding
   ;

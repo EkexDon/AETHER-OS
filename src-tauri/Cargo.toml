@@ -40,14 +40,31 @@ base64 = "0.22"
 # Shared crates used by several features live under `deps:shared`.
 # @anchor:deps:shared
 rusqlite = { version = "0.32", features = ["bundled"] }
+arboard = "3"
+image = { version = "0.25", default-features = false, features = ["png"] }
+sha2 = "0.10"
 # @anchor:deps:clipboard
+ignore = "0.4"
+plist = "1"
+tauri-plugin-global-shortcut = "2"
 # @anchor:deps:search
+notify = "7"
+notify-debouncer-mini = "0.5"
 # @anchor:deps:history
 # @anchor:deps:home
 # @anchor:deps:vaulttasks
+libc = "0.2"
 # @anchor:deps:intel
 # @anchor:deps:plugins
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
+syntect = { version = "5", default-features = false, features = ["default-fancy"] }
+zip = "2"
 # @anchor:deps:export
+aes-gcm = { version = "0.10", features = ["zeroize"] }
+argon2 = { version = "0.5", features = ["zeroize"] }
+blake3 = "1"
+rand = "0.8"
+zeroize = "1"
 # @anchor:deps:sync
 # @anchor:deps:onboarding
 

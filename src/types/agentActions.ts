@@ -17,7 +17,30 @@ export type AgentAction =
   | { action: "update_calendar_event"; id: string; title: string | null; description: string | null; all_day: boolean | null; start: string | null; end: string | null; due: string | null; color: string | null; tags: string[] | null; attendees: string[] | null; location: string | null }
   | { action: "delete_calendar_event"; id: string }
   | { action: "list_calendar_events"; from: string | null; to: string | null }
-  | { action: "import_calendar_ics"; path: string; overwrite_existing: boolean; default_color: string | null };
+  | { action: "import_calendar_ics"; path: string; overwrite_existing: boolean; default_color: string | null }
+  // Added by the `intel` feature; routed through the `cmd_intel_*` commands.
+  /** Run a shell command in a project root or the vault (approval required). */
+  | { action: "run_command"; command: string; cwd?: string | null }
+  /** Move a vault note to `.trash/` (approval required). */
+  | { action: "delete_note"; path: string }
+  /** Move or rename a vault note (approval required). */
+  | { action: "move_note"; from: string; to: string }
+  /** Commit the changes of a project repository (approval required). */
+  | { action: "git_commit"; project_path: string; message: string }
+  /** Create a task on the task board. */
+  | {
+      action: "create_task";
+      project_id?: string | null;
+      title: string;
+      description?: string | null;
+      priority?: string | null;
+      due_date?: string | null;
+    }
+  /** Toggle the Markdown checkbox on a 1-based line (approval required). */
+  | { action: "toggle_vault_task"; note_path: string; line: number };
+
+/** The `action` discriminator of every agent action. */
+export type AgentActionKind = AgentAction["action"];
 
 /** `open_url` succeeded — the URL is open in the system browser. */
 export interface AgentActionResultOpened { kind: "opened"; url: string }

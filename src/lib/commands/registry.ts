@@ -19,15 +19,25 @@ import { createCommandContext, type CommandContext } from "./context";
 import { matchesShortcut, type KeyLike } from "../shortcuts";
 import type { ViewMode } from "../../views/modes";
 // Feature command imports go directly above your anchor:
+import { clipboardCommands } from "../clipboard/commands";
 // @anchor:command-import:clipboard
+import { searchCommands } from "../search/commands";
 // @anchor:command-import:search
+import { historyCommands } from "../history/commands";
 // @anchor:command-import:history
+import { homeCommands } from "../home/commands";
 // @anchor:command-import:home
+import { vaultTasksCommands } from "../vaulttasks/commands";
 // @anchor:command-import:vaulttasks
+import { intelCommands } from "../intel/commands";
 // @anchor:command-import:intel
+import { pluginsCommands } from "../plugins/commands";
 // @anchor:command-import:plugins
+import { exportCommands } from "../export/commands";
 // @anchor:command-import:export
+import { syncCommands } from "../sync/commands";
 // @anchor:command-import:sync
+import { onboardingCommands } from "../onboarding/commands";
 // @anchor:command-import:onboarding
 
 export type { CommandContext } from "./context";
@@ -292,15 +302,25 @@ export const CORE_COMMANDS: CommandContribution[] = [
     keywords: ["compact", "comfortable", "spacing", "dense"],
     run: (ctx) => ctx.toggleDensity(),
   },
+  ...clipboardCommands,
   // @anchor:command:clipboard
+  ...searchCommands,
   // @anchor:command:search
+  ...historyCommands,
   // @anchor:command:history
+  ...homeCommands,
   // @anchor:command:home
+  ...vaultTasksCommands,
   // @anchor:command:vaulttasks
+  ...intelCommands,
   // @anchor:command:intel
+  ...pluginsCommands,
   // @anchor:command:plugins
+  ...exportCommands,
   // @anchor:command:export
+  ...syncCommands,
   // @anchor:command:sync
+  ...onboardingCommands,
   // @anchor:command:onboarding
 ];
 

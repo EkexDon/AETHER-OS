@@ -29,7 +29,6 @@
 @import "./shell.css";
 
 /* Views */
-@import "./views/dashboard.css";
 @import "./views/editor.css";
 @import "./views/ide.css";
 @import "./views/projects.css";

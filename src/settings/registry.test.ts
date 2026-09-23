@@ -13,9 +13,13 @@ import source from "./registry.tsx?raw";
 const Dummy = () => null;
 
 describe("settings registry", () => {
+  // Feature sections interleave with the built-ins, so only the relative
+  // order of the built-ins is pinned: Vault first, About last.
   it("contains the built-in sections in order, About last", () => {
     const ids = getSettingsSections().map((s) => s.id);
-    expect(ids.slice(0, 4)).toEqual(["vault", "ai", "editor", "appearance"]);
+    const builtIns = ["vault", "ai", "editor", "appearance", "about"];
+    expect(ids.filter((id) => builtIns.includes(id))).toEqual(builtIns);
+    expect(ids[0]).toBe("vault");
     expect(ids[ids.length - 1]).toBe("about");
     expect(new Set(SETTINGS_SECTIONS.map((s) => s.id)).size).toBe(SETTINGS_SECTIONS.length);
   });
