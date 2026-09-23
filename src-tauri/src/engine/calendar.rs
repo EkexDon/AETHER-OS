@@ -102,6 +102,11 @@ impl Calendar {
     }
 
     /// Insert a new event. Generates `id` and `uid`, sets timestamps.
+    // The flat parameter list deliberately mirrors the IPC contract of
+    // `cmd_create_calendar_event` (one argument per event field) and the ICS
+    // importer; a wrapper struct would only be re-assembled from the same
+    // fields at every call site.
+    #[allow(clippy::too_many_arguments)]
     pub fn create(
         &self,
         title: &str,
@@ -160,8 +165,7 @@ impl Calendar {
             return Err(AetherError::Vault(format!("event not found: {id}")));
         }
         let content = std::fs::read_to_string(&path)?;
-        serde_json::from_str(&content)
-            .map_err(|e| AetherError::Vault(format!("event parse: {e}")))
+        serde_json::from_str(&content).map_err(|e| AetherError::Vault(format!("event parse: {e}")))
     }
 
     /// Find an event by its iCalendar UID. Scans the storage dir.

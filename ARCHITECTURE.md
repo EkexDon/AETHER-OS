@@ -22,6 +22,35 @@ React UI → Typed IPC → Tauri Commands → Rust AppState
 5. `cmd_agent_query` embeds the prompt, finds the top-5 relevant notes via semantic search, loads their content, builds a context-aware system prompt, and streams the AI response via the `llm-stream-chunk` event.
 6. `cmd_create_aether_note` saves AI-generated responses as notes in AETHER-OS's own storage (not in the NoPes vault).
 
+## IPC layout (frontend)
+
+All backend access goes through `src/lib/ipc.ts`, a barrel that re-exports
+one module per Rust command module:
+
+```text
+src/lib/ipc.ts                 export * from "./ipc/<domain>"  + // @anchor:ipc:<feature>
+src/lib/ipc/core.ts            call(), listenSafe(), isTauriRuntime(), isMockRuntime(),
+                               isDesktopRuntime(), IpcUnavailableError
+src/lib/ipc/<domain>.ts        vault, ai, aetherNotes, projects, memory, terminal, system,
+                               browser, notes, ide, git, calendar, lsp, tasks, agentActions,
+                               diagnostics, updater — one documented wrapper per command
+src/types/index.ts             export * from "./<domain>"      + // @anchor:types:<feature>
+```
+
+- `call(command, args)` uses Tauri's `invoke` in the desktop shell, the DEV
+  mock backend (`src/lib/mock/backend.ts`) under `npm run dev:mock`, and
+  throws `IpcUnavailableError` in a plain browser. Rejections are rethrown as
+  `Error` with the backend's message.
+- `listenSafe(event, handler)` delivers event *payloads*; it resolves to a
+  no-op unlisten in a plain browser and never throws there.
+- `isDesktopRuntime()` means "a backend can answer" (Tauri or mock);
+  `isTauriRuntime()` is the strict desktop check.
+- Top-level command arguments are camelCase in JS (Tauri renames Rust's
+  snake_case), nested structs keep their serde (snake_case) field names.
+- The mock backend is DEV-only and tree-shaken from production builds; a
+  test keeps it in sync with `generate_handler!` in `lib.rs`. See
+  `docs/dev/MOCK-MODE.md`.
+
 ## IPC API
 
 | Command | Input | Output |
@@ -134,6 +163,72 @@ anti-framing policies (Google, YouTube, GitHub) work natively.
 | `cmd_browser_webview_list` | none | `(label, url)[]` |
 | `cmd_browser_webview_hide_all` | none | none |
 
+## Diagnostics & crash reports
+
+Crash reporting is local and needs no opt-in because nothing leaves the
+machine (`engine/diagnostics.rs`, created first in `setup`):
+
+- A process-wide panic hook writes `crash-reports/<timestamp>.log` (message,
+  location, thread, app version, OS, backtrace; the timestamp is UTC RFC 3339
+  with `:` → `-` so it is a valid filename on every OS) and appends a
+  `PANIC` line to `logs/aether.log`, then calls the previous hook.
+- The webview reports through `cmd_log_frontend_error`: the root
+  `ErrorBoundary` (`src/components/system/ErrorBoundary.tsx`, also available
+  per view via `withViewBoundary`) sends fatal render errors, and
+  `src/lib/diagnostics.ts` forwards `window.onerror` / `unhandledrejection`
+  (batched, de-duplicated, rate-limited, never throws). Fatal errors also get
+  a crash report. Payload fields are truncated before they reach disk.
+- `logs/aether.log` rotates at 5 MB and keeps `aether.log.1` … `.3`.
+- Crash report ids are validated (`[A-Za-z0-9._-]`, no `..`) so the UI can
+  only read files inside `crash-reports/`.
+
+| Command | Input | Output |
+| --- | --- | --- |
+| `cmd_list_crash_reports` | none | `CrashReportSummary[]` (newest first) |
+| `cmd_read_crash_report` | id | `CrashReport` |
+| `cmd_clear_crash_reports` | none | number removed |
+| `cmd_log_frontend_error` | payload `{ message, stack?, component_stack?, source?, view?, url?, fatal? }` | none |
+| `cmd_open_app_data_dir` | none | none (Finder / Explorer / `xdg-open`) |
+| `cmd_get_app_info` | none | `{ version, tauri_version, os, arch, data_dir }` |
+
+## Update check
+
+`engine/updater.rs` asks
+`https://api.github.com/repos/EkexDon/AETHER-OS/releases/latest` (8 s timeout,
+`User-Agent: AETHER-OS/<version>`, no credentials) and compares versions with
+a strict SemVer 2.0 parser (`v` prefix allowed, pre-release precedence per
+§11, build metadata ignored). It only reports; nothing is downloaded. A
+repository without published releases (HTTP 404) counts as "up to date";
+offline, timeouts and rate limits surface as readable `network error: …`
+messages. Release URLs outside `https://github.com/` are replaced by the
+releases page.
+
+| Command | Input | Output |
+| --- | --- | --- |
+| `cmd_check_for_updates` | none | `UpdateInfo { current, latest, update_available, url, notes, published_at }` |
+
+## Shared SQLite helper
+
+Features that need a relational store (clipboard history, universal search)
+use `engine/sqlite.rs` with the bundled SQLite from `rusqlite` (FTS5
+included):
+
+- `open_db(path)` creates parent directories and enables `journal_mode=WAL`,
+  `foreign_keys=ON`, `synchronous=NORMAL` and a 5 s busy timeout.
+- `migrate(conn, &[sql…])` applies pending migrations in order, one
+  transaction each, and records the version in a one-row `schema_version`
+  table. It is idempotent, rolls back a failing migration and refuses to
+  downgrade a database written by a newer build.
+- Errors map to `AetherError::Database`.
+
+## Integration anchors
+
+Shared files carry `@anchor:<kind>:<feature>` comments where Wave 2 feature
+agents append their lines (SWARM-CONTRACT §3): `engine/mod.rs`,
+`commands/mod.rs`, `lib.rs` (`state-field`, `state-init`, `state-manage`,
+`handlers`), `Cargo.toml` (`deps`), `src/types/index.ts`, `src/lib/ipc.ts`
+and `src/lib/mock/backend.ts`.
+
 ## Security boundaries
 
 - The UI has no direct filesystem, process, or shell access.
@@ -143,5 +238,8 @@ anti-framing policies (Google, YouTube, GitHub) work natively.
 - The OpenRouter API key is stored only in the app data directory (`ai_config.json`),
   never in webview localStorage, and is never logged or returned to the UI.
   Cloud requests go exclusively to `https://openrouter.ai`.
+- The update check is the only other outbound request: an anonymous GET to
+  `https://api.github.com/repos/EkexDon/AETHER-OS/releases/latest`.
+- Crash reports and logs stay in the app data directory; nothing is uploaded.
 - Vectors must be finite and match the dimension already stored in the index; changing the embedding model requires re-indexing.
 - Embedding calls support both the current `/api/embed` and legacy `/api/embeddings` endpoints, and report a missing model with the exact `ollama pull` command.

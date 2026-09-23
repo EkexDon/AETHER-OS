@@ -84,24 +84,14 @@ pub fn export_calendar(events: &[CalendarEvent], opts: &IcsExportOptions) -> Str
             // crate accepts it (its `all_day` takes `Date<TZ>`).
             let start_dt = start_date
                 .and_hms_opt(0, 0, 0)
-                .unwrap_or_else(|| {
-                    chrono::DateTime::from_timestamp(0, 0)
-                        .unwrap()
-                        .naive_utc()
-                });
+                .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc());
             let start_utc = chrono::TimeZone::from_utc_datetime(&chrono::Utc, &start_dt);
             #[allow(deprecated)]
             e.all_day(start_utc.date());
-            if let Ok(end_date) =
-                chrono::NaiveDate::parse_from_str(&event.end, "%Y-%m-%d")
-            {
+            if let Ok(end_date) = chrono::NaiveDate::parse_from_str(&event.end, "%Y-%m-%d") {
                 let end_dt = end_date
                     .and_hms_opt(0, 0, 0)
-                    .unwrap_or_else(|| {
-                        chrono::DateTime::from_timestamp(0, 0)
-                            .unwrap()
-                            .naive_utc()
-                    });
+                    .unwrap_or_else(|| chrono::DateTime::from_timestamp(0, 0).unwrap().naive_utc());
                 let end_utc = chrono::TimeZone::from_utc_datetime(&chrono::Utc, &end_dt);
                 #[allow(deprecated)]
                 e.end_date(end_utc.date());
@@ -208,9 +198,9 @@ pub fn import_calendar(
 
     let now = chrono::Utc::now().to_rfc3339();
     for parsed in events {
-        let uid = parsed.uid.unwrap_or_else(|| {
-            format!("{}@aether-os.local", uuid::Uuid::new_v4())
-        });
+        let uid = parsed
+            .uid
+            .unwrap_or_else(|| format!("{}@aether-os.local", uuid::Uuid::new_v4()));
         let mut all_day = parsed.all_day;
         let start = parsed.start;
         let mut end = parsed.end;
@@ -255,10 +245,7 @@ pub fn import_calendar(
             updated_at: now.clone(),
         };
 
-        out.push(ImportedEvent {
-            event,
-            uid,
-        });
+        out.push(ImportedEvent { event, uid });
     }
 
     Ok((out, result))
@@ -372,7 +359,11 @@ fn split_property(line: &str) -> Option<(String, String)> {
     let key_part = &line[..colon];
     let value = line[colon + 1..].to_owned();
     // Strip parameters from the key (e.g. `DTSTART;VALUE=DATE:20261010`).
-    let key = key_part.split(';').next().unwrap_or(key_part).to_uppercase();
+    let key = key_part
+        .split(';')
+        .next()
+        .unwrap_or(key_part)
+        .to_uppercase();
     Some((key, value))
 }
 
@@ -423,9 +414,7 @@ fn apply_property(
         "X-AETHER-COLOR" => p.color = Some(value.to_owned()),
         "X-AETHER-SOURCE-NOTE" => p.source_note_path = Some(value.to_owned()),
         "RRULE" => {
-            errors.push(format!(
-                "line {line_no}: recurring events not supported"
-            ));
+            errors.push(format!("line {line_no}: recurring events not supported"));
             // Drop the event entirely.
             p.start.clear();
         }
@@ -514,7 +503,7 @@ mod tests {
     fn round_trip_preserves_key_fields() {
         let original = sample_event("Roadmap review");
         let opts = IcsExportOptions::default();
-        let ics = export_calendar(&[original.clone()], &opts);
+        let ics = export_calendar(std::slice::from_ref(&original), &opts);
         eprintln!("ICS:\n{}", ics);
         assert!(ics.contains("BEGIN:VCALENDAR"));
         assert!(ics.contains("BEGIN:VEVENT"));

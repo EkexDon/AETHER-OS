@@ -115,7 +115,9 @@ fn extract_title(document: &Html) -> String {
 /// Readability-lite: prefer <article> / <main>; otherwise the element with
 /// the most paragraph text; final fallback is <body>.
 fn extract_main_html(document: &Html) -> String {
-    let strip_selectors = ["script", "style", "noscript", "nav", "header", "footer", "iframe", "form"];
+    let strip_selectors = [
+        "script", "style", "noscript", "nav", "header", "footer", "iframe", "form",
+    ];
 
     for candidate in ["article", "main", "[role='main']"] {
         if let Ok(sel) = Selector::parse(candidate) {
@@ -204,8 +206,7 @@ fn normalize_url(url: &str) -> Result<String, AetherError> {
         };
     }
     let with_scheme = format!("https://{trimmed}");
-    url::Url::parse(&with_scheme)
-        .map_err(|e| AetherError::Vault(format!("invalid URL: {e}")))?;
+    url::Url::parse(&with_scheme).map_err(|e| AetherError::Vault(format!("invalid URL: {e}")))?;
     Ok(with_scheme)
 }
 

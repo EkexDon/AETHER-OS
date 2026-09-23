@@ -71,10 +71,9 @@ impl BrowserManager {
     /// the system default browser via `open`.
     pub fn open_url(&self, url: &str) -> Result<(), AetherError> {
         if let Some(ref path) = self.librewolf_path {
-            Command::new(path)
-                .arg(url)
-                .spawn()
-                .map_err(|e| AetherError::InvalidInput(format!("Failed to launch LibreWolf: {e}")))?;
+            Command::new(path).arg(url).spawn().map_err(|e| {
+                AetherError::InvalidInput(format!("Failed to launch LibreWolf: {e}"))
+            })?;
         } else {
             // Fallback: system default browser
             let cmd = if cfg!(target_os = "windows") {

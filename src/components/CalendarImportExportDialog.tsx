@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Download, Upload, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Download, Upload, ChevronDown, ChevronRight, ArrowDownUp } from "lucide-react";
+import { Modal, Tabs } from "../ui";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   exportCalendarIcs,
@@ -82,28 +83,25 @@ export function CalendarImportExportDialog({ onClose }: { onClose: () => void })
   };
 
   return (
-    <div className="calendar-dialog-overlay" onClick={onClose}>
-      <div className="calendar-dialog-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="calendar-dialog-header">
-          <span>Calendar Import / Export</span>
-          <button className="btn btn-icon" onClick={onClose}>
-            <X size={14} />
-          </button>
-        </div>
-        <div className="calendar-dialog-tabs">
-          <button
-            className={`calendar-dialog-tab${tab === "export" ? " selected" : ""}`}
-            onClick={() => setTab("export")}
-          >
-            <Download size={12} /> Export
-          </button>
-          <button
-            className={`calendar-dialog-tab${tab === "import" ? " selected" : ""}`}
-            onClick={() => setTab("import")}
-          >
-            <Upload size={12} /> Import
-          </button>
-        </div>
+    <Modal
+      open
+      onClose={onClose}
+      title="Calendar import / export"
+      description="Exchange events with other calendars as .ics files."
+      icon={ArrowDownUp}
+      size="md"
+      className="calendar-dialog-modal"
+    >
+        <Tabs
+          aria-label="Import or export"
+          value={tab}
+          onChange={setTab}
+          items={[
+            { id: "export", label: "Export", icon: <Download size={13} /> },
+            { id: "import", label: "Import", icon: <Upload size={13} /> },
+          ]}
+          className="calendar-dialog-tabs"
+        />
         <div className="calendar-dialog-body">
           {tab === "export" && (
             <div className="calendar-dialog-section">
@@ -208,7 +206,6 @@ export function CalendarImportExportDialog({ onClose }: { onClose: () => void })
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

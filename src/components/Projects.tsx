@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
-  FolderGit2, Search, Plus, X, RefreshCw, ExternalLink, Terminal, FolderOpen,
+  FolderGit2, Plus, X, RefreshCw, ExternalLink, Terminal, FolderOpen,
   GitBranch, Circle, Clock, Code2,
 } from "lucide-react";
+import { Button, Card, EmptyState, IconButton, SearchField, ViewHeader } from "../ui";
 import { useAetherStore } from "../lib/store";
 import {
   scanProjects, openProject, openInTerminal, openInFinder,
@@ -113,112 +114,141 @@ export function Projects() {
   }, []);
 
   return (
-    <div className="projects-view">
-      <div className="projects-header">
-        <div className="projects-search">
-          <Search size={14} />
-          <input
-            type="text"
-            placeholder="Search projects..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="projects-search-input"
+    <div className="view projects-view">
+      <ViewHeader
+        title="Projects"
+        subtitle={
+          dirs.length === 0
+            ? "Git repositories on this machine"
+            : `${projects.length} project${projects.length === 1 ? "" : "s"} in ${dirs.length} folder${dirs.length === 1 ? "" : "s"}`
+        }
+        actions={
+          <>
+            <SearchField
+              value={search}
+              onChange={setSearch}
+              placeholder="Search projects..."
+              className="projects-search"
+            />
+            <IconButton
+              label="Rescan"
+              icon={<RefreshCw size={15} className={scanning ? "spin" : ""} />}
+              variant="secondary"
+              onClick={() => void rescan(dirs)}
+              disabled={scanning}
+            />
+            <Button variant="secondary" iconLeft={<Plus size={14} />} onClick={() => void handleAddDir()}>
+              Add Folder
+            </Button>
+          </>
+        }
+      />
+      <div className="view-body">
+        {dirs.length > 0 && (
+          <div className="projects-dirs">
+            {dirs.map((d) => (
+              <span key={d} className="projects-dir-chip" title={d}>
+                <FolderOpen size={12} />
+                <span className="projects-dir-path">{d.replace(/^\/Users\/[^/]+/, "~")}</span>
+                <button
+                  type="button"
+                  className="dir-chip-remove"
+                  onClick={() => void handleRemoveDir(d)}
+                  aria-label={`Remove ${d}`}
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {error && <div className="projects-error">{error}</div>}
+
+        {dirs.length === 0 ? (
+          <EmptyState
+            icon={FolderGit2}
+            title="Add a folder to scan for your projects"
+            description="AETHER-OS finds every Git repository inside and shows branch, changes and the last commit."
+            action={
+              <Button variant="primary" iconLeft={<Plus size={14} />} onClick={() => void handleAddDir()}>
+                Add Folder
+              </Button>
+            }
           />
-        </div>
-        <button className="btn btn-icon" onClick={() => void rescan(dirs)} disabled={scanning} title="Rescan">
-          <RefreshCw size={16} className={scanning ? "spin" : ""} />
-        </button>
-        <button className="btn btn-secondary" onClick={handleAddDir}>
-          <Plus size={16} /> Add Folder
-        </button>
+        ) : filtered.length === 0 && !scanning ? (
+          <EmptyState
+            icon={FolderGit2}
+            size="sm"
+            title={projects.length === 0 ? "No projects found in these folders" : "No projects match your search"}
+          />
+        ) : (
+          <div className="projects-grid">
+            {filtered.map((p) => (
+              <Card
+                key={p.path}
+                interactive
+                padding="none"
+                className="project-card"
+                onClick={() => void handleOpen(p)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({ x: e.clientX, y: e.clientY, project: p });
+                }}
+                title={p.path}
+              >
+                <div className="project-card-top">
+                  <span
+                    className="project-lang-dot"
+                    style={{ background: LANGUAGE_COLORS[p.language] ?? LANGUAGE_COLORS.unknown }}
+                    title={p.language}
+                  />
+                  <span className="project-name">{p.name}</span>
+                  <ExternalLink size={13} className="project-open-icon" />
+                </div>
+                <div className="project-meta">
+                  {p.git_branch && (
+                    <span className="project-branch">
+                      <GitBranch size={11} /> {p.git_branch}
+                    </span>
+                  )}
+                  {p.git_status && (
+                    <span className={`project-status ${p.git_status === "clean" ? "status-clean" : "status-dirty"}`}>
+                      <Circle size={7} fill="currentColor" /> {p.git_status}
+                    </span>
+                  )}
+                </div>
+                {p.last_commit_msg && (
+                  <div className="project-commit">
+                    <Code2 size={11} />
+                    <span className="project-commit-msg">{p.last_commit_msg}</span>
+                  </div>
+                )}
+                {p.last_commit_date && (
+                  <div className="project-time">
+                    <Clock size={11} /> {timeAgo(p.last_commit_date)}
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
 
-      {dirs.length > 0 && (
-        <div className="projects-dirs">
-          {dirs.map((d) => (
-            <span key={d} className="projects-dir-chip">
-              <FolderOpen size={10} />
-              {d.replace(/^\/Users\/[^/]+/, "~")}
-              <button className="dir-chip-remove" onClick={() => void handleRemoveDir(d)}>
-                <X size={10} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {error && <div className="projects-error">{error}</div>}
-
-      {dirs.length === 0 ? (
-        <div className="projects-empty">
-          <FolderGit2 size={48} className="dashboard-empty-icon" />
-          <p>Add a folder to scan for your projects</p>
-          <button className="btn btn-primary" onClick={handleAddDir}>
-            <Plus size={16} /> Add Folder
-          </button>
-        </div>
-      ) : filtered.length === 0 && !scanning ? (
-        <div className="projects-empty">
-          <p>{projects.length === 0 ? "No projects found in these folders" : "No projects match your search"}</p>
-        </div>
-      ) : (
-        <div className="projects-grid">
-          {filtered.map((p) => (
-            <div
-              key={p.path}
-              className="project-card"
-              onClick={() => void handleOpen(p)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setContextMenu({ x: e.clientX, y: e.clientY, project: p });
-              }}
-            >
-              <div className="project-card-top">
-                <span
-                  className="project-lang-dot"
-                  style={{ background: LANGUAGE_COLORS[p.language] ?? LANGUAGE_COLORS.unknown }}
-                />
-                <span className="project-name">{p.name}</span>
-                <ExternalLink size={12} className="project-open-icon" />
-              </div>
-              <div className="project-meta">
-                {p.git_branch && (
-                  <span className="project-branch">
-                    <GitBranch size={10} /> {p.git_branch}
-                  </span>
-                )}
-                {p.git_status && (
-                  <span className={`project-status ${p.git_status === "clean" ? "status-clean" : "status-dirty"}`}>
-                    <Circle size={8} /> {p.git_status}
-                  </span>
-                )}
-              </div>
-              {p.last_commit_msg && (
-                <div className="project-commit">
-                  <Code2 size={10} />
-                  <span className="project-commit-msg">{p.last_commit_msg}</span>
-                </div>
-              )}
-              {p.last_commit_date && (
-                <div className="project-time">
-                  <Clock size={10} /> {timeAgo(p.last_commit_date)}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
       {contextMenu && (
-        <div className="project-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
-          <button onClick={() => void handleOpen(contextMenu.project)}>
-            <ExternalLink size={12} /> Open in Cursor
+        <div
+          className="context-menu project-context-menu"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          role="menu"
+        >
+          <button type="button" role="menuitem" className="ui-menu-item" onClick={() => void handleOpen(contextMenu.project)}>
+            <ExternalLink size={14} /> Open in Cursor
           </button>
-          <button onClick={() => void openInTerminal(contextMenu.project.path)}>
-            <Terminal size={12} /> Open in Terminal
+          <button type="button" role="menuitem" className="ui-menu-item" onClick={() => void openInTerminal(contextMenu.project.path)}>
+            <Terminal size={14} /> Open in Terminal
           </button>
-          <button onClick={() => void openInFinder(contextMenu.project.path)}>
-            <FolderOpen size={12} /> Open in Finder
+          <button type="button" role="menuitem" className="ui-menu-item" onClick={() => void openInFinder(contextMenu.project.path)}>
+            <FolderOpen size={14} /> Open in Finder
           </button>
         </div>
       )}

@@ -5,6 +5,7 @@ import {
   Tag, Calendar as CalendarIcon, CheckSquare, Settings2, Trash2,
 } from "lucide-react";
 import { useAetherStore } from "../lib/store";
+import { Button, EmptyState, IconButton } from "../ui";
 import {
   listTaskProjects,
   listTasks,
@@ -210,25 +211,24 @@ export function TaskBoard() {
   if (!loading && taskProjects.length === 0) {
     return (
       <div className="task-board-view empty">
-        <div className="task-empty-hero">
-          <div className="task-empty-icon">
-            <FolderKanban size={48} />
-          </div>
-          <h2>Projects & Issue Boards</h2>
-          <p>
-            Organize work with independent projects, issue tracking, and interactive Kanban boards.
-            No note tags required.
-          </p>
-          <button
-            className="btn btn-primary btn-lg"
-            onClick={() => {
-              setEditingProject(null);
-              setProjectModalOpen(true);
-            }}
-          >
-            <Plus size={16} /> Create Your First Project
-          </button>
-        </div>
+        <EmptyState
+          icon={FolderKanban}
+          title="Projects & Issue Boards"
+          description="Organize work with independent projects, issue tracking, and interactive Kanban boards. No note tags required."
+          action={
+            <Button
+              variant="primary"
+              iconLeft={<Plus size={14} />}
+              onClick={() => {
+                setEditingProject(null);
+                setProjectModalOpen(true);
+              }}
+            >
+              Create Your First Project
+            </Button>
+          }
+          className="task-empty-hero"
+        />
         {projectModalOpen && (
           <ProjectModal
             project={editingProject}
@@ -248,7 +248,7 @@ export function TaskBoard() {
           <div className="task-project-selector-wrap">
             <span
               className="task-project-dot"
-              style={{ background: activeProject?.color ?? "#3b82f6" }}
+              style={{ background: activeProject?.color ?? "var(--color-info)" }}
             />
             <select
               className="task-project-select"
@@ -263,28 +263,24 @@ export function TaskBoard() {
             </select>
           </div>
 
-          <button
-            className="btn btn-icon"
+          <IconButton
+            label="Create New Project"
+            icon={<Plus size={15} />}
             onClick={() => {
               setEditingProject(null);
               setProjectModalOpen(true);
             }}
-            title="Create New Project"
-          >
-            <Plus size={15} />
-          </button>
+          />
 
           {activeProject && (
-            <button
-              className="btn btn-icon"
+            <IconButton
+              label="Project Settings"
+              icon={<Settings2 size={15} />}
               onClick={() => {
                 setEditingProject(activeProject);
                 setProjectModalOpen(true);
               }}
-              title="Project Settings"
-            >
-              <Settings2 size={15} />
-            </button>
+            />
           )}
 
           <div className="task-toolbar-divider" />
@@ -360,12 +356,9 @@ export function TaskBoard() {
           )}
 
           {/* New Task Button */}
-          <button
-            className="btn btn-primary"
-            onClick={() => handleOpenNewTask("todo")}
-          >
-            <Plus size={14} /> New Task
-          </button>
+          <Button variant="primary" size="sm" iconLeft={<Plus size={14} />} onClick={() => handleOpenNewTask("todo")}>
+            New Task
+          </Button>
         </div>
       </div>
 

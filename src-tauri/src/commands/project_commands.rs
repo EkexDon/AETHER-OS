@@ -66,10 +66,7 @@ fn git_info(path: &Path) -> (Option<String>, Option<String>, Option<String>, Opt
         if lines.is_empty() {
             "clean".to_owned()
         } else {
-            let modified = lines
-                .iter()
-                .filter(|l| !l.starts_with("??"))
-                .count();
+            let modified = lines.iter().filter(|l| !l.starts_with("??")).count();
             let untracked = lines.iter().filter(|l| l.starts_with("??")).count();
             let mut parts = Vec::new();
             if modified > 0 {
@@ -156,7 +153,7 @@ pub async fn cmd_scan_projects(directories: Vec<String>) -> Result<Vec<Project>,
         }
     }
 
-    projects.sort_by(|a, b| b.last_commit_date.unwrap_or(0).cmp(&a.last_commit_date.unwrap_or(0)));
+    projects.sort_by_key(|p| std::cmp::Reverse(p.last_commit_date.unwrap_or(0)));
     Ok(projects)
 }
 
@@ -221,10 +218,7 @@ pub async fn cmd_open_in_finder(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn cmd_get_project_dirs(state: State<'_, AppState>) -> Result<Vec<String>, String> {
-    let config_path = state
-        .vault
-        .config_dir()
-        .join("project_dirs.json");
+    let config_path = state.vault.config_dir().join("project_dirs.json");
     if !config_path.exists() {
         return Ok(vec![]);
     }
@@ -238,14 +232,13 @@ pub async fn cmd_add_project_dir(
     state: State<'_, AppState>,
     dir: String,
 ) -> Result<Vec<String>, String> {
-    let config_path = state
-        .vault
-        .config_dir()
-        .join("project_dirs.json");
+    let config_path = state.vault.config_dir().join("project_dirs.json");
     let mut directories = if config_path.exists() {
         let content = std::fs::read_to_string(&config_path).map_err(|e| e.to_string())?;
         let config: ProjectDirsConfig =
-            serde_json::from_str(&content).unwrap_or(ProjectDirsConfig { directories: vec![] });
+            serde_json::from_str(&content).unwrap_or(ProjectDirsConfig {
+                directories: vec![],
+            });
         config.directories
     } else {
         vec![]
@@ -253,7 +246,9 @@ pub async fn cmd_add_project_dir(
     if !directories.contains(&dir) {
         directories.push(dir);
     }
-    let config = ProjectDirsConfig { directories: directories.clone() };
+    let config = ProjectDirsConfig {
+        directories: directories.clone(),
+    };
     let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     std::fs::write(&config_path, content).map_err(|e| e.to_string())?;
     Ok(directories)
@@ -264,20 +259,21 @@ pub async fn cmd_remove_project_dir(
     state: State<'_, AppState>,
     dir: String,
 ) -> Result<Vec<String>, String> {
-    let config_path = state
-        .vault
-        .config_dir()
-        .join("project_dirs.json");
+    let config_path = state.vault.config_dir().join("project_dirs.json");
     let mut directories = if config_path.exists() {
         let content = std::fs::read_to_string(&config_path).map_err(|e| e.to_string())?;
         let config: ProjectDirsConfig =
-            serde_json::from_str(&content).unwrap_or(ProjectDirsConfig { directories: vec![] });
+            serde_json::from_str(&content).unwrap_or(ProjectDirsConfig {
+                directories: vec![],
+            });
         config.directories
     } else {
         vec![]
     };
     directories.retain(|d| d != &dir);
-    let config = ProjectDirsConfig { directories: directories.clone() };
+    let config = ProjectDirsConfig {
+        directories: directories.clone(),
+    };
     let content = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     std::fs::write(&config_path, content).map_err(|e| e.to_string())?;
     Ok(directories)

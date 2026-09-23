@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Send, Bot, Loader, FileText, Save, User, X, Check, Layers, History, Plus, Zap, Cloud, HardDrive } from "lucide-react";
+import { ArrowUp, Bot, FileText, Save, User, X, Check, Layers, History, SquarePen, Zap, Cloud, HardDrive, RotateCcw, Wrench } from "lucide-react";
+import { IconButton, Select, Spinner, cx } from "../ui";
 import { useAetherStore, type AiProvider } from "../lib/store";
 import {
   agentQueryWithNotes, onStreamChunk, createAetherNote, getAetherNotes,
@@ -15,6 +16,8 @@ import { supportsAgentActions } from "../lib/agentModelSupport";
 import { buildClipNote, clipNoteName } from "../lib/clipper";
 import { createNote } from "../lib/ipc";
 import { filterModels, parseSlashInput } from "../lib/slash";
+import { MarkdownRenderer } from "./MarkdownRenderer";
+import { DEFAULT_CALENDAR_COLOR } from "../lib/calendarColors";
 import type { AgentAction } from "../types";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -29,7 +32,9 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
       <div className="chat-msg-icon">
         {role === "user" ? <User size={14} /> : <Bot size={14} />}
       </div>
-      <div className="chat-msg-content">{content}</div>
+      <div className="chat-msg-content">
+        {role === "assistant" ? <MarkdownRenderer content={content} /> : content}
+      </div>
     </div>
   );
 });
@@ -332,7 +337,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
           start: action.start,
           end: action.end,
           due: action.due,
-          color: action.color ?? "#7c3aed",
+          color: action.color ?? DEFAULT_CALENDAR_COLOR,
           tags: action.tags,
           attendees: action.attendees,
           location: action.location,
@@ -381,7 +386,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
         const result = await agentImportCalendarIcs(
           action.path,
           action.overwrite_existing,
-          action.default_color ?? "#7c3aed"
+          action.default_color ?? DEFAULT_CALENDAR_COLOR
         );
         if (result.kind === "calendar_ics_imported") {
           const r = result.result;
@@ -416,49 +421,55 @@ export function AgentChat({ width = 340 }: { width?: number }) {
   return (
     <div className="agent-chat" style={{ width, minWidth: width }}>
       <div className="agent-header">
-        <Bot size={18} />
+        <span className="agent-avatar" aria-hidden="true">
+          <Bot size={15} />
+        </span>
         <span className="agent-title">AETHER Agent</span>
-        <span className={`agent-status ${busy ? "agent-busy" : ""}`}>
+        <span className={cx("agent-status", busy && "agent-busy")} role="status">
+          <span className="agent-status-dot" aria-hidden="true" />
           {busy ? "Thinking..." : "Ready"}
         </span>
-        <button
-          className="btn btn-icon agent-header-btn"
-          onClick={() => setShowHistory((v) => !v)}
-          title="Conversation history"
-        >
-          <History size={14} />
-        </button>
-        <button
-          className="btn btn-icon agent-header-btn"
-          onClick={startNewChat}
-          title="New chat"
-        >
-          <Plus size={14} />
-        </button>
-        <button
-          className="btn btn-icon agent-header-btn"
-          onClick={() => setChatOpen(false)}
-          title="Close panel"
-        >
-          <X size={14} />
-        </button>
+        <span className="agent-header-actions">
+          <IconButton
+            label="Conversation history"
+            size="sm"
+            active={showHistory}
+            icon={<History size={14} />}
+            onClick={() => setShowHistory((v) => !v)}
+            tooltipPlacement="bottom"
+          />
+          <IconButton label="New chat" size="sm" icon={<SquarePen size={14} />} onClick={startNewChat} tooltipPlacement="bottom" />
+          <IconButton
+            label="Close panel"
+            shortcut="mod+j"
+            size="sm"
+            icon={<X size={14} />}
+            onClick={() => setChatOpen(false)}
+            tooltipPlacement="bottom"
+          />
+        </span>
       </div>
 
       <div className="agent-engine-bar">
-        <select
+        <Select
+          size="sm"
           className="agent-provider-select"
           value={provider}
           onChange={(e) => setProvider(e.target.value as AiProvider)}
           title="AI provider"
+          aria-label="AI provider"
+          iconLeft={provider === "ollama" ? <HardDrive size={12} /> : <Cloud size={12} />}
         >
           <option value="ollama">Ollama · Local</option>
           <option value="openrouter">OpenRouter · Cloud</option>
-        </select>
-        <select
+        </Select>
+        <Select
+          size="sm"
           className="agent-model-select"
           value={currentModel}
           onChange={(e) => handleModelChange(e.target.value)}
           title="Model"
+          aria-label="Model"
         >
           {(provider === "ollama"
             ? (localModels.length > 0 ? localModels : [currentModel])
@@ -466,13 +477,13 @@ export function AgentChat({ width = 340 }: { width?: number }) {
           ).map((model) => (
             <option key={model} value={model}>{model}</option>
           ))}
-        </select>
+        </Select>
         {provider === "ollama" ? (
           <span
             className={`engine-badge ${health?.ollama_online ? "engine-online" : "engine-offline"}`}
             title={health?.ollama_online ? "Ollama is running locally" : "Ollama is offline"}
           >
-            {health?.ollama_online ? <HardDrive size={11} /> : <HardDrive size={11} />}
+            <span className="engine-dot" aria-hidden="true" />
             {health?.ollama_online ? "connected" : "offline"}
           </span>
         ) : (
@@ -484,20 +495,20 @@ export function AgentChat({ width = 340 }: { width?: number }) {
                 : "Add your OpenRouter key in Settings"
             }
           >
-            <Cloud size={11} />
+            <span className="engine-dot" aria-hidden="true" />
             {health?.openrouter_configured ? "connected" : "no key"}
           </span>
         )}
-        {!supportsAgentActions(currentModel, provider) && (
-          <span
-            className="engine-badge engine-warn"
-            title="This model may not emit tool calls reliably. Actions will still be parsed from the reply if present."
-          >
-            <Zap size={11} />
-            tools: unreliable
-          </span>
-        )}
       </div>
+      {!supportsAgentActions(currentModel, provider) && (
+        <div
+          className="agent-engine-warning"
+          title="This model may not emit tool calls reliably. Actions will still be parsed from the reply if present."
+        >
+          <Zap size={11} />
+          <span>tools: unreliable — this model may not emit tool calls</span>
+        </div>
+      )}
 
       {showHistory && (
         <div className="agent-history">
@@ -511,7 +522,9 @@ export function AgentChat({ width = 340 }: { width?: number }) {
                   {new Date(c.timestamp * 1000).toLocaleDateString()}
                 </span>
                 <button
+                  type="button"
                   className="agent-history-delete"
+                  aria-label="Delete conversation"
                   onClick={(e) => void handleDeleteConversation(c.id, e)}
                 >
                   <X size={12} />
@@ -524,25 +537,27 @@ export function AgentChat({ width = 340 }: { width?: number }) {
 
       <div className="agent-context-bar">
         <button
-          className="btn btn-icon agent-context-toggle"
+          type="button"
+          className={cx("agent-context-toggle", showContextPicker && "is-active")}
           onClick={() => setShowContextPicker((v) => !v)}
           title="Select context notes"
+          aria-expanded={showContextPicker}
         >
-          <Layers size={14} />
+          <Layers size={13} />
+          <span className="agent-context-label">
+            {allNotesInContext
+              ? `All notes (${vaultNotes.length})`
+              : `${activeContextPaths.length} of ${vaultNotes.length} notes`}
+          </span>
         </button>
-        <span className="agent-context-label">
-          {allNotesInContext
-            ? `All notes (${vaultNotes.length})`
-            : `${activeContextPaths.length} of ${vaultNotes.length} notes`}
-        </span>
         {!allNotesInContext && (
-          <button
-            className="btn btn-icon agent-context-reset"
+          <IconButton
+            label="Reset to all notes"
+            size="sm"
+            className="agent-context-reset"
+            icon={<RotateCcw size={12} />}
             onClick={resetContextToAll}
-            title="Reset to all notes"
-          >
-            <Check size={12} />
-          </button>
+          />
         )}
       </div>
 
@@ -550,9 +565,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
         <div className="context-picker">
           <div className="context-picker-header">
             <span className="context-picker-title">Context Notes</span>
-            <button className="btn btn-icon" onClick={() => setShowContextPicker(false)}>
-              <X size={14} />
-            </button>
+            <IconButton label="Close" size="sm" icon={<X size={14} />} onClick={() => setShowContextPicker(false)} tooltip={false} />
           </div>
           <div className="context-picker-search">
             <input
@@ -560,8 +573,8 @@ export function AgentChat({ width = 340 }: { width?: number }) {
               placeholder="Filter notes..."
               value={contextSearch}
               onChange={(e) => setContextSearch(e.target.value)}
-              className="sidebar-search-input"
-              style={{ paddingLeft: "10px" }}
+              className="settings-input context-picker-filter"
+              autoFocus
             />
           </div>
           <div className="context-picker-list">
@@ -595,8 +608,11 @@ export function AgentChat({ width = 340 }: { width?: number }) {
       <div className="agent-output" ref={scrollRef}>
         {messages.length === 0 && !agentOutput && !busy && (
           <div className="agent-placeholder">
-            <Bot size={32} />
-            <p>Ask AETHER anything about your vault</p>
+            <span className="agent-placeholder-icon">
+              <Bot size={18} />
+            </span>
+            <p className="agent-placeholder-title">Ask AETHER anything about your vault</p>
+            <p className="agent-placeholder-hint">Answers use your notes as context. Type /model to switch models.</p>
           </div>
         )}
         {messages.map((msg, i) => (
@@ -624,7 +640,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
       {pendingActions.length > 0 && (
         <div className="agent-actions-panel">
           <div className="agent-actions-header">
-            <Zap size={14} />
+            <Wrench size={12} />
             <span>Tools used ({pendingActions.length})</span>
           </div>
           {pendingActions.map((action, idx) => (
@@ -634,7 +650,7 @@ export function AgentChat({ width = 340 }: { width?: number }) {
                   ? actionLabel(action)
                   : (
                     <>
-                      {actionExecuting === idx && <Loader size={12} className="spin" />}
+                      {actionExecuting === idx && <Spinner size={12} />}
                       <span>{describeAction(action)}</span>
                     </>
                   )}
@@ -715,20 +731,22 @@ export function AgentChat({ width = 340 }: { width?: number }) {
           rows={2}
         />
         <div className="agent-actions">
-          <button
-            className="btn btn-icon"
+          <IconButton
+            label="Save as AETHER Note"
+            size="sm"
+            icon={<Save size={14} />}
             onClick={handleSave}
             disabled={!savableContent || busy}
-            title="Save as AETHER Note"
-          >
-            <Save size={16} />
-          </button>
+          />
           <button
-            className="btn btn-primary btn-send"
+            type="button"
+            className="agent-send"
             onClick={handleSubmit}
             disabled={!input.trim() || busy}
+            aria-label="Send"
+            title="Send (Enter)"
           >
-            {busy ? <Loader size={16} className="spin" /> : <Send size={16} />}
+            {busy ? <Spinner size={14} /> : <ArrowUp size={15} strokeWidth={2.4} />}
           </button>
         </div>
       </div>

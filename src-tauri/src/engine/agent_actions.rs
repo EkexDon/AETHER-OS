@@ -273,7 +273,9 @@ mod tests {
 
     #[test]
     fn is_safe_classification() {
-        assert!(is_safe_action(&AgentAction::AppendDaily { content: "x".into() }));
+        assert!(is_safe_action(&AgentAction::AppendDaily {
+            content: "x".into()
+        }));
         assert!(!is_safe_action(&AgentAction::OpenUrl { url: "x".into() }));
         assert!(!is_safe_action(&AgentAction::ClipUrl { url: "x".into() }));
     }
@@ -321,50 +323,34 @@ mod tests {
     fn parses_create_calendar_event() {
         let json = r#"{"action":"create_calendar_event","title":"Standup","description":"","all_day":false,"start":"2026-10-10T09:00:00+00:00","end":"2026-10-10T09:15:00+00:00","tags":[],"attendees":[]}"#;
         let action: AgentAction = serde_json::from_str(json).expect("parse");
-        assert!(matches!(
-            action,
-            AgentAction::CreateCalendarEvent { .. }
-        ));
+        assert!(matches!(action, AgentAction::CreateCalendarEvent { .. }));
     }
 
     #[test]
     fn parses_update_calendar_event() {
         let json = r#"{"action":"update_calendar_event","id":"abc","title":"Renamed"}"#;
         let action: AgentAction = serde_json::from_str(json).expect("parse");
-        assert!(matches!(
-            action,
-            AgentAction::UpdateCalendarEvent { .. }
-        ));
+        assert!(matches!(action, AgentAction::UpdateCalendarEvent { .. }));
     }
 
     #[test]
     fn parses_delete_calendar_event() {
         let json = r#"{"action":"delete_calendar_event","id":"abc"}"#;
         let action: AgentAction = serde_json::from_str(json).expect("parse");
-        assert!(matches!(
-            action,
-            AgentAction::DeleteCalendarEvent { .. }
-        ));
+        assert!(matches!(action, AgentAction::DeleteCalendarEvent { .. }));
     }
 
     #[test]
     fn parses_list_calendar_events() {
-        let json =
-            r#"{"action":"list_calendar_events","from":"2026-10-01","to":"2026-10-31"}"#;
+        let json = r#"{"action":"list_calendar_events","from":"2026-10-01","to":"2026-10-31"}"#;
         let action: AgentAction = serde_json::from_str(json).expect("parse");
-        assert!(matches!(
-            action,
-            AgentAction::ListCalendarEvents { .. }
-        ));
+        assert!(matches!(action, AgentAction::ListCalendarEvents { .. }));
     }
 
     #[test]
     fn parses_import_calendar_ics() {
         let json = r##"{"action":"import_calendar_ics","path":"/tmp/foo.ics","overwrite_existing":false,"default_color":"#7c3aed"}"##;
         let action: AgentAction = serde_json::from_str(json).expect("parse");
-        assert!(matches!(
-            action,
-            AgentAction::ImportCalendarIcs { .. }
-        ));
+        assert!(matches!(action, AgentAction::ImportCalendarIcs { .. }));
     }
 }

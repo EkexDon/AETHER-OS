@@ -21,6 +21,7 @@ import {
   Grid3x3, CheckSquare, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Trash2,
 } from "lucide-react";
 import { useAetherStore } from "../lib/store";
+import { Button, EmptyState, Input, Modal } from "../ui";
 import { writeNote, createNote, getBacklinks, getVaultNotes, getNoteContent } from "../lib/ipc";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { findUnlinkedMentions, linkMentions } from "../lib/mentions";
@@ -277,30 +278,39 @@ export function NoteEditor() {
     return (
       <div className="editor-shell">
         <div className="note-editor-empty">
-          <div className="note-editor-empty-inner">
-            <Edit3 size={48} className="note-editor-empty-icon" />
-            <h2>No note selected</h2>
-            <p>Pick a note from the sidebar or create a new one to start writing.</p>
-            <button className="btn btn-primary" onClick={() => setShowNewNote(true)}>
-              <FilePlus size={16} />
-              New Note
-            </button>
-            {showNewNote && (
-              <div className="note-new-note-inline">
-                <input
-                  type="text"
-                  placeholder="Note name…"
-                  value={newNoteName}
-                  onChange={(e) => setNewNoteName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleCreateNote()}
-                  autoFocus
-                  className="note-new-note-input"
-                />
-                <button className="btn btn-primary" onClick={handleCreateNote}>Create</button>
-                <button className="btn btn-ghost" onClick={() => setShowNewNote(false)}>Cancel</button>
-              </div>
-            )}
-          </div>
+          <EmptyState
+            icon={Edit3}
+            title="No note selected"
+            description="Pick a note from the sidebar or create a new one to start writing."
+            action={
+              !showNewNote && (
+                <Button variant="primary" iconLeft={<FilePlus size={14} />} onClick={() => setShowNewNote(true)}>
+                  New Note
+                </Button>
+              )
+            }
+          />
+          {showNewNote && (
+            <form
+              className="note-new-note-inline"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void handleCreateNote();
+              }}
+            >
+              <Input
+                type="text"
+                placeholder="Note name…"
+                value={newNoteName}
+                onChange={(e) => setNewNoteName(e.target.value)}
+                autoFocus
+                className="note-new-note-input"
+                aria-label="Note name"
+              />
+              <Button type="submit" variant="primary">Create</Button>
+              <Button variant="ghost" onClick={() => setShowNewNote(false)}>Cancel</Button>
+            </form>
+          )}
         </div>
       </div>
     );
@@ -638,65 +648,82 @@ export function NoteEditor() {
       </div>
 
       {/* ── Link Modal ─────────────────────────────────────────── */}
-      {showLinkModal && (
-        <div className="modal-backdrop" onClick={() => setShowLinkModal(false)}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-title">Insert Link</div>
-            <label className="modal-label">URL</label>
-            <input
-              className="modal-input"
-              autoFocus
-              value={linkUrl}
-              onChange={(e) => setLinkUrl(e.target.value)}
-              placeholder="https://..."
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  if (editor) {
-                    editor.chain().focus().setLink({ href: linkUrl }).run();
-                  }
-                  setShowLinkModal(false);
+      <Modal
+        open={showLinkModal}
+        onClose={() => setShowLinkModal(false)}
+        title="Insert Link"
+        icon={LinkIcon}
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowLinkModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => {
+                if (editor) {
+                  editor.chain().focus().setLink({ href: linkUrl }).run();
                 }
+                setShowLinkModal(false);
               }}
-            />
-            <div className="modal-actions">
-              <button className="modal-btn secondary" onClick={() => setShowLinkModal(false)}>Cancel</button>
-              <button
-                className="modal-btn primary"
-                onClick={() => {
-                  if (editor) {
-                    editor.chain().focus().setLink({ href: linkUrl }).run();
-                  }
-                  setShowLinkModal(false);
-                }}
-              >
-                Insert
-              </button>
-            </div>
-          </div>
+            >
+              Insert
+            </Button>
+          </>
+        }
+      >
+        <div className="ui-field">
+          <label className="ui-field-label" htmlFor="note-link-url">URL</label>
+          <Input
+            id="note-link-url"
+            autoFocus
+            value={linkUrl}
+            onChange={(e) => setLinkUrl(e.target.value)}
+            placeholder="https://..."
+            spellCheck={false}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                if (editor) {
+                  editor.chain().focus().setLink({ href: linkUrl }).run();
+                }
+                setShowLinkModal(false);
+              }
+            }}
+          />
         </div>
-      )}
+      </Modal>
 
       {/* ── Inline New Note Modal ───────────────────────────────── */}
-      {showNewNote && (
-        <div className="modal-backdrop" onClick={() => setShowNewNote(false)}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-title">New Note</div>
-            <label className="modal-label">Note Name</label>
-            <input
-              className="modal-input"
-              autoFocus
-              value={newNoteName}
-              onChange={(e) => setNewNoteName(e.target.value)}
-              placeholder="e.g. My New Note"
-              onKeyDown={(e) => e.key === "Enter" && handleCreateNote()}
-            />
-            <div className="modal-actions">
-              <button className="modal-btn secondary" onClick={() => setShowNewNote(false)}>Cancel</button>
-              <button className="modal-btn primary" onClick={handleCreateNote}>Create</button>
-            </div>
-          </div>
+      <Modal
+        open={showNewNote}
+        onClose={() => setShowNewNote(false)}
+        title="New Note"
+        icon={FilePlus}
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowNewNote(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={() => void handleCreateNote()} disabled={!newNoteName.trim()}>
+              Create
+            </Button>
+          </>
+        }
+      >
+        <div className="ui-field">
+          <label className="ui-field-label" htmlFor="note-new-name">Note Name</label>
+          <Input
+            id="note-new-name"
+            autoFocus
+            value={newNoteName}
+            onChange={(e) => setNewNoteName(e.target.value)}
+            placeholder="e.g. My New Note"
+            onKeyDown={(e) => e.key === "Enter" && handleCreateNote()}
+          />
         </div>
-      )}
+      </Modal>
     </div>
   );
 }

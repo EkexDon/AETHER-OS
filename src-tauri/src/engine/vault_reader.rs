@@ -187,14 +187,13 @@ impl VaultReader {
             });
         }
 
-        notes.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        notes.sort_by_cached_key(|n| n.name.to_lowercase());
         Ok(notes)
     }
 
     pub fn read_note(&self, note_path: &str) -> Result<String, AetherError> {
-        std::fs::read_to_string(note_path).map_err(|e| {
-            AetherError::Vault(format!("failed to read {note_path}: {e}"))
-        })
+        std::fs::read_to_string(note_path)
+            .map_err(|e| AetherError::Vault(format!("failed to read {note_path}: {e}")))
     }
 
     /// Write note content. The path must resolve inside the vault root —
@@ -216,9 +215,10 @@ impl VaultReader {
                 .ok_or_else(|| AetherError::Vault("note path has no parent".into()))?;
             let parent = std::fs::canonicalize(parent)
                 .map_err(|e| AetherError::Vault(format!("parent canonicalize: {e}")))?;
-            parent.join(path.file_name().ok_or_else(|| {
-                AetherError::Vault("note path has no file name".into())
-            })?)
+            parent.join(
+                path.file_name()
+                    .ok_or_else(|| AetherError::Vault("note path has no file name".into()))?,
+            )
         };
         if !canonical.starts_with(&root) {
             return Err(AetherError::Vault(format!(
@@ -322,12 +322,10 @@ impl VaultReader {
         if !index_path.exists() {
             return Ok(None);
         }
-        let content = std::fs::read_to_string(&index_path).map_err(|e| {
-            AetherError::Vault(format!("failed to read index: {e}"))
-        })?;
-        let index: VaultIndex = serde_json::from_str(&content).map_err(|e| {
-            AetherError::Vault(format!("failed to parse index: {e}"))
-        })?;
+        let content = std::fs::read_to_string(&index_path)
+            .map_err(|e| AetherError::Vault(format!("failed to read index: {e}")))?;
+        let index: VaultIndex = serde_json::from_str(&content)
+            .map_err(|e| AetherError::Vault(format!("failed to parse index: {e}")))?;
         Ok(Some(index))
     }
 
@@ -370,7 +368,7 @@ impl VaultReader {
             }
         }
 
-        nodes.sort_by(|a, b| a.label.to_lowercase().cmp(&b.label.to_lowercase()));
+        nodes.sort_by_cached_key(|n| n.label.to_lowercase());
         edges.dedup_by(|a, b| a.source == b.source && a.target == b.target);
 
         Ok(GraphData { nodes, edges })
@@ -496,7 +494,12 @@ fn line_matches_wikilink(line: &str, target: &str) -> bool {
         let after = &rest[start + 2..];
         let Some(end) = after.find("]]") else { break };
         let inner = &after[..end];
-        let name = inner.split('|').next().unwrap_or(inner).trim().to_lowercase();
+        let name = inner
+            .split('|')
+            .next()
+            .unwrap_or(inner)
+            .trim()
+            .to_lowercase();
         if name == target {
             return true;
         }
@@ -569,9 +572,7 @@ mod tests {
 
         let config_dir = tempdir().expect("config dir");
         let reader = VaultReader::new(config_dir.path()).expect("reader");
-        let content = reader
-            .read_note(path.to_str().unwrap())
-            .expect("read");
+        let content = reader.read_note(path.to_str().unwrap()).expect("read");
         assert_eq!(content, "# Test content");
     }
 
@@ -621,7 +622,10 @@ mod tests {
         let vault_path = dir.path().to_string_lossy().to_string();
         let graph = reader.build_graph(&vault_path).expect("graph");
         assert_eq!(graph.nodes.len(), 2);
-        assert!(graph.edges.iter().any(|e| e.source == alpha_path && e.target == beta_path));
+        assert!(graph
+            .edges
+            .iter()
+            .any(|e| e.source == alpha_path && e.target == beta_path));
     }
 
     #[test]
@@ -630,10 +634,11 @@ mod tests {
         let reader = VaultReader::new(dir.path()).expect("reader");
         assert!(reader.get_config().vault_path.is_none());
 
-        reader
-            .set_vault_path("/tmp/my-vault")
-            .expect("set");
-        assert_eq!(reader.get_config().vault_path, Some("/tmp/my-vault".to_owned()));
+        reader.set_vault_path("/tmp/my-vault").expect("set");
+        assert_eq!(
+            reader.get_config().vault_path,
+            Some("/tmp/my-vault".to_owned())
+        );
     }
 
     fn reader_with_vault() -> (tempfile::TempDir, tempfile::TempDir, VaultReader) {
@@ -653,7 +658,10 @@ mod tests {
         assert!(sanitize_rel_path("a/../../b.md").is_err());
         assert!(sanitize_rel_path(".hidden.md").is_err());
         assert!(sanitize_rel_path("C:/win.md").is_err());
-        assert_eq!(sanitize_rel_path("clips/My Note").unwrap(), "clips/My Note.md");
+        assert_eq!(
+            sanitize_rel_path("clips/My Note").unwrap(),
+            "clips/My Note.md"
+        );
         assert_eq!(sanitize_rel_path("plain.md").unwrap(), "plain.md");
     }
 
@@ -672,7 +680,10 @@ mod tests {
     #[test]
     fn wikilink_matching_is_case_and_alias_aware() {
         assert!(line_matches_wikilink("see [[My Note]]", "my note"));
-        assert!(line_matches_wikilink("see [[My Note|alias text]]", "my note"));
+        assert!(line_matches_wikilink(
+            "see [[My Note|alias text]]",
+            "my note"
+        ));
         assert!(line_matches_wikilink("[[a]] and [[My Note]]", "my note"));
         assert!(!line_matches_wikilink("see [[Other]]", "my note"));
         assert!(!line_matches_wikilink("no link here", "my note"));
@@ -717,7 +728,10 @@ mod tests {
         fs::write(&note, "# Log\n").expect("write");
         let path_str = note.to_str().unwrap().to_string();
         reader.append_note(&path_str, "- entry").expect("append");
-        assert_eq!(reader.read_note(&path_str).expect("read"), "# Log\n- entry\n");
+        assert_eq!(
+            reader.read_note(&path_str).expect("read"),
+            "# Log\n- entry\n"
+        );
     }
 
     #[test]

@@ -14,7 +14,6 @@ dist-ssr
 
 # Rust / Tauri
 src-tauri/target
-src-tauri/Cargo.lock
 src-tauri/.cargo
 
 # Editor directories and files
@@ -37,3 +36,10 @@ src-tauri/.cargo
 *.db-journal
 src-tauri/icons/*.png
 src-tauri/gen
+
+# tooling scratch
+.claude-flow/
+src-tauri/.claude-flow/
+src-tauri/icons/icon.icns
+src-tauri/icons/icon.ico
+.gstack/

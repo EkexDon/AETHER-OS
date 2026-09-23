@@ -218,9 +218,7 @@ impl CloudAiEngine {
 
     fn api_status(&self, status: Option<reqwest::StatusCode>) -> AetherError {
         let detail = match status {
-            Some(reqwest::StatusCode::UNAUTHORIZED) => {
-                "OpenRouter API key is invalid.".to_owned()
-            }
+            Some(reqwest::StatusCode::UNAUTHORIZED) => "OpenRouter API key is invalid.".to_owned(),
             Some(reqwest::StatusCode::PAYMENT_REQUIRED) => {
                 "OpenRouter account is out of credits.".to_owned()
             }
@@ -319,8 +317,7 @@ mod tests {
             "data: {\"id\":\"1\",\"choices\":[{\"delta\":{\"content\":\"lo\"}}]}\n\n",
             "data: [DONE]\n\n"
         ));
-        let engine =
-            CloudAiEngine::new().unwrap().with_endpoint(endpoint);
+        let engine = CloudAiEngine::new().unwrap().with_endpoint(endpoint);
 
         let collected = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
         let sink = collected.clone();

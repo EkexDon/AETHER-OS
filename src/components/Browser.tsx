@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { ArrowLeft, ArrowRight, RotateCcw, ExternalLink, Star, StarOff, Globe, Shield, X, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, RotateCcw, ExternalLink, Star, StarOff, Globe, Shield, X, Plus } from "lucide-react";
 import {
   getBrowserInfo,
   browserOpen,
@@ -20,6 +20,7 @@ import {
   isDesktopRuntime,
 } from "../lib/ipc";
 import type { BrowserInfo } from "../types";
+import { EmptyState, IconButton, Spinner } from "../ui";
 
 const BOOKMARKS_KEY = "aether-browser-bookmarks";
 const MAX_HISTORY = 50;
@@ -349,17 +350,20 @@ export function Browser() {
 
   if (!isDesktopRuntime()) {
     return (
-      <div className="browser-container">
+      <div className="view browser-container">
         <div className="browser-error">
-          <Globe size={48} />
-          <p>Browser requires the desktop runtime. Start with: npm run app</p>
+          <EmptyState
+            icon={Globe}
+            title="The browser runs in the desktop app"
+            description="Browser requires the desktop runtime. Start with: npm run app"
+          />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="browser-container">
+    <div className="view browser-container">
       <div className="browser-tab-bar">
         {tabs.map((tab) => (
           <div
@@ -373,7 +377,9 @@ export function Browser() {
             <Globe size={12} />
             <span className="browser-tab-title">{tab.title}</span>
             <button
+              type="button"
               className="browser-tab-close"
+              aria-label="Close tab"
               onClick={(e) => {
                 e.stopPropagation();
                 void closeTab(tab.label);
@@ -396,25 +402,21 @@ export function Browser() {
       </div>
 
       <div className="browser-toolbar">
-        <button
-          className="browser-nav-btn"
+        <IconButton
+          label="Back"
+          icon={<ArrowLeft size={16} />}
           onClick={goBack}
           disabled={!activeTab || activeTab.historyIndex <= 0}
-          title="Back"
-        >
-          <ArrowLeft size={16} />
-        </button>
-        <button
-          className="browser-nav-btn"
+          tooltipPlacement="bottom"
+        />
+        <IconButton
+          label="Forward"
+          icon={<ArrowRight size={16} />}
           onClick={goForward}
           disabled={!activeTab || activeTab.historyIndex >= activeTab.history.length - 1}
-          title="Forward"
-        >
-          <ArrowRight size={16} />
-        </button>
-        <button className="browser-nav-btn" onClick={reload} disabled={!activeTab} title="Reload">
-          <RotateCcw size={16} />
-        </button>
+          tooltipPlacement="bottom"
+        />
+        <IconButton label="Reload" icon={<RotateCcw size={15} />} onClick={reload} disabled={!activeTab} tooltipPlacement="bottom" />
 
         <div className="browser-url-bar">
           <Globe size={14} className="browser-url-icon" />
@@ -426,46 +428,43 @@ export function Browser() {
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={handleKeyDown}
             spellCheck={false}
+            aria-label="Address"
           />
-          {loading && <Loader2 size={14} className="browser-loading-spinner" />}
+          {loading && <Spinner size={14} className="browser-loading-spinner" />}
         </div>
 
-        <button
-          className="browser-nav-btn"
+        <IconButton
+          label={isBookmarked ? "Remove bookmark" : "Add bookmark"}
+          icon={isBookmarked ? <Star size={16} className="browser-bookmark-active" /> : <StarOff size={16} />}
           onClick={toggleBookmark}
           disabled={!activeTab}
-          title={isBookmarked ? "Remove bookmark" : "Add bookmark"}
-        >
-          {isBookmarked ? <Star size={16} className="browser-bookmark-active" /> : <StarOff size={16} />}
-        </button>
-
-        <button
-          className="browser-nav-btn"
+          active={isBookmarked}
+          tooltipPlacement="bottom"
+        />
+        <IconButton
+          label="Bookmarks"
+          icon={<Star size={16} />}
           onClick={() => setShowBookmarks((s) => !s)}
-          title="Bookmarks"
-        >
-          <Star size={16} />
-        </button>
-
+          active={showBookmarks}
+          tooltipPlacement="bottom"
+        />
         {browserInfo?.librewolf_installed && (
-          <button
-            className="browser-nav-btn browser-librewolf-btn"
+          <IconButton
+            label="Open in LibreWolf"
+            icon={<Shield size={16} />}
+            className="browser-librewolf-btn"
             onClick={openInLibreWolf}
             disabled={!activeTab}
-            title="Open in LibreWolf"
-          >
-            <Shield size={16} />
-          </button>
+            tooltipPlacement="bottom"
+          />
         )}
-
-        <button
-          className="browser-nav-btn"
+        <IconButton
+          label="Open in external browser"
+          icon={<ExternalLink size={16} />}
           onClick={openExternal}
           disabled={!activeTab}
-          title="Open in external browser"
-        >
-          <ExternalLink size={16} />
-        </button>
+          tooltipPlacement="bottom"
+        />
       </div>
 
       {showBookmarks && bookmarks.length > 0 && (
@@ -501,7 +500,9 @@ export function Browser() {
       <div className="browser-content" ref={contentRef}>
         {!activeLabel && (
           <div className="browser-home">
-            <Globe size={64} className="browser-home-icon" />
+            <span className="browser-home-icon">
+              <Globe size={22} />
+            </span>
             <h2>AETHER-OS Browser</h2>
             <p>Enter a URL or search query above to get started.</p>
             <p className="browser-home-hint">

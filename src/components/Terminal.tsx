@@ -12,9 +12,70 @@ import {
   isDesktopRuntime,
 } from "../lib/ipc";
 import { base64ToBytes } from "../lib/bytes";
+import { onTokensChange, readTokens } from "../lib/tokens";
 import type { TerminalSession } from "../types";
 
 const RESIZE_DEBOUNCE_MS = 120;
+
+const TERMINAL_FONT = '"JetBrains Mono Variable", ui-monospace, "SF Mono", Menlo, monospace';
+
+const TERMINAL_TOKENS = [
+  "--color-sunken",
+  "--color-fg-primary",
+  "--color-fg-tertiary",
+  "--color-accent",
+  "--color-selection",
+  "--color-danger",
+  "--color-success",
+  "--color-warning",
+  "--color-info",
+  "--color-cat-5",
+  "--color-cat-2",
+] as const;
+
+/**
+ * Dispose an xterm instance on the next macrotask. xterm schedules a
+ * `setTimeout(0)` scroll-area sync from `open()`; disposing synchronously
+ * (StrictMode remounts, closing a tab right after opening it) makes that
+ * callback hit a torn-down renderer ("reading 'dimensions'").
+ */
+function disposeTerminalLater(term: XTerm): void {
+  setTimeout(() => {
+    try {
+      term.dispose();
+    } catch {
+      // already disposed
+    }
+  }, 0);
+}
+
+/** xterm colour theme derived from the active design tokens. */
+function terminalTheme() {
+  const t = readTokens(TERMINAL_TOKENS);
+  return {
+    background: t["--color-sunken"],
+    foreground: t["--color-fg-primary"],
+    cursor: t["--color-accent"],
+    cursorAccent: t["--color-sunken"],
+    selectionBackground: t["--color-selection"],
+    black: t["--color-sunken"],
+    red: t["--color-danger"],
+    green: t["--color-success"],
+    yellow: t["--color-warning"],
+    blue: t["--color-info"],
+    magenta: t["--color-cat-5"],
+    cyan: t["--color-cat-2"],
+    white: t["--color-fg-primary"],
+    brightBlack: t["--color-fg-tertiary"],
+    brightRed: t["--color-danger"],
+    brightGreen: t["--color-success"],
+    brightYellow: t["--color-warning"],
+    brightBlue: t["--color-info"],
+    brightMagenta: t["--color-cat-5"],
+    brightCyan: t["--color-cat-2"],
+    brightWhite: t["--color-fg-primary"],
+  };
+}
 
 /**
  * A tab is identified by a stable `clientId` generated once on creation.
@@ -69,6 +130,9 @@ const TerminalTabPane = memo(function TerminalTabPane({
   const lastSizeRef = useRef<{ cols: number; rows: number } | null>(null);
   const cwdRef = useRef(defaultCwd);
   const activeFrameRef = useRef<number | null>(null);
+  // Theme changes that arrived while the pane was hidden (0×0): xterm's
+  // renderer has no dimensions then, so they are applied on the next show.
+  const pendingThemeRef = useRef(false);
 
   sessionIdRef.current = tab.sessionId;
   cwdRef.current = defaultCwd;
@@ -79,29 +143,9 @@ const TerminalTabPane = memo(function TerminalTabPane({
     const term = new XTerm({
       cursorBlink: true,
       fontSize: 13,
-      fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
-      theme: {
-        background: "#0a0a0c",
-        foreground: "#e4e4e8",
-        cursor: "#6b6bf5",
-        selectionBackground: "rgba(107, 107, 245, 0.25)",
-        black: "#0a0a0c",
-        red: "#f87171",
-        green: "#4ade80",
-        yellow: "#fbbf24",
-        blue: "#60a5fa",
-        magenta: "#c084fc",
-        cyan: "#22d3ee",
-        white: "#e4e4e8",
-        brightBlack: "#555560",
-        brightRed: "#fca5a5",
-        brightGreen: "#86efac",
-        brightYellow: "#fde68a",
-        brightBlue: "#93c5fd",
-        brightMagenta: "#d8b4fe",
-        brightCyan: "#67e8f9",
-        brightWhite: "#ffffff",
-      },
+      lineHeight: 1.25,
+      fontFamily: TERMINAL_FONT,
+      theme: terminalTheme(),
       allowProposedApi: true,
     });
 
@@ -113,6 +157,34 @@ const TerminalTabPane = memo(function TerminalTabPane({
     xtermRef.current = term;
     fitRef.current = fitAddon;
 
+    const isMeasurable = () => {
+      const el = containerRef.current;
+      return !!el && el.clientWidth >= 10 && el.clientHeight >= 10;
+    };
+
+    // Follow theme / accent changes without recreating the terminal.
+    const offTokens = onTokensChange(() => {
+      if (!term.options) return;
+      if (isMeasurable()) term.options.theme = terminalTheme();
+      else pendingThemeRef.current = true;
+    });
+    // The bundled mono font may finish loading after xterm measured its
+    // cells; re-apply it once ready so glyph metrics are correct.
+    if (typeof document !== "undefined" && document.fonts?.load) {
+      void document.fonts
+        .load(`13px ${TERMINAL_FONT}`)
+        .then(() => {
+          if (xtermRef.current !== term || !term.options || !isMeasurable()) return;
+          term.options.fontFamily = TERMINAL_FONT;
+          try {
+            fitAddon.fit();
+          } catch {
+            // layout still settling
+          }
+        })
+        .catch(() => undefined);
+    }
+
     onRegisterTerm(tab.clientId, tab.sessionId, term, fitAddon);
 
     if (!isDesktopRuntime()) {
@@ -120,8 +192,9 @@ const TerminalTabPane = memo(function TerminalTabPane({
       term.writeln("\x1b[90mStart the desktop app to use the terminal: \x1b[1mnpm run app\x1b[0m");
       term.writeln("");
       return () => {
+        offTokens();
         onUnregisterTerm(tab.clientId);
-        term.dispose();
+        disposeTerminalLater(term);
       };
     }
 
@@ -184,6 +257,13 @@ const TerminalTabPane = memo(function TerminalTabPane({
         if (!fitRef.current || !xtermRef.current || !container) return;
         if (container.clientWidth < 10 || container.clientHeight < 10) return;
 
+        // The view became visible again: apply a theme switch that happened
+        // while it was hidden.
+        if (pendingThemeRef.current && xtermRef.current.options) {
+          pendingThemeRef.current = false;
+          xtermRef.current.options.theme = terminalTheme();
+        }
+
         try {
           fitRef.current.fit();
         } catch {
@@ -211,13 +291,14 @@ const TerminalTabPane = memo(function TerminalTabPane({
 
     return () => {
       cancelled = true;
+      offTokens();
       resizeObserver.disconnect();
       if (resizeTimeoutRef.current !== null) {
         window.clearTimeout(resizeTimeoutRef.current);
         resizeTimeoutRef.current = null;
       }
       onUnregisterTerm(tab.clientId);
-      term.dispose();
+      disposeTerminalLater(term);
       xtermRef.current = null;
       fitRef.current = null;
     };
@@ -236,6 +317,10 @@ const TerminalTabPane = memo(function TerminalTabPane({
           if (containerRef.current.clientWidth < 10 || containerRef.current.clientHeight < 10) return;
 
           const before = { cols: xtermRef.current.cols, rows: xtermRef.current.rows };
+          if (pendingThemeRef.current && xtermRef.current.options) {
+            pendingThemeRef.current = false;
+            xtermRef.current.options.theme = terminalTheme();
+          }
           try {
             fitRef.current.fit();
             // Force the renderer to redraw every row after a fit. When a
@@ -398,10 +483,17 @@ export function Terminal({ defaultCwd }: TerminalProps = {}) {
     [activeClientId]
   );
 
+  // Always keep one tab open. The ref stops React StrictMode's double effect
+  // run from opening two shells before the first state update lands.
+  const autoCreatedRef = useRef(false);
   useEffect(() => {
-    if (tabs.length === 0) {
-      createTab();
+    if (tabs.length > 0) {
+      autoCreatedRef.current = false;
+      return;
     }
+    if (autoCreatedRef.current) return;
+    autoCreatedRef.current = true;
+    createTab();
   }, [tabs.length, createTab]);
 
   // Global listener for output from all terminal PTY sessions

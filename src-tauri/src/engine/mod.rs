@@ -16,6 +16,24 @@ pub mod vector_db;
 pub mod web_clipper;
 pub mod workspace;
 
-pub mod cloud_ai;
 pub mod ai_config;
+pub mod cloud_ai;
 pub mod task_board;
+
+// Wave 1 infra: shared helpers.
+pub mod diagnostics;
+pub mod sqlite;
+pub mod updater;
+
+// Feature engines (SWARM-CONTRACT §3): add `pub mod <feature>;` directly
+// above your own anchor. Never reorder or remove anchors.
+// @anchor:engine:clipboard
+// @anchor:engine:search
+// @anchor:engine:history
+// @anchor:engine:home
+// @anchor:engine:vaulttasks
+// @anchor:engine:intel
+// @anchor:engine:plugins
+// @anchor:engine:export
+// @anchor:engine:sync
+// @anchor:engine:onboarding

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { X, Calendar, MapPin, Tag as TagIcon, User, Trash2 } from "lucide-react";
+import { Button, Modal } from "../ui";
 import { format } from "date-fns";
 import { useAetherStore } from "../lib/store";
 import {
@@ -320,16 +321,37 @@ export function EventEditorModal({
   };
 
   return (
-    <div className="event-editor-overlay" onClick={onClose}>
-      <div className="event-editor-modal" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
-        <div className="event-editor-header">
-          <Calendar size={14} />
-          <span>{event ? "Edit event" : "New event"}</span>
-          <button className="btn btn-icon" onClick={onClose} title="Close">
-            <X size={14} />
+    <Modal
+      open
+      onClose={onClose}
+      title={event ? "Edit event" : "New event"}
+      icon={Calendar}
+      size="md"
+      className="event-editor-modal"
+      footerStart={
+        event && (
+          <button
+            type="button"
+            className={`event-editor-delete${confirmingDelete ? " confirming" : ""}`}
+            onClick={() => void handleDelete()}
+            disabled={saving}
+          >
+            <Trash2 size={13} /> {confirmingDelete ? "Confirm delete" : "Delete"}
           </button>
-        </div>
-        <div className="event-editor-body">
+        )
+      }
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={() => void handleSave()} disabled={!isValid || saving} loading={saving}>
+            Save
+          </Button>
+        </>
+      }
+    >
+        <div className="event-editor-body" onKeyDown={handleKeyDown}>
           <label className="event-editor-field">
             <span className="event-editor-field-label">Title</span>
             <input
@@ -417,7 +439,7 @@ export function EventEditorModal({
                       checked={dueAllDay}
                       onChange={(e) => setDueAllDay(e.target.checked)}
                     />
-                    <span style={{ fontSize: 11 }}>All day</span>
+                    <span className="event-editor-inline-label">All day</span>
                   </label>
                   <button
                     type="button"
@@ -499,34 +521,6 @@ export function EventEditorModal({
 
           {error && <div className="calendar-dialog-status error">{error}</div>}
         </div>
-        <div className="event-editor-footer">
-          <div>
-            {event && (
-              <button
-                type="button"
-                className={`event-editor-delete${confirmingDelete ? " confirming" : ""}`}
-                onClick={() => void handleDelete()}
-                disabled={saving}
-              >
-                <Trash2 size={12} /> {confirmingDelete ? "Confirm delete" : "Delete"}
-              </button>
-            )}
-          </div>
-          <div className="event-editor-footer-right">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => void handleSave()}
-              disabled={!isValid || saving}
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -2,8 +2,26 @@ import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import { useAetherStore } from "../lib/store";
 import { getVaultGraph, getNoteContent, createNote, getVaultNotes } from "../lib/ipc";
+import { Waypoints } from "lucide-react";
+import { useTokens, withAlpha } from "../lib/tokens";
+import { EmptyState, ViewHeader, cx } from "../ui";
 
-const COLORS = ["#a78bfa", "#60a5fa", "#34d399", "#fbbf24", "#f87171", "#f472b6", "#38bdf8", "#818cf8"];
+/** Canvas colours come from the design tokens so the graph follows the theme. */
+const GRAPH_TOKENS = [
+  "--color-bg",
+  "--color-fg-secondary",
+  "--color-fg-tertiary",
+  "--color-border-strong",
+  "--color-accent",
+  "--color-cat-1",
+  "--color-cat-2",
+  "--color-cat-3",
+  "--color-cat-4",
+  "--color-cat-5",
+  "--color-cat-6",
+  "--color-cat-7",
+  "--color-cat-8",
+] as const;
 
 function endpointId(v: string | { id: string }): string {
   return typeof v === "object" && v !== null ? v.id : v;
@@ -18,6 +36,20 @@ export function VaultGraph() {
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const clickTimeout = useRef<number>(0);
   const isMounted = useRef(true);
+  const tokens = useTokens(GRAPH_TOKENS);
+  const palette = useMemo(
+    () => [
+      tokens["--color-cat-1"],
+      tokens["--color-cat-2"],
+      tokens["--color-cat-3"],
+      tokens["--color-cat-4"],
+      tokens["--color-cat-5"],
+      tokens["--color-cat-6"],
+      tokens["--color-cat-7"],
+      tokens["--color-cat-8"],
+    ],
+    [tokens]
+  );
 
   // Re-fetch graph data on mount
   useEffect(() => {
@@ -46,7 +78,8 @@ export function VaultGraph() {
     });
     observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, []);
+    // Re-attach when the canvas mounts after the graph data arrives.
+  }, [graph.nodes.length === 0]);
 
   // Collect all tags from graph nodes
   const allTags = useMemo(() => {
@@ -123,12 +156,12 @@ export function VaultGraph() {
       const r = 5;
 
       // Color based on first tag hash
-      let color = "#a78bfa";
+      let color = tokens["--color-fg-tertiary"];
       if (node.tags && node.tags.length > 0) {
         let hash = 0;
         for (let i = 0; i < node.tags[0].length; i++)
           hash = node.tags[0].charCodeAt(i) + ((hash << 5) - hash);
-        color = COLORS[Math.abs(hash) % COLORS.length];
+        color = palette[Math.abs(hash) % palette.length];
       }
 
       const isMuted = activeTag && !(node.tags || []).includes(activeTag);
@@ -139,78 +172,93 @@ export function VaultGraph() {
       ctx.arc(node.x, node.y, r, 0, 2 * Math.PI);
       ctx.fillStyle = color;
       ctx.fill();
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = tokens["--color-bg"];
+      ctx.lineWidth = 1.5 / Math.max(globalScale, 0.5);
       ctx.stroke();
 
       // Label
       if (globalScale >= 0.8 && !isMuted) {
         const label = node.label as string;
         const fontSize = 11 / globalScale;
-        ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+        ctx.font = `500 ${fontSize}px "IBM Plex Sans Variable", -apple-system, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.globalAlpha = 0.85;
-        ctx.fillStyle = "#e4e4e8";
+        ctx.fillStyle = tokens["--color-fg-secondary"];
         ctx.fillText(label, node.x, node.y + r + 3);
       }
       ctx.globalAlpha = 1.0;
     },
-    [activeTag]
+    [activeTag, tokens, palette]
   );
 
   // Link color based on tag filter
   const linkColor = useCallback(
     (link: any) => {
-      if (!activeTag) return "rgba(107, 107, 245, 0.25)";
+      const base = tokens["--color-border-strong"];
+      if (!activeTag) return base;
       const sHas = (link.source?.tags || []).includes(activeTag);
       const tHas = (link.target?.tags || []).includes(activeTag);
-      return sHas || tHas ? "rgba(107, 107, 245, 0.25)" : "rgba(107, 107, 245, 0.05)";
+      return sHas || tHas ? withAlpha(tokens["--color-accent"], 0.45) : withAlpha(tokens["--color-fg-tertiary"], 0.08);
     },
-    [activeTag]
+    [activeTag, tokens]
   );
 
   if (graph.nodes.length === 0) {
     return (
-      <div className="vault-graph-empty">
-        <div className="vault-graph-empty-inner">
-          <p>No graph data — open a vault to see connections</p>
+      <div className="view graph-shell">
+        <ViewHeader title="Knowledge Graph" subtitle="Every wikilink in your vault, as a map" />
+        <div className="view-body vault-graph-empty">
+          <EmptyState
+            icon={Waypoints}
+            title="No graph data"
+            description="Open a vault to see how your notes connect through wikilinks."
+          />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="graph-shell">
-      <div className="graph-topbar">
-        <div className="graph-topbar-row">
+    <div className="view graph-shell">
+      <ViewHeader
+        compact
+        bordered
+        icon={Waypoints}
+        title="Knowledge Graph"
+        subtitle={
           <span className="graph-stats">
-            Knowledge Graph — {filteredData.nodes.length} notes,{" "}
-            {filteredData.links.length} connections
+            {filteredData.nodes.length} notes, {filteredData.links.length} connections
             {activeTag ? ` (filtered by #${activeTag})` : ""}
           </span>
-          <span className="graph-hint">Double-click empty space to create note</span>
-        </div>
-        {allTags.length > 0 && (
-          <div className="graph-tag-pills">
-            <button
-              className={`graph-tag-pill ${!activeTag ? "active" : ""}`}
-              onClick={() => setActiveTag(null)}
-            >
-              All
-            </button>
-            {allTags.map((tag) => (
+        }
+        actions={<span className="graph-hint">Double-click empty space to create note</span>}
+        tabs={
+          allTags.length > 0 ? (
+            <div className="graph-tag-pills" role="toolbar" aria-label="Filter by tag">
               <button
-                key={tag}
-                className={`graph-tag-pill ${activeTag === tag ? "active" : ""}`}
-                onClick={() => setActiveTag(tag)}
+                type="button"
+                className={cx("graph-tag-pill", !activeTag && "active")}
+                aria-pressed={!activeTag}
+                onClick={() => setActiveTag(null)}
               >
-                #{tag}
+                All
               </button>
-            ))}
-          </div>
-        )}
-      </div>
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className={cx("graph-tag-pill", activeTag === tag && "active")}
+                  aria-pressed={activeTag === tag}
+                  onClick={() => setActiveTag(tag)}
+                >
+                  #{tag}
+                </button>
+              ))}
+            </div>
+          ) : undefined
+        }
+      />
       <div className="graph-canvas" ref={containerRef}>
         <ForceGraph2D
           ref={fgRef}
@@ -218,11 +266,11 @@ export function VaultGraph() {
           nodeCanvasObject={nodeCanvasObject}
           nodeLabel="label"
           linkColor={linkColor as any}
-          linkWidth={1.5}
-          linkDirectionalParticleWidth={4}
+          linkWidth={1}
+          linkDirectionalParticleWidth={3}
           linkDirectionalParticleSpeed={0.02}
-          linkDirectionalParticleColor={() => "rgba(107, 107, 245, 0.9)"}
-          backgroundColor="#0a0a0c"
+          linkDirectionalParticleColor={() => tokens["--color-accent"]}
+          backgroundColor={tokens["--color-bg"]}
           onNodeClick={onNodeClick}
           onBackgroundClick={handleBackgroundClick}
           enableNodeDrag

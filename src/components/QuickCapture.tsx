@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
-import { Zap, X, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef, type RefObject } from "react";
+import { Zap, CheckCircle2 } from "lucide-react";
 import { useAetherStore } from "../lib/store";
 import { appendDaily } from "../lib/ipc";
+import { Button, Kbd, Modal, Spinner } from "../ui";
 
 export function QuickCapture() {
   const { showQuickCapture, setShowQuickCapture, selectNote, setView } = useAetherStore();
@@ -33,6 +34,8 @@ export function QuickCapture() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
+      // Keep capturing: focus returns to the field after each save.
+      setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
@@ -46,48 +49,61 @@ export function QuickCapture() {
   if (!showQuickCapture) return null;
 
   return (
-    <div className="quick-capture-overlay" onClick={() => setShowQuickCapture(false)}>
-      <div className="quick-capture-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="quick-capture-header">
-          <Zap size={18} />
-          <span>Quick Capture</span>
-          <span className="quick-capture-hint">→ Today's Daily Note</span>
-          <button className="btn btn-icon" onClick={() => setShowQuickCapture(false)}>
-            <X size={16} />
-          </button>
-        </div>
-        <input
-          ref={inputRef}
-          type="text"
-          className="quick-capture-input"
-          placeholder="Capture a thought…"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              void handleSubmit();
-            }
-            if (e.key === "Escape") {
-              setShowQuickCapture(false);
-            }
-          }}
-          disabled={saving}
-        />
-        {error && <div className="quick-capture-error">{error}</div>}
-        {savedPath && (
-          <div className="quick-capture-success">
-            <span>Saved to daily note ✓</span>
-            <button className="btn btn-ghost btn-sm" onClick={handleOpenDaily}>
-              Open note
-            </button>
-          </div>
-        )}
-        <div className="quick-capture-footer">
-          <span className="quick-capture-shortcut">Enter to save · Esc to close</span>
-          {saving && <Loader2 size={14} className="spin" />}
-        </div>
+    <Modal
+      open
+      onClose={() => setShowQuickCapture(false)}
+      size="md"
+      position="top"
+      hideCloseButton
+      flush
+      aria-label="Quick Capture"
+      className="quick-capture-modal"
+      initialFocusRef={inputRef as RefObject<HTMLElement>}
+    >
+      <div className="quick-capture-header">
+        <span className="quick-capture-badge">
+          <Zap size={13} />
+          Quick Capture
+        </span>
+        <span className="quick-capture-hint">→ Today's Daily Note</span>
       </div>
-    </div>
+      <input
+        ref={inputRef}
+        type="text"
+        className="quick-capture-input"
+        placeholder="Capture a thought…"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            void handleSubmit();
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            setShowQuickCapture(false);
+          }
+        }}
+        disabled={saving}
+        aria-label="Thought to capture"
+      />
+      {error && <div className="quick-capture-error">{error}</div>}
+      {savedPath && (
+        <div className="quick-capture-success">
+          <CheckCircle2 size={14} />
+          <span>Saved to daily note ✓</span>
+          <Button variant="ghost" size="sm" onClick={handleOpenDaily}>
+            Open note
+          </Button>
+        </div>
+      )}
+      <div className="quick-capture-footer">
+        <span className="quick-capture-shortcut">
+          <Kbd>↵</Kbd> save
+          <Kbd>Esc</Kbd> close
+        </span>
+        {saving && <Spinner size={14} label="Saving" />}
+      </div>
+    </Modal>
   );
 }

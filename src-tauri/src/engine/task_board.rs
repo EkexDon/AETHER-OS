@@ -112,7 +112,7 @@ impl TaskBoardEngine {
             }
         }
 
-        projects.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        projects.sort_by_cached_key(|p| p.name.to_lowercase());
         Ok(projects)
     }
 
@@ -122,7 +122,8 @@ impl TaskBoardEngine {
             return Err(AetherError::InvalidInput(format!("project {id} not found")));
         }
         let content = std::fs::read_to_string(path)?;
-        serde_json::from_str(&content).map_err(|e| AetherError::Vault(format!("project parse: {e}")))
+        serde_json::from_str(&content)
+            .map_err(|e| AetherError::Vault(format!("project parse: {e}")))
     }
 
     pub fn create_project(
@@ -134,7 +135,9 @@ impl TaskBoardEngine {
     ) -> Result<TaskProject, AetherError> {
         let trimmed_name = name.trim();
         if trimmed_name.is_empty() {
-            return Err(AetherError::InvalidInput("project name is required".to_owned()));
+            return Err(AetherError::InvalidInput(
+                "project name is required".to_owned(),
+            ));
         }
 
         let id = uuid::Uuid::new_v4().to_string();
@@ -172,7 +175,9 @@ impl TaskBoardEngine {
         if let Some(name) = patch.name {
             let trimmed = name.trim();
             if trimmed.is_empty() {
-                return Err(AetherError::InvalidInput("project name cannot be empty".to_owned()));
+                return Err(AetherError::InvalidInput(
+                    "project name cannot be empty".to_owned(),
+                ));
             }
             project.name = trimmed.to_owned();
         }
@@ -278,7 +283,9 @@ impl TaskBoardEngine {
     ) -> Result<TaskItem, AetherError> {
         let trimmed_title = title.trim();
         if trimmed_title.is_empty() {
-            return Err(AetherError::InvalidInput("task title is required".to_owned()));
+            return Err(AetherError::InvalidInput(
+                "task title is required".to_owned(),
+            ));
         }
 
         let id = uuid::Uuid::new_v4().to_string();
@@ -339,7 +346,9 @@ impl TaskBoardEngine {
         if let Some(title) = patch.title {
             let trimmed = title.trim();
             if trimmed.is_empty() {
-                return Err(AetherError::InvalidInput("task title cannot be empty".to_owned()));
+                return Err(AetherError::InvalidInput(
+                    "task title cannot be empty".to_owned(),
+                ));
             }
             task.title = trimmed.to_owned();
         }

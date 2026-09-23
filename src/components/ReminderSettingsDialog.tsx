@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { X, Bell } from "lucide-react";
+import { Bell } from "lucide-react";
+import { Button, Modal } from "../ui";
 import { isPermissionGranted, requestPermission } from "@tauri-apps/plugin-notification";
 import { useAetherStore } from "../lib/store";
 import type { ReminderSettings } from "../types";
@@ -66,15 +67,25 @@ export function ReminderSettingsDialog({ onClose }: { onClose: () => void }) {
   })();
 
   return (
-    <div className="calendar-dialog-overlay" onClick={onClose}>
-      <div className="calendar-dialog-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="calendar-dialog-header">
-          <Bell size={14} />
-          <span>Reminder settings</span>
-          <button className="btn btn-icon" onClick={onClose}>
-            <X size={14} />
-          </button>
-        </div>
+    <Modal
+      open
+      onClose={onClose}
+      title="Reminder settings"
+      description="Desktop notifications before your events start."
+      icon={Bell}
+      size="sm"
+      className="calendar-dialog-modal"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" onClick={handleSave}>
+            Save
+          </Button>
+        </>
+      }
+    >
         <div className="calendar-dialog-body">
           <label className="event-editor-field-row">
             <input
@@ -113,15 +124,6 @@ export function ReminderSettingsDialog({ onClose }: { onClose: () => void }) {
           )}
           <div className="reminder-preview">{preview}</div>
         </div>
-        <div className="event-editor-footer">
-          <button className="btn btn-secondary" onClick={onClose}>
-            Cancel
-          </button>
-          <button className="btn btn-primary" onClick={handleSave}>
-            Save
-          </button>
-        </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -129,7 +129,10 @@ pub async fn cmd_write_ics_to_path(path: String, content: String) -> Result<(), 
     let pb = validate_ics_path(&path)?;
     if let Some(parent) = pb.parent() {
         if !parent.as_os_str().is_empty() && !parent.exists() {
-            return Err(format!("parent directory does not exist: {}", parent.display()));
+            return Err(format!(
+                "parent directory does not exist: {}",
+                parent.display()
+            ));
         }
     }
     std::fs::write(&pb, content).map_err(|e| e.to_string())
@@ -198,7 +201,9 @@ pub async fn cmd_import_calendar_ics(
                     e.source_note_path,
                 )
                 .map_err(|err| {
-                    result.errors.push(format!("create failed for {}: {err}", e.uid));
+                    result
+                        .errors
+                        .push(format!("create failed for {}: {err}", e.uid));
                 });
             result.added += 1;
         }
@@ -236,7 +241,10 @@ pub async fn cmd_set_reminder_settings(
     state: State<'_, AppState>,
     settings: ReminderSettings,
 ) -> Result<(), String> {
-    state.notifier.set_settings(settings).map_err(|e| e.to_string())?;
+    state
+        .notifier
+        .set_settings(settings)
+        .map_err(|e| e.to_string())?;
     state.notifier.reschedule();
     Ok(())
 }
@@ -267,7 +275,6 @@ mod tests {
     //! (Note: serde's default field-name matching is case-insensitive, so
     //! `allDay` in the patch also works — but the IPC wrapper stays on
     //! `all_day` for clarity and to mirror the Rust struct.)
-    use super::*;
     use crate::engine::calendar::EventPatch;
 
     #[test]

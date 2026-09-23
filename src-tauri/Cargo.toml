@@ -35,5 +35,21 @@ scraper = "0.21"
 git2 = "0.21.0"
 base64 = "0.22"
 
+# ── Shared integration dependencies (SWARM-CONTRACT §3) ──────────────
+# Feature agents add their crates directly above their own anchor.
+# Shared crates used by several features live under `deps:shared`.
+# @anchor:deps:shared
+rusqlite = { version = "0.32", features = ["bundled"] }
+# @anchor:deps:clipboard
+# @anchor:deps:search
+# @anchor:deps:history
+# @anchor:deps:home
+# @anchor:deps:vaulttasks
+# @anchor:deps:intel
+# @anchor:deps:plugins
+# @anchor:deps:export
+# @anchor:deps:sync
+# @anchor:deps:onboarding
+
 [dev-dependencies]
 tempfile = "3.8"

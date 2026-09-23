@@ -4,10 +4,10 @@
 
 use tauri::State;
 
-use crate::engine::error::AetherError;
-use crate::engine::web_clipper::ClippedPage;
 use crate::engine::aether_notes::AetherNote;
+use crate::engine::error::AetherError;
 use crate::engine::memory_store::MemoryFact;
+use crate::engine::web_clipper::ClippedPage;
 use crate::AppState;
 
 #[derive(serde::Serialize)]
@@ -44,11 +44,7 @@ pub async fn cmd_agent_clip_url(
     state: State<'_, AppState>,
     url: String,
 ) -> Result<AgentActionResult, String> {
-    let page = state
-        .clipper
-        .clip(&url)
-        .await
-        .map_err(|e| e.to_string())?;
+    let page = state.clipper.clip(&url).await.map_err(|e| e.to_string())?;
     Ok(AgentActionResult::ClippedPage { path: page })
 }
 

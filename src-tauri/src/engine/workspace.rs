@@ -89,16 +89,19 @@ impl Workspace {
         let parent = requested.parent().ok_or_else(|| {
             AetherError::InvalidInput(format!("path has no parent directory: {path}"))
         })?;
-        let file_name = requested.file_name().ok_or_else(|| {
-            AetherError::InvalidInput(format!("path has no file name: {path}"))
-        })?;
+        let file_name = requested
+            .file_name()
+            .ok_or_else(|| AetherError::InvalidInput(format!("path has no file name: {path}")))?;
         // Reject names that would re-introduce traversal after the parent
         // has been canonicalized (e.g. a trailing "..").
         if file_name == std::ffi::OsStr::new("..") || file_name == std::ffi::OsStr::new(".") {
             return Err(Self::deny(requested));
         }
         let canonical_parent = std::fs::canonicalize(parent).map_err(|_| {
-            AetherError::InvalidInput(format!("parent directory does not exist: {}", parent.display()))
+            AetherError::InvalidInput(format!(
+                "parent directory does not exist: {}",
+                parent.display()
+            ))
         })?;
         if !self.contains(&canonical_parent) {
             return Err(Self::deny(requested));
@@ -287,7 +290,10 @@ mod tests {
 
         let ws = Workspace::new([root.path()]);
         let path = file.to_string_lossy().to_string();
-        assert_eq!(ws.read_file(&path).expect("read must succeed"), "fn main() {}");
+        assert_eq!(
+            ws.read_file(&path).expect("read must succeed"),
+            "fn main() {}"
+        );
 
         ws.write_file(&path, "fn main() { println!(); }")
             .expect("write must succeed");
@@ -339,7 +345,9 @@ mod tests {
         write(&target, "original");
 
         let ws = Workspace::new([root.path()]);
-        assert!(ws.write_file(&target.to_string_lossy(), "overwritten").is_err());
+        assert!(ws
+            .write_file(&target.to_string_lossy(), "overwritten")
+            .is_err());
         assert_eq!(
             std::fs::read_to_string(&target).expect("file must be readable"),
             "original"
@@ -441,7 +449,10 @@ mod tests {
     #[test]
     fn drops_roots_that_do_not_exist() {
         let root = tempfile::tempdir().expect("temp dir must be created");
-        let ws = Workspace::new([root.path().to_string_lossy().to_string(), "/nope/missing".to_owned()]);
+        let ws = Workspace::new([
+            root.path().to_string_lossy().to_string(),
+            "/nope/missing".to_owned(),
+        ]);
         assert_eq!(ws.roots().len(), 1);
     }
 
@@ -451,7 +462,9 @@ mod tests {
         write(&root.path().join("a.txt"), "hi");
 
         let ws = Workspace::new(Vec::<String>::new());
-        assert!(ws.read_file(&root.path().join("a.txt").to_string_lossy()).is_err());
+        assert!(ws
+            .read_file(&root.path().join("a.txt").to_string_lossy())
+            .is_err());
         assert!(ws.list_dir(&root.path().to_string_lossy()).is_err());
     }
 

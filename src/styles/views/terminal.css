@@ -1,0 +1,156 @@
+/* ── Terminal ─────────────────────────────────────────────────── */
+.terminal-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-sunken);
+}
+
+.terminal-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 0 var(--space-1-5);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.terminal-tab-bar::-webkit-scrollbar {
+  display: none;
+}
+
+.terminal-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  height: 26px;
+  padding: 0 var(--space-1) 0 var(--space-2-5);
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-tertiary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.terminal-tab:hover {
+  background: var(--color-fill-hover);
+  color: var(--color-fg-primary);
+}
+
+.terminal-tab-active,
+.terminal-tab-active:hover {
+  background: var(--color-fill-active);
+  color: var(--color-fg-primary);
+}
+
+.terminal-tab > svg {
+  color: var(--color-fg-tertiary);
+}
+
+.terminal-tab-title {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.terminal-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-xs);
+  color: var(--color-fg-tertiary);
+  opacity: 0;
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.terminal-tab:hover .terminal-tab-close,
+.terminal-tab-active .terminal-tab-close,
+.terminal-tab-close:focus-visible {
+  opacity: 1;
+}
+
+.terminal-tab-close:hover {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.terminal-tab-new,
+.terminal-tab-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  color: var(--color-fg-tertiary);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+
+.terminal-tab-new:hover,
+.terminal-tab-reset:hover:not(:disabled) {
+  background: var(--color-fill-hover);
+  color: var(--color-fg-primary);
+}
+
+.terminal-tab-reset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.terminal-tab-bar-spacer {
+  flex: 1;
+}
+
+.terminal-container {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-2) var(--space-1) var(--space-1) var(--space-3);
+  overflow: hidden;
+  background: var(--color-sunken);
+}
+
+.terminal-container .xterm {
+  height: 100%;
+}
+
+.terminal-container .xterm-viewport,
+.terminal-container .xterm-screen {
+  background-color: var(--color-sunken) !important;
+}
+
+/* The Terminal view stays mounted across view switches (see ViewHost);
+   the IDE's embedded terminal stays mounted while its panel is closed. */
+.terminal-keepalive {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.terminal-keepalive-hidden,
+.ide-terminal-panel-hidden {
+  display: none;
+}

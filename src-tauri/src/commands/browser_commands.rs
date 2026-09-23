@@ -77,7 +77,10 @@ pub async fn cmd_browser_open_librewolf(
     state: State<'_, AppState>,
     url: String,
 ) -> Result<(), String> {
-    state.browser.open_in_librewolf(&url).map_err(|e| e.to_string())
+    state
+        .browser
+        .open_in_librewolf(&url)
+        .map_err(|e| e.to_string())
 }
 
 /// Open a URL in a native webview embedded as a subview of the main window.

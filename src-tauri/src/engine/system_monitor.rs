@@ -139,7 +139,9 @@ impl SystemMonitor {
         let mut networks = self.networks.lock().unwrap();
         networks.refresh();
         let now = std::time::Instant::now();
-        let elapsed = now.duration_since(*self.prev_ts.lock().unwrap()).as_secs_f64();
+        let elapsed = now
+            .duration_since(*self.prev_ts.lock().unwrap())
+            .as_secs_f64();
         let elapsed = if elapsed > 0.0 { elapsed } else { 1.0 };
 
         let mut prev_rx = self.prev_rx.lock().unwrap();
@@ -187,7 +189,11 @@ impl SystemMonitor {
                 memory: p.memory(),
             })
             .collect();
-        procs.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal));
+        procs.sort_by(|a, b| {
+            b.cpu_usage
+                .partial_cmp(&a.cpu_usage)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         procs.truncate(10);
 
         // Battery (best-effort, may not be available on desktops)
@@ -219,7 +225,10 @@ mod tests {
     fn collect_returns_non_empty_cpus() {
         let monitor = SystemMonitor::new();
         let metrics = monitor.collect();
-        assert!(!metrics.cpus.is_empty(), "should have at least one CPU core");
+        assert!(
+            !metrics.cpus.is_empty(),
+            "should have at least one CPU core"
+        );
         assert!(metrics.overall_cpu >= 0.0 && metrics.overall_cpu <= 100.0);
     }
 
@@ -242,7 +251,10 @@ mod tests {
         assert!(!metrics.disks.is_empty(), "should have at least one disk");
         let disk = &metrics.disks[0];
         assert!(disk.total > 0, "disk total should be > 0");
-        assert!(disk.used + disk.available <= disk.total + 1, "used + available <= total");
+        assert!(
+            disk.used + disk.available <= disk.total + 1,
+            "used + available <= total"
+        );
     }
 
     #[test]
@@ -260,7 +272,10 @@ mod tests {
     fn collect_returns_top_processes() {
         let monitor = SystemMonitor::new();
         let metrics = monitor.collect();
-        assert!(!metrics.processes.is_empty(), "should have at least one process");
+        assert!(
+            !metrics.processes.is_empty(),
+            "should have at least one process"
+        );
         assert!(metrics.processes.len() <= 10, "should cap at 10 processes");
         // Verify sorted by CPU usage descending
         for i in 1..metrics.processes.len() {

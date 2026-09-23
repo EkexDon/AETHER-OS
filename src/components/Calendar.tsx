@@ -10,6 +10,7 @@ import { useAetherStore } from "../lib/store";
 import { listCalendarEvents, deleteCalendarEvent } from "../lib/ipc";
 import { CALENDAR_COLORS, DEFAULT_CALENDAR_COLOR } from "../lib/calendarColors";
 import type { CalendarEvent, CalendarView as CalendarViewType } from "../types";
+import { Button, IconButton, SegmentedControl } from "../ui";
 import { EventEditorModal } from "./EventEditorModal";
 import { CalendarImportExportDialog } from "./CalendarImportExportDialog";
 import { ReminderSettingsDialog } from "./ReminderSettingsDialog";
@@ -377,39 +378,30 @@ function CalendarToolbar({
 
   return (
     <div className="calendar-toolbar">
+      <h1 className="calendar-toolbar-title">{title}</h1>
       <div className="calendar-toolbar-nav">
-        <button className="btn btn-icon" onClick={() => step(-1)} title="Previous">
-          <ChevronLeft size={16} />
-        </button>
-        <button className="btn btn-secondary" onClick={goToday}>Today</button>
-        <button className="btn btn-icon" onClick={() => step(1)} title="Next">
-          <ChevronRight size={16} />
-        </button>
+        <IconButton label="Previous" size="sm" variant="secondary" icon={<ChevronLeft size={15} />} onClick={() => step(-1)} />
+        <Button variant="secondary" size="sm" onClick={goToday}>Today</Button>
+        <IconButton label="Next" size="sm" variant="secondary" icon={<ChevronRight size={15} />} onClick={() => step(1)} />
       </div>
-      <div className="calendar-toolbar-title">{title}</div>
-      <div className="calendar-view-toggle" role="tablist" aria-label="Calendar view">
-        {(["month", "week", "day"] as const).map((v) => (
-          <button
-            key={v}
-            role="tab"
-            aria-selected={view === v}
-            className={`calendar-view-toggle-btn${view === v ? " selected" : ""}`}
-            onClick={() => onViewChange(v)}
-          >
-            {v[0].toUpperCase() + v.slice(1)}
-          </button>
-        ))}
-      </div>
+      <div className="calendar-toolbar-spacer" />
+      <SegmentedControl<CalendarViewType>
+        aria-label="Calendar view"
+        size="sm"
+        value={view}
+        onChange={onViewChange}
+        options={(["month", "week", "day"] as const).map((v) => ({
+          value: v,
+          label: v[0].toUpperCase() + v.slice(1),
+        }))}
+        className="calendar-view-toggle"
+      />
       <div className="calendar-toolbar-actions">
-        <button className="btn btn-icon" onClick={onOpenReminders} title="Reminders">
-          <Bell size={16} />
-        </button>
-        <button className="btn btn-icon" onClick={onOpenImportExport} title="Import / Export">
-          <Download size={16} />
-        </button>
-        <button className="btn btn-primary" onClick={onNewEvent}>
-          <Plus size={14} /> New
-        </button>
+        <IconButton label="Reminders" icon={<Bell size={15} />} onClick={onOpenReminders} />
+        <IconButton label="Import / Export" icon={<Download size={15} />} onClick={onOpenImportExport} />
+        <Button variant="primary" size="sm" iconLeft={<Plus size={14} />} onClick={onNewEvent}>
+          New event
+        </Button>
       </div>
       <input type="hidden" value={date} readOnly />
     </div>
@@ -477,7 +469,7 @@ function CalendarMonthGrid({
                   <button
                     key={ev.id}
                     className="calendar-event-pill"
-                    style={{ background: ev.color }}
+                    style={{ "--event-color": ev.color } as React.CSSProperties}
                     onClick={(e) => {
                       e.stopPropagation();
                       onEditEvent(ev);
@@ -591,7 +583,7 @@ function CalendarWeekGrid({
                   <button
                     key={ev.id}
                     className="calendar-event-pill"
-                    style={{ background: ev.color }}
+                    style={{ "--event-color": ev.color } as React.CSSProperties}
                     onClick={() => onEditEvent(ev)}
                     title={ev.title}
                   >
@@ -666,7 +658,7 @@ function CalendarWeekGrid({
                         height: layout.height,
                         left: `calc(${layout.leftPercent}% + 2px)`,
                         width: `calc(${layout.widthPercent}% - 4px)`,
-                        background: ev.color,
+                        ["--event-color" as string]: ev.color,
                         pointerEvents: "auto",
                       }}
                       onClick={(e) => {
@@ -736,7 +728,7 @@ function CalendarDayGrid({
             <button
               key={ev.id}
               className="calendar-event-pill"
-              style={{ background: ev.color }}
+              style={{ "--event-color": ev.color } as React.CSSProperties}
               onClick={() => onEditEvent(ev)}
               title={ev.title}
             >
@@ -796,7 +788,7 @@ function CalendarDayGrid({
                     height: layout.height,
                     left: `calc(${layout.leftPercent}% + 2px)`,
                     width: `calc(${layout.widthPercent}% - 4px)`,
-                    background: ev.color,
+                    ["--event-color" as string]: ev.color,
                     pointerEvents: "auto",
                   }}
                   onClick={(e) => {

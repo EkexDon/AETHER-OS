@@ -13,6 +13,12 @@ pub enum AetherError {
     Io(#[from] std::io::Error),
     #[error("invalid input: {0}")]
     InvalidInput(String),
+    /// SQLite failure from the shared helper in `engine/sqlite.rs`.
+    #[error("database error: {0}")]
+    Database(#[from] rusqlite::Error),
+    /// Outbound HTTP failure (offline, timeout, unexpected status).
+    #[error("network error: {0}")]
+    Network(String),
 }
 
 impl Serialize for AetherError {
@@ -33,6 +39,16 @@ mod tests {
         let error = AetherError::AiEngine("Ollama is unavailable".to_owned());
         let serialized = serde_json::to_string(&error).expect("error must serialize");
         assert_eq!(serialized, "\"AI engine error: Ollama is unavailable\"");
+    }
+
+    #[test]
+    fn database_errors_convert_and_display_with_category() {
+        let sqlite = rusqlite::Connection::open_in_memory().expect("in-memory db");
+        let error: AetherError = sqlite
+            .execute("NOT VALID SQL", [])
+            .expect_err("invalid SQL must fail")
+            .into();
+        assert!(error.to_string().starts_with("database error: "));
     }
 
     #[test]

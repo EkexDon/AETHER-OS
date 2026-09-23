@@ -131,9 +131,9 @@ impl GitRepo {
                 "expected a repository-relative path with forward slashes: {rel}"
             )));
         }
-        if p.components().any(|c| {
-            c == std::path::Component::ParentDir || c == std::path::Component::RootDir
-        }) {
+        if p.components()
+            .any(|c| c == std::path::Component::ParentDir || c == std::path::Component::RootDir)
+        {
             return Err(AetherError::InvalidInput(format!(
                 "path traversal is not allowed inside a repository: {rel}"
             )));
@@ -154,14 +154,12 @@ impl GitRepo {
     fn head_commit(&self) -> Result<Option<git2::Commit<'_>>, AetherError> {
         match self.repo.head() {
             Ok(head) => {
-                let oid = head.target().ok_or_else(|| {
-                    AetherError::Vault("HEAD does not point at a commit".into())
-                })?;
-                Ok(Some(
-                    self.repo
-                        .find_commit(oid)
-                        .map_err(|e| AetherError::Vault(format!("broken HEAD: {e}")))?,
-                ))
+                let oid = head
+                    .target()
+                    .ok_or_else(|| AetherError::Vault("HEAD does not point at a commit".into()))?;
+                Ok(Some(self.repo.find_commit(oid).map_err(|e| {
+                    AetherError::Vault(format!("broken HEAD: {e}"))
+                })?))
             }
             Err(e) if e.code() == git2::ErrorCode::UnbornBranch => Ok(None),
             Err(e) => Err(AetherError::Vault(format!("cannot resolve HEAD: {e}"))),
@@ -211,7 +209,10 @@ impl GitRepo {
         let mut entries = Vec::with_capacity(statuses.len());
         for entry in statuses.iter() {
             let raw_path = match entry.head_to_index().or_else(|| entry.index_to_workdir()) {
-                Some(diff_delta) => diff_delta.new_file().path().or_else(|| diff_delta.old_file().path()),
+                Some(diff_delta) => diff_delta
+                    .new_file()
+                    .path()
+                    .or_else(|| diff_delta.old_file().path()),
                 None => None,
             };
             let path = match raw_path {
@@ -234,16 +235,38 @@ impl GitRepo {
             ) {
                 continue;
             }
-            let staged = classify(s & (Status::INDEX_NEW | Status::INDEX_MODIFIED | Status::INDEX_DELETED | Status::INDEX_RENAMED | Status::INDEX_TYPECHANGE));
-            let unstaged = classify(s & (Status::WT_NEW | Status::WT_MODIFIED | Status::WT_DELETED | Status::WT_RENAMED | Status::WT_TYPECHANGE));
+            let staged = classify(
+                s & (Status::INDEX_NEW
+                    | Status::INDEX_MODIFIED
+                    | Status::INDEX_DELETED
+                    | Status::INDEX_RENAMED
+                    | Status::INDEX_TYPECHANGE),
+            );
+            let unstaged = classify(
+                s & (Status::WT_NEW
+                    | Status::WT_MODIFIED
+                    | Status::WT_DELETED
+                    | Status::WT_RENAMED
+                    | Status::WT_TYPECHANGE),
+            );
             if staged.is_none() && unstaged.is_none() {
                 continue;
             }
-            entries.push(StatusEntry { path, staged, unstaged });
+            entries.push(StatusEntry {
+                path,
+                staged,
+                unstaged,
+            });
         }
         entries.sort_by(|a, b| a.path.cmp(&b.path));
 
-        Ok(RepoStatus { branch, ahead, behind, unborn, entries })
+        Ok(RepoStatus {
+            branch,
+            ahead,
+            behind,
+            unborn,
+            entries,
+        })
     }
 
     /// Stage files (add new/modified content to the index).
@@ -257,9 +280,9 @@ impl GitRepo {
             let path = Self::normalize(rel)?;
             let absolute = workdir.join(&path);
             if absolute.is_file() {
-                index.add_path(&path).map_err(|e| {
-                    AetherError::Vault(format!("cannot stage {rel}: {e}"))
-                })?;
+                index
+                    .add_path(&path)
+                    .map_err(|e| AetherError::Vault(format!("cannot stage {rel}: {e}")))?;
             } else {
                 // File is gone from disk: staging it records the deletion.
                 index.remove_path(&path).or_else(|e| {
@@ -267,14 +290,16 @@ impl GitRepo {
                     if e.code() == git2::ErrorCode::NotFound {
                         Ok(())
                     } else {
-                        Err(AetherError::Vault(format!("cannot stage deletion of {rel}: {e}")))
+                        Err(AetherError::Vault(format!(
+                            "cannot stage deletion of {rel}: {e}"
+                        )))
                     }
                 })?;
             }
         }
-        index.write().map_err(|e| {
-            AetherError::Vault(format!("cannot write index: {e}"))
-        })
+        index
+            .write()
+            .map_err(|e| AetherError::Vault(format!("cannot write index: {e}")))
     }
 
     /// Undo staging: move paths back to their HEAD state in the index.
@@ -299,9 +324,9 @@ impl GitRepo {
                 for spec in specs {
                     let _ = index.remove_path(std::path::Path::new(spec));
                 }
-                index.write().map_err(|e| {
-                    AetherError::Vault(format!("cannot write index: {e}"))
-                })?;
+                index
+                    .write()
+                    .map_err(|e| AetherError::Vault(format!("cannot write index: {e}")))?;
             }
         }
         Ok(())
@@ -376,7 +401,9 @@ impl GitRepo {
             .repo
             .index()
             .map_err(|e| AetherError::Vault(format!("cannot open index: {e}")))?;
-        index.write().map_err(|e| AetherError::Vault(format!("cannot write index: {e}")))?;
+        index
+            .write()
+            .map_err(|e| AetherError::Vault(format!("cannot write index: {e}")))?;
         let tree_oid = index
             .write_tree()
             .map_err(|e| AetherError::Vault(format!("cannot build tree: {e}")))?;
@@ -424,7 +451,11 @@ impl GitRepo {
                 name,
             });
         }
-        infos.sort_by(|a, b| b.is_current.cmp(&a.is_current).then_with(|| a.name.cmp(&b.name)));
+        infos.sort_by(|a, b| {
+            b.is_current
+                .cmp(&a.is_current)
+                .then_with(|| a.name.cmp(&b.name))
+        });
         Ok(infos)
     }
 
@@ -439,9 +470,7 @@ impl GitRepo {
             .name()
             .ok()
             .map(str::to_string)
-            .ok_or_else(|| {
-                AetherError::InvalidInput(format!("branch has no reference: {name}"))
-            })?;
+            .ok_or_else(|| AetherError::InvalidInput(format!("branch has no reference: {name}")))?;
         self.repo
             .set_head(&refname)
             .map_err(|e| AetherError::Vault(format!("cannot switch to {name}: {e}")))?;
@@ -456,11 +485,13 @@ impl GitRepo {
     /// Create a branch at HEAD without switching to it.
     pub fn create_branch(&self, name: &str) -> Result<(), AetherError> {
         if name.trim().is_empty() {
-            return Err(AetherError::InvalidInput("branch name must not be empty".into()));
+            return Err(AetherError::InvalidInput(
+                "branch name must not be empty".into(),
+            ));
         }
-        let parent = self
-            .head_commit()?
-            .ok_or_else(|| AetherError::InvalidInput("cannot branch before the first commit".into()))?;
+        let parent = self.head_commit()?.ok_or_else(|| {
+            AetherError::InvalidInput("cannot branch before the first commit".into())
+        })?;
         self.repo
             .branch(name, &parent, false)
             .map(|_| ())
@@ -488,12 +519,7 @@ impl GitRepo {
                 .map_err(|e| AetherError::Vault(format!("history error: {e}")))?;
             out.push(CommitInfo {
                 id: commit.id().to_string()[..7].to_string(),
-                summary: commit
-                    .summary()
-                    .ok()
-                    .flatten()
-                    .unwrap_or("")
-                    .to_string(),
+                summary: commit.summary().ok().flatten().unwrap_or("").to_string(),
                 author: commit.author().name().unwrap_or("").to_string(),
                 time: commit.time().seconds(),
             });
@@ -511,10 +537,7 @@ impl GitRepo {
             if bytes.contains(&0) {
                 (None, true)
             } else {
-                (
-                    Some(String::from_utf8_lossy(bytes).to_string()),
-                    false,
-                )
+                (Some(String::from_utf8_lossy(bytes).to_string()), false)
             }
         };
 
@@ -558,7 +581,9 @@ impl GitRepo {
         let Some(commit) = self.head_commit()? else {
             return Ok(None);
         };
-        let tree = commit.tree().map_err(|e| AetherError::Vault(format!("broken commit: {e}")))?;
+        let tree = commit
+            .tree()
+            .map_err(|e| AetherError::Vault(format!("broken commit: {e}")))?;
         match tree.get_path(path) {
             Ok(entry) => {
                 let blob = self
@@ -595,7 +620,10 @@ fn head_target_of_unborn(repo: &Repository) -> Option<String> {
     use std::io::Read;
     let path = repo.path().join("HEAD");
     let mut content = String::new();
-    std::fs::File::open(path).ok()?.read_to_string(&mut content).ok()?;
+    std::fs::File::open(path)
+        .ok()?
+        .read_to_string(&mut content)
+        .ok()?;
     content
         .trim()
         .strip_prefix("ref: refs/heads/")
@@ -604,38 +632,59 @@ fn head_target_of_unborn(repo: &Repository) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-#[test]
-fn debug_upstream_resolution() {
-    use super::*;
-    let t = TestRepo::new();
-    t.write("a.txt", "v1");
-    t.commit_all("base");
+    #[test]
+    fn debug_upstream_resolution() {
+        use super::*;
+        let t = TestRepo::new();
+        t.write("a.txt", "v1");
+        t.commit_all("base");
 
-    let repo = GitRepo::open(t.path()).expect("open");
-    let branch_name = t.status().branch;
-    eprintln!("branch={branch_name}");
-    let _ = repo.repo.remote("origin", "/tmp/fake.git").unwrap();
-    let local = repo.repo.find_branch(&branch_name, BranchType::Local).unwrap();
-    let oid = local.get().target().unwrap();
-    repo.repo.reference(&format!("refs/remotes/origin/{branch_name}"), oid, true, "t").unwrap();
-    let mut cfg = repo.repo.config().unwrap();
-    cfg.set_str(&format!("branch.{branch_name}.remote"), "origin").unwrap();
-    cfg.set_str(&format!("branch.{branch_name}.merge"), &format!("refs/heads/{branch_name}")).unwrap();
+        let repo = GitRepo::open(t.path()).expect("open");
+        let branch_name = t.status().branch;
+        eprintln!("branch={branch_name}");
+        let _ = repo.repo.remote("origin", "/tmp/fake.git").unwrap();
+        let local = repo
+            .repo
+            .find_branch(&branch_name, BranchType::Local)
+            .unwrap();
+        let oid = local.get().target().unwrap();
+        repo.repo
+            .reference(
+                &format!("refs/remotes/origin/{branch_name}"),
+                oid,
+                true,
+                "t",
+            )
+            .unwrap();
+        let mut cfg = repo.repo.config().unwrap();
+        cfg.set_str(&format!("branch.{branch_name}.remote"), "origin")
+            .unwrap();
+        cfg.set_str(
+            &format!("branch.{branch_name}.merge"),
+            &format!("refs/heads/{branch_name}"),
+        )
+        .unwrap();
 
-    t.write("a.txt", "v2");
-    t.commit_all("second");
+        t.write("a.txt", "v2");
+        t.commit_all("second");
 
-    let local = repo.repo.find_branch(&branch_name, BranchType::Local).unwrap();
-    let l_oid = local.get().target().unwrap();
-    let up = local.upstream().map(|u| u.get().target());
-    match up {
-        Ok(Some(u_oid)) => {
-            eprintln!("l={l_oid:?} u={u_oid:?} ab={:?}", repo.repo.graph_ahead_behind(l_oid, u_oid));
+        let local = repo
+            .repo
+            .find_branch(&branch_name, BranchType::Local)
+            .unwrap();
+        let l_oid = local.get().target().unwrap();
+        let up = local.upstream().map(|u| u.get().target());
+        match up {
+            Ok(Some(u_oid)) => {
+                eprintln!(
+                    "l={l_oid:?} u={u_oid:?} ab={:?}",
+                    repo.repo.graph_ahead_behind(l_oid, u_oid)
+                );
+            }
+            Ok(None) => eprintln!("upstream has no target"),
+            Err(e) => eprintln!("upstream error: {e}"),
         }
-        Ok(None) => eprintln!("upstream has no target"),
-        Err(e) => eprintln!("upstream error: {e}"),
     }
-}
 
     use super::*;
     use std::path::Path;
@@ -679,7 +728,9 @@ fn debug_upstream_resolution() {
         fn commit_all(&self, msg: &str) {
             let repo = GitRepo::open(self.path()).expect("open");
             let mut index = repo.repo.index().expect("index");
-            index.add_all(["*"], git2::IndexAddOption::DEFAULT, None).expect("add all");
+            index
+                .add_all(["*"], git2::IndexAddOption::DEFAULT, None)
+                .expect("add all");
             index.write().expect("index write");
             let tree_oid = index.write_tree().expect("tree");
             let tree = repo.repo.find_tree(tree_oid).expect("find tree");
@@ -700,7 +751,10 @@ fn debug_upstream_resolution() {
         }
 
         fn status(&self) -> RepoStatus {
-            GitRepo::open(self.path()).expect("open").status().expect("status")
+            GitRepo::open(self.path())
+                .expect("open")
+                .status()
+                .expect("status")
         }
     }
 
@@ -780,7 +834,8 @@ fn debug_upstream_resolution() {
         t.remove("gone.txt");
 
         let repo = GitRepo::open(t.path()).expect("open");
-        repo.stage(&["gone.txt".to_string()]).expect("stage deletion");
+        repo.stage(&["gone.txt".to_string()])
+            .expect("stage deletion");
         assert_eq!(t.entry("gone.txt").staged, Some(ChangeKind::Deleted));
 
         let id = repo.commit("remove gone.txt").expect("commit");
@@ -825,7 +880,10 @@ fn debug_upstream_resolution() {
         let status = t.status();
         assert!(!status.unborn);
         let branch = status.branch;
-        assert!(["main", "master"].contains(&branch.as_str()), "got {branch}");
+        assert!(
+            ["main", "master"].contains(&branch.as_str()),
+            "got {branch}"
+        );
     }
 
     #[test]
@@ -858,7 +916,9 @@ fn debug_upstream_resolution() {
 
         let branches = repo.branches().expect("branches");
         assert_eq!(branches.len(), 2);
-        assert!(branches.iter().any(|b| b.name == "feature/x" && !b.is_current));
+        assert!(branches
+            .iter()
+            .any(|b| b.name == "feature/x" && !b.is_current));
         assert!(branches.iter().any(|b| b.is_current));
 
         repo.switch_branch("feature/x").expect("switch");
@@ -886,7 +946,8 @@ fn debug_upstream_resolution() {
 
         // Remove the file on the new branch.
         t.remove("only-on-main.txt");
-        repo.stage(&["only-on-main.txt".to_string()]).expect("stage");
+        repo.stage(&["only-on-main.txt".to_string()])
+            .expect("stage");
         repo.commit("delete file").expect("commit");
         assert!(!t.path().join("only-on-main.txt").exists());
 
@@ -1008,7 +1069,8 @@ fn debug_upstream_resolution() {
         t.remove("precious.txt");
 
         let repo = GitRepo::open(t.path()).expect("open");
-        repo.discard(&["precious.txt".to_string()]).expect("discard");
+        repo.discard(&["precious.txt".to_string()])
+            .expect("discard");
         assert_eq!(
             std::fs::read_to_string(t.path().join("precious.txt")).expect("read"),
             "keep me"
@@ -1049,9 +1111,7 @@ fn debug_upstream_resolution() {
             )
             .expect("merge cfg");
         };
-        let head_oid = |repo: &GitRepo| {
-            repo.repo.head().expect("head").target().expect("target")
-        };
+        let head_oid = |repo: &GitRepo| repo.repo.head().expect("head").target().expect("target");
 
         let base = head_oid(&repo);
         set_upstream(&repo, base);
@@ -1075,7 +1135,9 @@ fn debug_upstream_resolution() {
             .expect("rewind main");
         let mut opts = git2::build::CheckoutBuilder::new();
         opts.force();
-        repo.repo.checkout_head(Some(&mut opts)).expect("checkout base");
+        repo.repo
+            .checkout_head(Some(&mut opts))
+            .expect("checkout base");
         let status = t.status();
         assert_eq!(status.ahead, 0);
         assert_eq!(status.behind, 1);

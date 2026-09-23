@@ -220,8 +220,7 @@ fn persist_state_inner(path: &Path, delivered: &HashSet<(String, u32)>) {
 
 fn read_settings_static(path: &Path) -> Result<ReminderSettings, AetherError> {
     let content = std::fs::read_to_string(path)?;
-    serde_json::from_str(&content)
-        .map_err(|e| AetherError::Vault(format!("settings parse: {e}")))
+    serde_json::from_str(&content).map_err(|e| AetherError::Vault(format!("settings parse: {e}")))
 }
 
 // --- Test-only helpers ---------------------------------------------------

@@ -102,7 +102,7 @@ impl MemoryStore {
                 }
             }
         }
-        conversations.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        conversations.sort_by_key(|c| std::cmp::Reverse(c.timestamp));
         conversations.truncate(limit);
         Ok(conversations)
     }
@@ -225,7 +225,10 @@ mod tests {
         let (store, _dir) = store();
         let saved = store
             .save_conversation(
-                vec![msg("user", "What is in Ekins Work?"), msg("assistant", "It lists your tasks.")],
+                vec![
+                    msg("user", "What is in Ekins Work?"),
+                    msg("assistant", "It lists your tasks."),
+                ],
                 vec!["Ekins Work.md".to_owned()],
             )
             .expect("conversation must save");

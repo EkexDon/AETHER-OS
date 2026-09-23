@@ -4,13 +4,23 @@ import remarkGfm from "remark-gfm";
 import mermaid from "mermaid";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import { useAetherStore } from "../lib/store";
+import { useThemeStore, type ResolvedTheme } from "../lib/theme";
 
-mermaid.initialize({
-  startOnLoad: false,
-  theme: "dark",
-  fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
-  fontSize: 13,
-});
+let mermaidTheme: ResolvedTheme | null = null;
+
+/** (Re)configure mermaid for the active app theme. */
+function ensureMermaidTheme(theme: ResolvedTheme) {
+  if (mermaidTheme === theme) return;
+  mermaidTheme = theme;
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: theme === "light" ? "neutral" : "dark",
+    fontFamily: '"IBM Plex Sans Variable", -apple-system, sans-serif',
+    fontSize: 13,
+  });
+}
+
+ensureMermaidTheme(useThemeStore.getState().resolved);
 
 function resolveAssetSrc(relPath: string, vaultPath: string | null): string {
   if (!relPath) return "";
@@ -31,9 +41,11 @@ function MermaidBlock({ code }: { code: string }) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
   const id = useMemo(() => `mermaid-${Math.random().toString(36).slice(2, 10)}`, []);
+  const theme = useThemeStore((s) => s.resolved);
 
   useEffect(() => {
     let active = true;
+    ensureMermaidTheme(theme);
     const render = async () => {
       if (!code.trim()) {
         setSvg("");
@@ -52,7 +64,7 @@ function MermaidBlock({ code }: { code: string }) {
     };
     render();
     return () => { active = false; };
-  }, [code, id]);
+  }, [code, id, theme]);
 
   if (error) return <div className="md-mermaid-error">{error}</div>;
   if (!svg) return null;

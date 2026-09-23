@@ -34,15 +34,17 @@ Rules:\n\
 /// so the AI knows what media is present in each note.
 fn enrich_with_media(content: &str) -> String {
     let mut media_refs = Vec::new();
-    let media_pattern = regex::Regex::new(r"!\[([^\]]*)\]\(([^)]+)\)")
-        .expect("media regex is a valid pattern");
+    let media_pattern =
+        regex::Regex::new(r"!\[([^\]]*)\]\(([^)]+)\)").expect("media regex is a valid pattern");
 
     for line in content.lines() {
         // Images: ![alt](path)
         for cap in media_pattern.captures_iter(line) {
             let alt = cap.get(1).map(|m| m.as_str()).unwrap_or("");
             let path = cap.get(2).map(|m| m.as_str()).unwrap_or("");
-            if path.is_empty() { continue; }
+            if path.is_empty() {
+                continue;
+            }
             let ext = path.rsplit('.').next().unwrap_or("").to_lowercase();
             let kind = match ext.as_str() {
                 "pdf" => "PDF document",
@@ -59,13 +61,14 @@ fn enrich_with_media(content: &str) -> String {
         return content.to_string();
     }
 
-    format!("{content}\n\n[Media in this note:]\n{}", media_refs.join("\n"))
+    format!(
+        "{content}\n\n[Media in this note:]\n{}",
+        media_refs.join("\n")
+    )
 }
 
 #[tauri::command]
-pub async fn cmd_index_vault(
-    state: State<'_, AppState>,
-) -> Result<IndexingResult, String> {
+pub async fn cmd_index_vault(state: State<'_, AppState>) -> Result<IndexingResult, String> {
     let vault_path = state
         .vault
         .detect_vault_path()
@@ -93,11 +96,7 @@ pub async fn cmd_index_vault(
             continue;
         }
 
-        let embedding = match state
-            .ai
-            .generate_embedding(&content, EMBEDDING_MODEL)
-            .await
-        {
+        let embedding = match state.ai.generate_embedding(&content, EMBEDDING_MODEL).await {
             Ok(vec) => vec,
             Err(_) => {
                 skipped += 1;
@@ -174,12 +173,11 @@ pub async fn cmd_agent_query(
 
     for m in &matches {
         if let Ok(content) = state.vault.read_note(&m.id) {
-            let name = m
-                .id
-                .rsplit('/')
-                .next()
-                .unwrap_or(&m.id)
-                .trim_end_matches(".md");
+            let name =
+                m.id.rsplit('/')
+                    .next()
+                    .unwrap_or(&m.id)
+                    .trim_end_matches(".md");
             let enriched = enrich_with_media(&content);
             let truncated = if enriched.len() > 2000 {
                 &enriched[..2000]
@@ -286,9 +284,15 @@ pub async fn cmd_agent_query_with_notes(
             .ok_or("OpenRouter API key is missing. Set it in Settings → AI Providers.")?;
         return state
             .cloud_ai
-            .stream_chat_response(&system_prompt, &user_prompt, &model, &api_key, move |chunk| {
-                let _ = app_handle.emit("llm-stream-chunk", chunk);
-            })
+            .stream_chat_response(
+                &system_prompt,
+                &user_prompt,
+                &model,
+                &api_key,
+                move |chunk| {
+                    let _ = app_handle.emit("llm-stream-chunk", chunk);
+                },
+            )
             .await
             .map_err(|e| e.to_string());
     }

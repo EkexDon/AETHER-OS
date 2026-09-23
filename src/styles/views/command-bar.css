@@ -1,0 +1,129 @@
+/* ── Command palette (⌘K) ────────────────────────────────────── */
+.cmdbar {
+  max-width: 640px;
+}
+
+.cmdbar-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  height: 52px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-fg-tertiary);
+}
+
+.cmdbar-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--color-fg-primary);
+  font-size: var(--text-lg);
+  letter-spacing: -0.01em;
+}
+
+.cmdbar-input::placeholder {
+  color: var(--color-fg-tertiary);
+}
+
+.cmdbar-results {
+  max-height: min(420px, 56vh);
+  overflow-y: auto;
+  padding: var(--space-1-5);
+  scroll-padding: var(--space-8) 0 var(--space-2);
+}
+
+.cmdbar-section {
+  padding: var(--space-2-5) var(--space-2-5) var(--space-1);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-fg-tertiary);
+}
+
+.cmdbar-section:first-child {
+  padding-top: var(--space-1-5);
+}
+
+.cmdbar-empty {
+  padding: var(--space-10) var(--space-4);
+  text-align: center;
+  font-size: var(--text-base);
+  color: var(--color-fg-tertiary);
+}
+
+.cmdbar-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  height: 36px;
+  padding: 0 var(--space-2-5);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--color-fg-secondary);
+}
+
+.cmdbar-item-active {
+  background: var(--color-fill-active);
+  color: var(--color-fg-primary);
+}
+
+.cmdbar-item-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-fg-tertiary);
+}
+
+.cmdbar-item-active .cmdbar-item-icon {
+  color: var(--color-accent-text);
+}
+
+.cmdbar-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-base);
+  color: inherit;
+}
+
+.cmdbar-item-hint {
+  flex-shrink: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+}
+
+.cmdbar-item-kbd {
+  flex-shrink: 0;
+}
+
+.cmdbar-item-enter {
+  flex-shrink: 0;
+  color: var(--color-fg-tertiary);
+}
+
+.cmdbar-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 36px;
+  padding: 0 var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-fill-subtle);
+  font-size: var(--text-xs);
+  color: var(--color-fg-tertiary);
+}
+
+.cmdbar-footer span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}

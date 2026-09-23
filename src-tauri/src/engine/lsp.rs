@@ -44,10 +44,7 @@ pub fn server_candidates(language: &str) -> &'static [&'static [&'static str]] {
                 &["npx", "--yes", "typescript-language-server", "--stdio"],
             ]
         }
-        "python" => &[
-            &["pyright-langserver", "--stdio"],
-            &["pylsp"],
-        ],
+        "python" => &[&["pyright-langserver", "--stdio"], &["pylsp"]],
         "rust" => &[&["rust-analyzer"]],
         "json" => &[&["vscode-json-language-server", "--stdio"]],
         _ => &[],
@@ -106,7 +103,9 @@ impl FrameDecoder {
         let header = String::from_utf8_lossy(&self.buf[..pos]);
         let mut length = None;
         for line in header.split("\r\n") {
-            let Some((name, value)) = line.split_once(':') else { continue };
+            let Some((name, value)) = line.split_once(':') else {
+                continue;
+            };
             if name.trim().eq_ignore_ascii_case("content-length") {
                 length = Some(value.trim().parse::<usize>().map_err(|_| {
                     AetherError::InvalidInput(format!(
@@ -212,14 +211,18 @@ impl LspManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| AetherError::Vault(format!("cannot start language server {program}: {e}")))?;
+            .map_err(|e| {
+                AetherError::Vault(format!("cannot start language server {program}: {e}"))
+            })?;
 
-        let stdin = child.stdin.take().ok_or_else(|| {
-            AetherError::Vault("language server has no stdin".into())
-        })?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            AetherError::Vault("language server has no stdout".into())
-        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| AetherError::Vault("language server has no stdin".into()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| AetherError::Vault("language server has no stdout".into()))?;
         let stderr = child.stderr.take();
 
         let alive = Arc::new(AtomicBool::new(true));
@@ -246,24 +249,22 @@ impl LspManager {
             loop {
                 match stdout.read(&mut chunk) {
                     Ok(0) => break, // EOF: server exited
-                    Ok(n) => {
-                        match decoder.push(&chunk[..n]) {
-                            Ok(bodies) => {
-                                for body in bodies {
-                                    match serde_json::from_slice::<Value>(&body) {
-                                        Ok(value) => reader_on_message(&reader_key, value),
-                                        Err(e) => {
-                                            eprintln!("[lsp] dropping non-JSON frame: {e}");
-                                        }
+                    Ok(n) => match decoder.push(&chunk[..n]) {
+                        Ok(bodies) => {
+                            for body in bodies {
+                                match serde_json::from_slice::<Value>(&body) {
+                                    Ok(value) => reader_on_message(&reader_key, value),
+                                    Err(e) => {
+                                        eprintln!("[lsp] dropping non-JSON frame: {e}");
                                     }
                                 }
                             }
-                            Err(e) => {
-                                eprintln!("[lsp] framing error, stopping read loop: {e}");
-                                break;
-                            }
                         }
-                    }
+                        Err(e) => {
+                            eprintln!("[lsp] framing error, stopping read loop: {e}");
+                            break;
+                        }
+                    },
                     Err(e) => {
                         eprintln!("[lsp] stdout read error: {e}");
                         break;
@@ -309,25 +310,16 @@ impl LspManager {
         }
         let body = serde_json::to_vec(message)
             .map_err(|e| AetherError::Vault(format!("cannot serialize LSP message: {e}")))?;
-        let mut stdin = process
-            .stdin
-            .lock()
-            .expect("stdin lock");
+        let mut stdin = process.stdin.lock().expect("stdin lock");
         stdin
             .write_all(&encode_frame(&body))
             .and_then(|_| stdin.flush())
-            .map_err(|e| {
-                AetherError::Vault(format!("cannot write to language server: {e}"))
-            })
+            .map_err(|e| AetherError::Vault(format!("cannot write to language server: {e}")))
     }
 
     /// Stop one server (kill + forget). Stopping an unknown key is fine.
     pub fn stop(&self, key: &str) {
-        let process = self
-            .processes
-            .lock()
-            .expect("processes lock")
-            .remove(key);
+        let process = self.processes.lock().expect("processes lock").remove(key);
         if let Some(process) = process {
             process.alive.store(false, Ordering::SeqCst);
             if let Ok(mut child) = process.child.lock() {
@@ -380,18 +372,22 @@ mod tests {
         let text = String::from_utf8(frame).unwrap();
         assert_eq!(
             text,
-            format!("Content-Length: {}\r\n\r\n{{\"jsonrpc\":\"2.0\"}}", body.len())
+            format!(
+                "Content-Length: {}\r\n\r\n{{\"jsonrpc\":\"2.0\"}}",
+                body.len()
+            )
         );
     }
 
     #[test]
     fn decodes_a_single_frame() {
         let mut decoder = FrameDecoder::new();
-        let bodies = decoder
-            .push(&encode_frame(br#"{"id":1}"#))
-            .expect("decode");
+        let bodies = decoder.push(&encode_frame(br#"{"id":1}"#)).expect("decode");
         assert_eq!(bodies.len(), 1);
-        assert_eq!(serde_json::from_slice::<Value>(&bodies[0]).unwrap()["id"], 1);
+        assert_eq!(
+            serde_json::from_slice::<Value>(&bodies[0]).unwrap()["id"],
+            1
+        );
     }
 
     #[test]
@@ -419,14 +415,19 @@ mod tests {
         let mut decoder = FrameDecoder::new();
         let bodies = decoder.push(&input).expect("decode burst");
         assert_eq!(bodies.len(), 25);
-        assert_eq!(serde_json::from_slice::<Value>(&bodies[24]).unwrap()["i"], 24);
+        assert_eq!(
+            serde_json::from_slice::<Value>(&bodies[24]).unwrap()["i"],
+            24
+        );
     }
 
     #[test]
     fn handles_headers_case_insensitively_and_ignores_extra_header_fields() {
         let body = br#"{}"#;
-        let raw = format!("content-type: application/vscode-jsonrpc\r\nCONTENT-LENGTH: {}\r\n\r\n", body.len())
-            + r#"{}"#;
+        let raw = format!(
+            "content-type: application/vscode-jsonrpc\r\nCONTENT-LENGTH: {}\r\n\r\n",
+            body.len()
+        ) + r#"{}"#;
         let mut decoder = FrameDecoder::new();
         let bodies = decoder.push(raw.as_bytes()).expect("decode");
         assert_eq!(bodies.len(), 1);
@@ -445,13 +446,22 @@ mod tests {
     fn keys_pair_language_with_root() {
         assert_eq!(session_key("rust", "/tmp/a"), "rust::/tmp/a");
         assert_ne!(session_key("rust", "/tmp/a"), session_key("rust", "/tmp/b"));
-        assert_ne!(session_key("rust", "/tmp/a"), session_key("python", "/tmp/a"));
+        assert_ne!(
+            session_key("rust", "/tmp/a"),
+            session_key("python", "/tmp/a")
+        );
     }
 
     #[test]
     fn maps_languages_to_expected_servers() {
-        assert_eq!(server_candidates("typescript")[0][0], "typescript-language-server");
-        assert_eq!(server_candidates("javascript")[0][0], "typescript-language-server");
+        assert_eq!(
+            server_candidates("typescript")[0][0],
+            "typescript-language-server"
+        );
+        assert_eq!(
+            server_candidates("javascript")[0][0],
+            "typescript-language-server"
+        );
         // npx fallback for machines without the global install.
         assert_eq!(server_candidates("typescript")[1][0], "npx");
         assert_eq!(server_candidates("rust")[0][0], "rust-analyzer");
@@ -463,7 +473,12 @@ mod tests {
 
     #[test]
     fn finds_common_tools_on_path() {
-        assert!(find_in_path(if cfg!(target_os = "windows") { "cmd" } else { "ls" }).is_some());
+        assert!(find_in_path(if cfg!(target_os = "windows") {
+            "cmd"
+        } else {
+            "ls"
+        })
+        .is_some());
         assert!(find_in_path("definitely-not-a-real-tool-xyz").is_none());
     }
 
@@ -554,7 +569,10 @@ mod tests {
             .start(
                 "tls::test",
                 dir.path(),
-                &["typescript-language-server".to_string(), "--stdio".to_string()],
+                &[
+                    "typescript-language-server".to_string(),
+                    "--stdio".to_string(),
+                ],
                 |_| {},
                 move |_key, message| {
                     let _ = tx.send(message);
@@ -605,7 +623,10 @@ mod tests {
         assert!(answered, "no initialize response within 30s");
 
         manager
-            .send("tls::test", &json!({"jsonrpc": "2.0", "method": "shutdown"}))
+            .send(
+                "tls::test",
+                &json!({"jsonrpc": "2.0", "method": "shutdown"}),
+            )
             .ok();
         manager.stop_all();
     }

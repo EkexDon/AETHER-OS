@@ -1,8 +1,6 @@
 use tauri::State;
 
-use crate::engine::vault_reader::{
-    GraphData, VaultIndex, VaultNote, VaultStats,
-};
+use crate::engine::vault_reader::{GraphData, VaultIndex, VaultNote, VaultStats};
 use crate::AppState;
 
 #[tauri::command]
@@ -12,16 +10,11 @@ pub async fn cmd_get_vault_path(state: State<'_, AppState>) -> Result<Option<Str
 
 #[tauri::command]
 pub async fn cmd_set_vault_path(state: State<'_, AppState>, path: String) -> Result<(), String> {
-    state
-        .vault
-        .set_vault_path(&path)
-        .map_err(|e| e.to_string())
+    state.vault.set_vault_path(&path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn cmd_get_vault_notes(
-    state: State<'_, AppState>,
-) -> Result<Vec<VaultNote>, String> {
+pub async fn cmd_get_vault_notes(state: State<'_, AppState>) -> Result<Vec<VaultNote>, String> {
     let vault_path = state
         .vault
         .detect_vault_path()
@@ -41,9 +34,7 @@ pub async fn cmd_get_note_content(
 }
 
 #[tauri::command]
-pub async fn cmd_get_vault_index(
-    state: State<'_, AppState>,
-) -> Result<Option<VaultIndex>, String> {
+pub async fn cmd_get_vault_index(state: State<'_, AppState>) -> Result<Option<VaultIndex>, String> {
     let vault_path = state
         .vault
         .detect_vault_path()
@@ -55,9 +46,7 @@ pub async fn cmd_get_vault_index(
 }
 
 #[tauri::command]
-pub async fn cmd_get_vault_graph(
-    state: State<'_, AppState>,
-) -> Result<GraphData, String> {
+pub async fn cmd_get_vault_graph(state: State<'_, AppState>) -> Result<GraphData, String> {
     let vault_path = state
         .vault
         .detect_vault_path()
@@ -69,9 +58,7 @@ pub async fn cmd_get_vault_graph(
 }
 
 #[tauri::command]
-pub async fn cmd_get_vault_stats(
-    state: State<'_, AppState>,
-) -> Result<VaultStats, String> {
+pub async fn cmd_get_vault_stats(state: State<'_, AppState>) -> Result<VaultStats, String> {
     let vault_path = state
         .vault
         .detect_vault_path()

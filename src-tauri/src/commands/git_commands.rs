@@ -35,17 +35,29 @@ pub async fn cmd_git_status(
 }
 
 #[tauri::command]
-pub async fn cmd_git_stage(state: State<'_, AppState>, path: String, files: Vec<String>) -> Result<(), AetherError> {
+pub async fn cmd_git_stage(
+    state: State<'_, AppState>,
+    path: String,
+    files: Vec<String>,
+) -> Result<(), AetherError> {
     open_repo(&state, &path)?.0.stage(&files)
 }
 
 #[tauri::command]
-pub async fn cmd_git_unstage(state: State<'_, AppState>, path: String, files: Vec<String>) -> Result<(), AetherError> {
+pub async fn cmd_git_unstage(
+    state: State<'_, AppState>,
+    path: String,
+    files: Vec<String>,
+) -> Result<(), AetherError> {
     open_repo(&state, &path)?.0.unstage(&files)
 }
 
 #[tauri::command]
-pub async fn cmd_git_discard(state: State<'_, AppState>, path: String, files: Vec<String>) -> Result<(), AetherError> {
+pub async fn cmd_git_discard(
+    state: State<'_, AppState>,
+    path: String,
+    files: Vec<String>,
+) -> Result<(), AetherError> {
     open_repo(&state, &path)?.0.discard(&files)
 }
 
@@ -67,12 +79,20 @@ pub async fn cmd_git_branches(
 }
 
 #[tauri::command]
-pub async fn cmd_git_switch_branch(state: State<'_, AppState>, path: String, branch: String) -> Result<(), AetherError> {
+pub async fn cmd_git_switch_branch(
+    state: State<'_, AppState>,
+    path: String,
+    branch: String,
+) -> Result<(), AetherError> {
     open_repo(&state, &path)?.0.switch_branch(&branch)
 }
 
 #[tauri::command]
-pub async fn cmd_git_create_branch(state: State<'_, AppState>, path: String, branch: String) -> Result<(), AetherError> {
+pub async fn cmd_git_create_branch(
+    state: State<'_, AppState>,
+    path: String,
+    branch: String,
+) -> Result<(), AetherError> {
     open_repo(&state, &path)?.0.create_branch(&branch)
 }
 
@@ -82,7 +102,9 @@ pub async fn cmd_git_log(
     path: String,
     limit: Option<usize>,
 ) -> Result<Vec<CommitInfo>, AetherError> {
-    open_repo(&state, &path)?.0.log(limit.unwrap_or(50).min(500))
+    open_repo(&state, &path)?
+        .0
+        .log(limit.unwrap_or(50).min(500))
 }
 
 #[tauri::command]
@@ -112,8 +134,7 @@ mod tests {
         let project = inside.path().join("project");
         std::fs::create_dir_all(&project).expect("mkdir");
         #[cfg(unix)]
-        std::os::unix::fs::symlink(outside.path(), project.join(".git"))
-            .expect("symlink");
+        std::os::unix::fs::symlink(outside.path(), project.join(".git")).expect("symlink");
 
         let ws = crate::engine::workspace::Workspace::new([inside.path()]);
         assert!(ws.resolve_existing(project.to_str().unwrap()).is_ok());
@@ -123,10 +144,7 @@ mod tests {
         // root check.
         if let Ok(discovered) = Repository::discover(&project) {
             let workdir = discovered.workdir().expect("workdir").to_path_buf();
-            let allowed = ws
-                .roots()
-                .iter()
-                .any(|root| workdir.starts_with(root));
+            let allowed = ws.roots().iter().any(|root| workdir.starts_with(root));
             assert!(
                 !allowed,
                 "an outside repo reached through a symlink must be rejected"
@@ -146,10 +164,7 @@ mod tests {
             .expect("inside sandbox");
         let repo = GitRepo::open(&canonical).expect("open");
         let workdir = repo.workdir().expect("workdir").to_path_buf();
-        assert!(ws
-            .roots()
-            .iter()
-            .any(|root| workdir.starts_with(root)));
+        assert!(ws.roots().iter().any(|root| workdir.starts_with(root)));
         let _ = Path::new("");
     }
 }

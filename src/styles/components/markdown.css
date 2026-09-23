@@ -1,0 +1,200 @@
+/* ── Markdown renderer (read-only previews, AI notes) ─────────── */
+.md-render {
+  font-size: var(--text-md);
+  line-height: var(--leading-relaxed);
+  color: var(--color-fg-primary);
+  overflow-wrap: anywhere;
+}
+
+.md-render > :first-child {
+  margin-top: 0;
+}
+
+.md-render h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  margin: var(--space-6) 0 var(--space-3);
+}
+
+.md-render h2 {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  margin: var(--space-5) 0 var(--space-2-5);
+}
+
+.md-render h3 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  margin: var(--space-4) 0 var(--space-2);
+}
+
+.md-render h4,
+.md-render h5,
+.md-render h6 {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  margin: var(--space-3-5) 0 var(--space-1-5);
+}
+
+.md-render p {
+  margin: var(--space-2) 0;
+}
+
+.md-render ul,
+.md-render ol {
+  margin: var(--space-2) 0;
+  padding-left: var(--space-6);
+}
+
+.md-render li {
+  margin: var(--space-1) 0;
+}
+
+.md-render li::marker {
+  color: var(--color-fg-tertiary);
+}
+
+.md-render blockquote {
+  margin: var(--space-3) 0;
+  padding: var(--space-1) var(--space-4);
+  border-left: 2px solid var(--color-border-strong);
+  color: var(--color-fg-secondary);
+}
+
+.md-render .md-code-block {
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+  background: var(--color-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-normal);
+}
+
+.md-render .md-code-block code {
+  padding: 0;
+  background: transparent;
+  font-size: inherit;
+}
+
+.md-render code {
+  padding: 0.1em 0.4em;
+  border-radius: var(--radius-xs);
+  background: var(--color-fill-active);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+.md-render .md-link {
+  color: var(--color-accent-text);
+  text-decoration: underline;
+  text-decoration-color: var(--color-accent-border);
+  text-underline-offset: 2px;
+}
+
+.md-render .md-link:hover {
+  text-decoration-color: currentColor;
+}
+
+.md-render .md-table {
+  width: 100%;
+  margin: var(--space-3) 0;
+  font-size: var(--text-base);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
+.md-render .md-table th,
+.md-render .md-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.md-render .md-table tr:last-child td {
+  border-bottom: none;
+}
+
+.md-render .md-table th {
+  background: var(--color-fill-subtle);
+  font-weight: var(--weight-semibold);
+  color: var(--color-fg-secondary);
+  font-size: var(--text-sm);
+}
+
+.md-render .md-checkbox {
+  margin-right: var(--space-1-5);
+  accent-color: var(--color-accent);
+}
+
+.md-render hr {
+  margin: var(--space-5) 0;
+  border: none;
+  border-top: 1px solid var(--color-border);
+}
+
+.md-mermaid {
+  margin: var(--space-4) 0;
+  padding: var(--space-4);
+  overflow-x: auto;
+  text-align: center;
+  background: var(--color-sunken);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.md-mermaid svg {
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+.md-mermaid-error {
+  margin: var(--space-3) 0;
+  padding: var(--space-2-5) var(--space-3-5);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.md-image {
+  max-width: 100%;
+  margin: var(--space-3) 0;
+  border-radius: var(--radius-lg);
+}
+
+.md-pdf-wrapper {
+  margin: var(--space-4) 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.md-pdf {
+  display: block;
+  width: 100%;
+  height: 80vh;
+  border: none;
+}
+
+.md-video-wrapper {
+  position: relative;
+  margin: var(--space-4) 0;
+}
+
+.md-video {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}

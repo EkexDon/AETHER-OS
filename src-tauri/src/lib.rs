@@ -7,7 +7,7 @@ use commands::browser_commands::BrowserWebviews;
 use engine::{
     aether_notes::AetherNotes, ai_config::AiConfigStore, browser::BrowserManager,
     calendar::Calendar, calendar_notifier::CalendarNotifier, cloud_ai::CloudAiEngine,
-    local_ai::LocalAiEngine, lsp::LspManager, memory_store::MemoryStore,
+    diagnostics::Diagnostics, local_ai::LocalAiEngine, lsp::LspManager, memory_store::MemoryStore,
     system_monitor::SystemMonitor, task_board::TaskBoardEngine, terminal::TerminalManager,
     vault_reader::VaultReader, vector_db::VectorEngine, web_clipper::WebClipper,
 };
@@ -35,6 +35,20 @@ pub struct AppState {
     pub calendar: Arc<Calendar>,
     pub notifier: Arc<CalendarNotifier>,
     pub task_board: Arc<TaskBoardEngine>,
+    /// Local crash reports + application log (installs the panic hook).
+    pub diagnostics: Arc<Diagnostics>,
+    // Feature state (SWARM-CONTRACT §3): add `pub <feature>: Arc<…>,`
+    // directly above your own anchor.
+    // @anchor:state-field:clipboard
+    // @anchor:state-field:search
+    // @anchor:state-field:history
+    // @anchor:state-field:home
+    // @anchor:state-field:vaulttasks
+    // @anchor:state-field:intel
+    // @anchor:state-field:plugins
+    // @anchor:state-field:export
+    // @anchor:state-field:sync
+    // @anchor:state-field:onboarding
 }
 
 pub fn run() {
@@ -44,6 +58,8 @@ pub fn run() {
         .setup(|app| {
             let data_dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&data_dir)?;
+            // First, so panics in any later engine start-up are captured.
+            let diagnostics = Arc::new(Diagnostics::new(&data_dir)?);
             let vault = VaultReader::new(&data_dir)?;
             let vectors =
                 tauri::async_runtime::block_on(VectorEngine::new(&data_dir.join("vectors")))?;
@@ -61,6 +77,18 @@ pub fn run() {
             )?);
             notifier.clone().start(calendar.clone())?;
             let task_board = Arc::new(TaskBoardEngine::new(&data_dir.join("tasks"))?);
+            // Feature engine construction: add your `let <feature> = …;`
+            // directly above your own anchor.
+            // @anchor:state-init:clipboard
+            // @anchor:state-init:search
+            // @anchor:state-init:history
+            // @anchor:state-init:home
+            // @anchor:state-init:vaulttasks
+            // @anchor:state-init:intel
+            // @anchor:state-init:plugins
+            // @anchor:state-init:export
+            // @anchor:state-init:sync
+            // @anchor:state-init:onboarding
             app.manage(AppState {
                 vault: Arc::new(vault),
                 vectors: Arc::new(vectors),
@@ -79,6 +107,18 @@ pub fn run() {
                 calendar,
                 notifier,
                 task_board,
+                diagnostics,
+                // Feature fields: add `<feature>,` directly above your anchor.
+                // @anchor:state-manage:clipboard
+                // @anchor:state-manage:search
+                // @anchor:state-manage:history
+                // @anchor:state-manage:home
+                // @anchor:state-manage:vaulttasks
+                // @anchor:state-manage:intel
+                // @anchor:state-manage:plugins
+                // @anchor:state-manage:export
+                // @anchor:state-manage:sync
+                // @anchor:state-manage:onboarding
             });
             Ok(())
         })
@@ -188,6 +228,25 @@ pub fn run() {
             commands::task_commands::cmd_create_task,
             commands::task_commands::cmd_update_task,
             commands::task_commands::cmd_delete_task,
+            commands::diagnostics_commands::cmd_list_crash_reports,
+            commands::diagnostics_commands::cmd_read_crash_report,
+            commands::diagnostics_commands::cmd_clear_crash_reports,
+            commands::diagnostics_commands::cmd_log_frontend_error,
+            commands::diagnostics_commands::cmd_open_app_data_dir,
+            commands::diagnostics_commands::cmd_get_app_info,
+            commands::updater_commands::cmd_check_for_updates,
+            // Feature commands: add `commands::<feature>_commands::cmd_…,`
+            // lines directly above your own anchor.
+            // @anchor:handlers:clipboard
+            // @anchor:handlers:search
+            // @anchor:handlers:history
+            // @anchor:handlers:home
+            // @anchor:handlers:vaulttasks
+            // @anchor:handlers:intel
+            // @anchor:handlers:plugins
+            // @anchor:handlers:export
+            // @anchor:handlers:sync
+            // @anchor:handlers:onboarding
         ])
         .build(tauri::generate_context!())
         .expect("failed to build AETHER-OS")

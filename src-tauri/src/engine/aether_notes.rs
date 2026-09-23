@@ -87,8 +87,7 @@ impl AetherNotes {
             return Err(AetherError::Vault(format!("note not found: {id}")));
         }
         let content = std::fs::read_to_string(&path)?;
-        serde_json::from_str(&content)
-            .map_err(|e| AetherError::Vault(format!("note parse: {e}")))
+        serde_json::from_str(&content).map_err(|e| AetherError::Vault(format!("note parse: {e}")))
     }
 
     pub fn delete(&self, id: &str) -> Result<(), AetherError> {
@@ -112,7 +111,12 @@ mod tests {
         let store = AetherNotes::new(dir.path()).expect("store");
 
         let note = store
-            .create("Summary", "Content here", "What is X?", vec!["/a.md".to_owned()])
+            .create(
+                "Summary",
+                "Content here",
+                "What is X?",
+                vec!["/a.md".to_owned()],
+            )
             .expect("create");
 
         assert_eq!(note.title, "Summary");

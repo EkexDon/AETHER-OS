@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { editor as MonacoEditor } from "monaco-editor";
 import { Loader2, X } from "lucide-react";
-import { AETHER_THEME, setupMonaco } from "../lib/monaco";
+import { MONACO_FONT, currentMonacoTheme, setupMonaco } from "../lib/monaco";
 import { gitDiffFile } from "../lib/ipc";
 import { languageForPath } from "../lib/language";
 
@@ -59,12 +59,12 @@ export function IdeDiffView({ rootPath, file, staged, onClose }: IdeDiffViewProp
     );
 
     const editor = monaco.editor.createDiffEditor(containerRef.current, {
-      theme: AETHER_THEME,
+      theme: currentMonacoTheme(),
       automaticLayout: true,
       readOnly: true,
       renderSideBySide: true,
       fontSize: 13,
-      fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
+      fontFamily: MONACO_FONT,
       scrollBeyondLastLine: false,
       renderOverviewRuler: false,
       padding: { top: 10, bottom: 10 },

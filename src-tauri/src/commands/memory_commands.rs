@@ -27,10 +27,7 @@ pub async fn cmd_get_recent_conversations(
 }
 
 #[tauri::command]
-pub async fn cmd_delete_conversation(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<(), String> {
+pub async fn cmd_delete_conversation(state: State<'_, AppState>, id: String) -> Result<(), String> {
     state
         .memory
         .delete_conversation(&id)
@@ -50,9 +47,7 @@ pub async fn cmd_save_memory_fact(
 }
 
 #[tauri::command]
-pub async fn cmd_get_memory_facts(
-    state: State<'_, AppState>,
-) -> Result<Vec<MemoryFact>, String> {
+pub async fn cmd_get_memory_facts(state: State<'_, AppState>) -> Result<Vec<MemoryFact>, String> {
     state.memory.load_facts().map_err(|e| e.to_string())
 }
 
@@ -61,8 +56,5 @@ pub async fn cmd_delete_memory_fact(
     state: State<'_, AppState>,
     fact: String,
 ) -> Result<Vec<MemoryFact>, String> {
-    state
-        .memory
-        .delete_fact(&fact)
-        .map_err(|e| e.to_string())
+    state.memory.delete_fact(&fact).map_err(|e| e.to_string())
 }

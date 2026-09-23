@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { editor as MonacoEditor, IDisposable } from "monaco-editor";
-import { AETHER_THEME, setupMonaco } from "../lib/monaco";
+import { MONACO_FONT, currentMonacoTheme, setupMonaco } from "../lib/monaco";
 
 interface CodeEditorProps {
   /** Identifies the buffer. Switching this swaps the underlying model. */
@@ -39,10 +39,10 @@ export function CodeEditor({ path, value, language, onChange, onSave }: CodeEdit
     const monaco = setupMonaco();
 
     const editor = monaco.editor.create(containerRef.current, {
-      theme: AETHER_THEME,
+      theme: currentMonacoTheme(),
       automaticLayout: true,
       fontSize: 13,
-      fontFamily: "'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, monospace",
+      fontFamily: MONACO_FONT,
       fontLigatures: true,
       minimap: { enabled: true, maxColumn: 80 },
       scrollBeyondLastLine: false,

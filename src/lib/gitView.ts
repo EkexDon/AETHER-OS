@@ -32,12 +32,13 @@ export function changeLabel(kind: GitChangeKind): string {
   return CHANGE_LABELS[kind];
 }
 
+/** Change-kind colors as design tokens, so both themes stay legible. */
 export const CHANGE_COLORS: Record<GitChangeKind, string> = {
-  added: "#86efac",
-  modified: "#fbbf24",
-  deleted: "#f87171",
-  renamed: "#93c5fd",
-  typechange: "#c084fc",
+  added: "var(--color-success)",
+  modified: "var(--color-warning)",
+  deleted: "var(--color-danger)",
+  renamed: "var(--color-info)",
+  typechange: "var(--color-cat-5)",
 };
 
 /**

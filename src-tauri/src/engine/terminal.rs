@@ -53,7 +53,9 @@ impl TerminalManager {
         on_output: impl Fn(&str, &[u8]) + Send + 'static,
     ) -> Result<TerminalSession, AetherError> {
         let id = Uuid::new_v4().to_string();
-        let shell = shell.map(|s| s.to_string()).unwrap_or_else(Self::default_shell);
+        let shell = shell
+            .map(|s| s.to_string())
+            .unwrap_or_else(Self::default_shell);
         let cwd = cwd.map(|c| c.to_string()).unwrap_or_else(|| {
             std::env::current_dir()
                 .map(|d| d.to_string_lossy().to_string())
@@ -90,10 +92,10 @@ impl TerminalManager {
         let master = pair.master;
         let writer = master
             .take_writer()
-            .map_err(|e| AetherError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+            .map_err(|e| AetherError::Io(std::io::Error::other(e)))?;
         let mut reader = master
             .try_clone_reader()
-            .map_err(|e| AetherError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+            .map_err(|e| AetherError::Io(std::io::Error::other(e)))?;
 
         let alive = Arc::new(std::sync::atomic::AtomicBool::new(true));
         let alive_clone = Arc::clone(&alive);
@@ -112,7 +114,11 @@ impl TerminalManager {
                         // rows). Log the first occurrence per session so the
                         // culprit shows up in the app log instead of staying
                         // invisible. The transport itself stays byte-exact.
-                        if !warned_binary && chunk.iter().any(|&b| b == 0 || (0x80..=0x8F).contains(&b) || b == 0xFF) {
+                        if !warned_binary
+                            && chunk
+                                .iter()
+                                .any(|&b| b == 0 || (0x80..=0x8F).contains(&b) || b == 0xFF)
+                        {
                             warned_binary = true;
                             eprintln!(
                                 "[terminal] session {thread_id}: first non-text chunk ({} bytes): {:?}",
@@ -168,10 +174,9 @@ impl TerminalManager {
             )));
         }
 
-        let writer = handle
-            .writer
-            .as_mut()
-            .ok_or_else(|| AetherError::InvalidInput(format!("Session {id} writer already taken")))?;
+        let writer = handle.writer.as_mut().ok_or_else(|| {
+            AetherError::InvalidInput(format!("Session {id} writer already taken"))
+        })?;
 
         writer.write_all(data.as_bytes()).map_err(AetherError::Io)?;
         writer.flush().map_err(AetherError::Io)?;
@@ -215,9 +220,7 @@ impl TerminalManager {
             drop(handle.master);
             Ok(())
         } else {
-            Err(AetherError::InvalidInput(format!(
-                "Session {id} not found"
-            )))
+            Err(AetherError::InvalidInput(format!("Session {id} not found")))
         }
     }
 
@@ -282,9 +285,10 @@ mod tests {
                 if combined.windows(14).any(|w| w == b"aether_test_42") {
                     break;
                 }
-            } else {
-                break;
             }
+            // No `break` on a quiet 500 ms: under parallel test load the
+            // login shell can take longer than that to print anything. The
+            // loop still ends at the deadline.
         }
 
         assert!(
@@ -322,12 +326,15 @@ mod tests {
         while std::time::Instant::now() < deadline {
             if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(500)) {
                 combined.extend_from_slice(&chunk);
-                if combined.contains(&0xFF) && combined.windows(4).any(|w| w == [0xF0, 0x9F, 0x91, 0x80]) {
+                if combined.contains(&0xFF)
+                    && combined.windows(4).any(|w| w == [0xF0, 0x9F, 0x91, 0x80])
+                {
                     break;
                 }
-            } else {
-                break;
             }
+            // No `break` on a quiet 500 ms: under parallel test load the
+            // login shell can take longer than that to print anything. The
+            // loop still ends at the deadline.
         }
 
         assert!(
@@ -405,14 +412,18 @@ mod tests {
         let mut combined: Vec<u8> = Vec::new();
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while std::time::Instant::now() < deadline {
-            if combined.windows(expected.len()).any(|w| w == expected.as_bytes()) {
+            if combined
+                .windows(expected.len())
+                .any(|w| w == expected.as_bytes())
+            {
                 break;
             }
             if let Ok(chunk) = rx.recv_timeout(Duration::from_millis(500)) {
                 combined.extend_from_slice(&chunk);
-            } else {
-                break;
             }
+            // No `break` on a quiet 500 ms: under parallel test load the
+            // login shell can take longer than that to print anything. The
+            // loop still ends at the deadline.
         }
 
         let combined_str = String::from_utf8_lossy(&combined);
@@ -469,9 +480,10 @@ mod tests {
                 } else if id == session_b.id {
                     combined_b.extend_from_slice(&chunk);
                 }
-            } else {
-                break;
             }
+            // No `break` on a quiet 500 ms: under parallel test load the
+            // login shell can take longer than that to print anything. The
+            // loop still ends at the deadline.
         }
 
         let out_a = String::from_utf8_lossy(&combined_a);
