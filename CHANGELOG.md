@@ -104,6 +104,20 @@ development builds), so keep each entry short and user-facing.
   the folder or transfer, `crypto error: …` for keys and data).
 - Version 0.2.0 is reported consistently by the app, the update check and
   the release bundles.
+- **Saving a note no longer rewrites what you did not edit.** The editor
+  escaped wikilinks (`[[AETHER-OS]]` became `\[\[AETHER-OS\]\]`, breaking
+  links, backlinks and the graph), dropped the blank line before task
+  lists, merged a heading into the image line above it and added an empty
+  `- [ ]` task to lists mixing plain and task items. Now only edited lines
+  change, and `[[links]]`, `![[embeds]]`, `#tags`, `==highlights==`,
+  `%%comments%%`, `$math$`, footnotes, callouts, HTML comments and numbered
+  tasks are saved exactly as written.
+- **Wikilinks in the editor.** Typing `[[` opens the note autocomplete
+  (fuzzy search, ↑/↓, ↵ or Tab to insert, Esc to close, "Create note …" as
+  the last row). Links show as chips that open their note, and
+  `![[image.png|300]]` embeds show in the editor.
+- Text typed while another note is still opening is saved into the note it
+  was typed in, not into the note being opened.
 
 ### Removed
 
@@ -121,3 +135,23 @@ development builds), so keep each entry short and user-facing.
   the same gates locally.
 - Typed IPC split per domain, a shared SQLite helper, and registries with
   anchors so features plug in without touching each other's code.
+
+### Distribution
+
+- One universal macOS download for Apple Silicon and Intel, ad-hoc signed
+  so it opens on other Macs (first launch: right-click → Open, or System
+  Settings → Privacy & Security → Open Anyway). Windows installer (per-user
+  NSIS with WebView2 bootstrapper and MSI) and Linux AppImage, deb and rpm.
+  Every release ships a `SHA256SUMS.txt`.
+- Opened from Finder, the Dock or a desktop menu, the app now picks up your
+  login shell's `PATH`, so git, language servers and agent commands find
+  tools installed with Homebrew, nvm, cargo and friends.
+- First launch no longer scans Documents, Desktop and Downloads for vaults
+  (that triggered macOS privacy prompts); the setup wizard finds existing
+  vaults when you get to that step.
+- New terminals open in your home folder with your login shell instead of
+  assuming `/bin/zsh` in `/`.
+- Opening links, editors, terminals and folders works on Windows and Linux
+  as well as macOS; features that only exist on macOS say so instead of
+  failing.
+- Install guide for every platform in `docs/INSTALL.md`.

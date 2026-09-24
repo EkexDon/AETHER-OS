@@ -4,7 +4,7 @@
 
 ![AETHER-OS — knowledge graph, grouped navigation and the AI agent answering from the vault](docs/tutorial/images/00-hero.png)
 
-`v0.2.0` · Tauri 2 + React 18 + Rust · 19 workspaces in 4 groups · 237 IPC commands · 671 Rust tests · 1,133 Vitest tests
+`v0.2.0` · Tauri 2 + React 18 + Rust · 19 workspaces in 4 groups · 237 IPC commands · 693 Rust tests · 1,435 Vitest tests
 
 ---
 
@@ -19,7 +19,7 @@ Nineteen views, grouped in the navigation rail. ⌘1–⌘9 jump to the first ni
 | Group | Workspace | Shortcut | What it does |
 | --- | --- | --- | --- |
 | Knowledge | **Home** | ⌘1 | Today (daily note, events, due tasks), continue where you left off, pins, Pomodoro and focus stats, vault health |
-| | **Notes** | ⌘2 | Tabbed WYSIWYG Markdown editor with a Properties panel for YAML front matter, vault images, backlinks, unlinked mentions, related-note suggestions and per-note history |
+| | **Notes** | ⌘2 | Tabbed WYSIWYG Markdown editor with `[[` note autocomplete, clickable wikilinks, a Properties panel for YAML front matter, vault images, backlinks, unlinked mentions, related-note suggestions and per-note history |
 | | **Search** | ⌘3 · ⌘⇧K | Universal Search: notes, files, apps, events, tasks, memory and chats, keyword + fuzzy + semantic ranking, preview pane |
 | | **Graph** | ⌘4 | Force-directed graph of every wikilink, filterable by tag |
 | | **AI Notes** | ⌘5 | Library of agent answers you saved |
@@ -86,6 +86,20 @@ Single note → standalone HTML (inlined styles and images, highlighted code) or
 
 ---
 
+## Download / Install
+
+Starting with v0.2.0, ready-to-run installers are attached to every **[GitHub release](https://github.com/EkexDon/AETHER-OS/releases/latest)** — no Rust, Node.js or Ollama needed:
+
+| System | File |
+| --- | --- |
+| macOS 12+ — Apple Silicon and Intel (universal) | `AETHER-OS_<version>_universal.dmg` |
+| Windows 10 / 11 (x64) | `AETHER-OS_<version>_x64-setup.exe` (per user, no admin) or `…_x64_en-US.msi` |
+| Linux x64 | `AETHER-OS_<version>_amd64.AppImage`, `…_amd64.deb` (Debian/Ubuntu), `AETHER-OS-<version>-1.x86_64.rpm` (Fedora/openSUSE) |
+
+Each release also has a `SHA256SUMS.txt`. The builds are not signed with paid Apple/Microsoft certificates, so the first start needs one extra click: **macOS** — System Settings → Privacy & Security → *Open Anyway* (macOS 12–14: right-click → *Open*), or `xattr -cr /Applications/AETHER-OS.app`; **Windows** — SmartScreen → *More info* → *Run anyway*; **Linux** — `chmod +x` the AppImage. Step-by-step instructions, the optional Ollama setup, where data lives per OS and how to uninstall: **[`docs/INSTALL.md`](docs/INSTALL.md)**.
+
+---
+
 ## Quick start
 
 ### Prerequisites
@@ -134,8 +148,8 @@ CI runs the same gates on every push ([`docs/dev/CI.md`](docs/dev/CI.md)); tagge
 
 | Suite | Command | Count (v0.2.0) |
 | --- | --- | --- |
-| Rust (engines + commands, `tempfile` sandboxes, crypto test vectors) | `cd src-tauri && cargo test` | 671 passed |
-| Frontend (Vitest + Testing Library, 148 files) | `npx vitest run` | 1,133 passed |
+| Rust (engines + commands, `tempfile` sandboxes, crypto test vectors) | `cd src-tauri && cargo test` | 693 passed |
+| Frontend (Vitest + Testing Library, 153 files) | `npx vitest run` | 1,435 passed |
 
 Parity tests keep the mock backend in sync with `generate_handler!` in `src-tauri/src/lib.rs` (a command without a mock fails the build) and the Rust and TypeScript note-task parsers in sync through a shared golden fixture.
 
@@ -199,7 +213,7 @@ The backend registers **237 Tauri commands** in 28 command modules over 34 engin
 
 Settings → Data & Privacy lists these with sizes and can reset app data (the folder is moved aside, never deleted; the vault is never touched).
 
-**Media in notes:** `![alt](path)` images show in the editor; the rendered previews (Search, AI Notes, exports) also play video, audio and PDF and understand `![[file.png|300]]`. Paths resolve relative to the note, the vault root, or `attachments/` / `assets/` folders, and the files are read through Rust from inside the vault. Web images in AI answers and plugin panels load only when you click them.
+**Media in notes:** `![alt](path)` and `![[file.png|300]]` images show in the editor; the rendered previews (Search, AI Notes, exports) also play video, audio and PDF and understand `![[file.png|300]]`. Paths resolve relative to the note, the vault root, or `attachments/` / `assets/` folders, and the files are read through Rust from inside the vault. Web images in AI answers and plugin panels load only when you click them.
 
 **Privacy:** outbound requests go only to `localhost:11434` (Ollama), `https://openrouter.ai` (when you use a cloud model), `https://api.github.com/repos/EkexDon/AETHER-OS/releases/latest` (update check), URLs you clip or open, and HTTPS hosts a plugin was granted. No telemetry; crash reports stay local.
 
