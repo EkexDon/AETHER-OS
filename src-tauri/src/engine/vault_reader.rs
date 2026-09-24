@@ -122,15 +122,8 @@ pub struct VaultConfig {
     pub vault_path: Option<String>,
 }
 
-/// How long an auto-detected (not configured) vault location is reused
-/// before the home folders are scanned again.
-const DETECT_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(5);
-
 pub struct VaultReader {
     config_dir: PathBuf,
-    /// Last result of the home-folder scan used when no vault is configured,
-    /// so per-note calls (reads in indexing loops) do not rescan each time.
-    detected: std::sync::Mutex<Option<(std::time::Instant, Option<String>)>>,
 }
 
 impl VaultReader {
@@ -138,7 +131,6 @@ impl VaultReader {
         std::fs::create_dir_all(config_dir)?;
         Ok(Self {
             config_dir: config_dir.to_path_buf(),
-            detected: std::sync::Mutex::new(None),
         })
     }
 
@@ -172,29 +164,16 @@ impl VaultReader {
         Ok(())
     }
 
+    /// The configured vault, when its folder exists. There is deliberately
+    /// no silent fallback scan of `~/Documents`, `~/Desktop` and
+    /// `~/Downloads`: on a fresh machine that walked the user's folders
+    /// before they chose anything (and triggered three macOS privacy
+    /// prompts on first launch). Existing vaults are found by the setup
+    /// wizard's explicit detection (`onboarding::detect_vaults`).
     pub fn detect_vault_path(&self) -> Option<String> {
-        if let Some(path) = &self.get_config().vault_path {
-            if Path::new(path).exists() {
-                return Some(path.clone());
-            }
-        }
-
-        let mut cache = self
-            .detected
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some((at, found)) = cache.as_ref() {
-            if at.elapsed() < DETECT_CACHE_TTL {
-                return found.clone();
-            }
-        }
-        let found = dirs_home_checked().and_then(|home| {
-            ["Documents", "Desktop", "Downloads"]
-                .iter()
-                .find_map(|dir| scan_for_vault(&format!("{home}/{dir}"), 2))
-        });
-        *cache = Some((std::time::Instant::now(), found.clone()));
-        found
+        self.get_config()
+            .vault_path
+            .filter(|path| Path::new(path).exists())
     }
 
     pub fn scan_vault(&self, vault_path: &str) -> Result<Vec<VaultNote>, AetherError> {
@@ -718,36 +697,29 @@ fn resolve_wikilink(link: &str, notes: &[VaultNote]) -> Option<String> {
         .map(|n| n.path.clone())
 }
 
-fn dirs_home_checked() -> Option<String> {
-    std::env::var("HOME").ok()
-}
-
-fn scan_for_vault(base: &str, max_depth: usize) -> Option<String> {
-    let base_path = Path::new(base);
-    if !base_path.exists() {
-        return None;
-    }
-
-    for entry in WalkDir::new(base_path)
-        .max_depth(max_depth)
-        .into_iter()
-        .filter_map(|e| e.ok())
-    {
-        if entry.file_type().is_dir() {
-            let index = entry.path().join(".nopes/index.json");
-            if index.exists() {
-                return Some(entry.path().to_string_lossy().to_string());
-            }
-        }
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::fs;
     use tempfile::tempdir;
+
+    /// Only a configured, existing folder is the vault — nothing is guessed
+    /// from the user's home folders on a fresh install.
+    #[test]
+    fn the_vault_is_only_what_was_configured() {
+        let config_dir = tempdir().expect("config dir");
+        let reader = VaultReader::new(config_dir.path()).expect("reader");
+        assert_eq!(reader.detect_vault_path(), None);
+        assert!(reader.vault_root().is_err());
+
+        let vault = tempdir().expect("vault");
+        let path = vault.path().to_string_lossy().to_string();
+        reader.set_vault_path(&path).expect("configure");
+        assert_eq!(reader.detect_vault_path(), Some(path.clone()));
+
+        drop(vault);
+        assert_eq!(reader.detect_vault_path(), None, "a deleted vault is gone");
+    }
 
     #[test]
     fn scans_markdown_files() {
@@ -798,19 +770,19 @@ mod tests {
             vault.path().display(),
             outside.path().file_name().unwrap().to_string_lossy()
         );
-        let mut cases = vec![
+        let cases = vec![
             (vault.path().join("inside.md").display().to_string(), true),
             (dotdot, false),
             (
                 outside.path().join("secret.md").display().to_string(),
                 false,
             ),
+            #[cfg(unix)]
+            (
+                vault.path().join("link/secret.md").display().to_string(),
+                false,
+            ),
         ];
-        #[cfg(unix)]
-        cases.push((
-            vault.path().join("link/secret.md").display().to_string(),
-            false,
-        ));
         for (path, ok) in cases {
             assert_eq!(reader.read_note(&path).is_ok(), ok, "{path}");
         }
@@ -906,16 +878,16 @@ mod tests {
             "../{}/out.png",
             outside.path().file_name().unwrap().to_string_lossy()
         );
-        let mut rejected = vec![
+        let rejected = vec![
             escape,
             outside.path().join("out.png").display().to_string(),
             "script.sh".to_owned(),
             "attachments/missing.png".to_owned(),
             "attachments".to_owned(),
             String::new(),
+            #[cfg(unix)]
+            "link/out.png".to_owned(),
         ];
-        #[cfg(unix)]
-        rejected.push("link/out.png".to_owned());
         for path in rejected {
             assert!(reader.read_asset(&path).is_err(), "{path} must be rejected");
         }

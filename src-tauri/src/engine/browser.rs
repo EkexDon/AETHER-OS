@@ -29,30 +29,35 @@ impl BrowserManager {
     }
 
     fn detect_librewolf() -> Option<String> {
-        let candidates = [
+        let mut candidates: Vec<std::path::PathBuf> = [
             "/Applications/LibreWolf.app/Contents/MacOS/librewolf",
             "/usr/bin/librewolf",
             "/usr/local/bin/librewolf",
             "/opt/homebrew/bin/librewolf",
-        ];
-
-        for path in &candidates {
-            if std::path::Path::new(path).exists() {
-                return Some(path.to_string());
-            }
-        }
-
-        // Try `which librewolf` as a fallback
-        if let Ok(output) = Command::new("which").arg("librewolf").output() {
-            if output.status.success() {
-                let p = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !p.is_empty() {
-                    return Some(p);
+        ]
+        .iter()
+        .map(std::path::PathBuf::from)
+        .collect();
+        if cfg!(windows) {
+            for var in ["ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"] {
+                if let Some(base) = std::env::var_os(var) {
+                    candidates.push(
+                        std::path::PathBuf::from(base)
+                            .join("LibreWolf")
+                            .join("librewolf.exe"),
+                    );
                 }
             }
         }
 
-        None
+        for path in &candidates {
+            if path.is_file() {
+                return Some(path.to_string_lossy().into_owned());
+            }
+        }
+
+        // Anywhere on PATH (Flatpak / Nix / custom installs).
+        crate::engine::lsp::find_in_path("librewolf").map(|p| p.to_string_lossy().into_owned())
     }
 
     pub fn info(&self) -> BrowserInfo {
@@ -71,26 +76,17 @@ impl BrowserManager {
     /// the system default browser via `open`. Only `http`, `https` and
     /// `mailto` URLs are accepted (see [`validate_external_url`]).
     pub fn open_url(&self, url: &str) -> Result<(), AetherError> {
-        let url = validate_external_url(url)?;
-        let url = url.as_str();
+        let parsed = validate_external_url(url)?;
+        let url = parsed.as_str();
         if let Some(ref path) = self.librewolf_path {
             Command::new(path).arg(url).spawn().map_err(|e| {
                 AetherError::InvalidInput(format!("Failed to launch LibreWolf: {e}"))
             })?;
         } else {
-            // Fallback: system default browser
-            let cmd = if cfg!(target_os = "windows") {
-                ("cmd", vec!["/C", "start", "", url])
-            } else if cfg!(target_os = "macos") {
-                ("open", vec![url])
-            } else {
-                ("xdg-open", vec![url])
-            };
-
-            Command::new(cmd.0)
-                .args(&cmd.1)
-                .spawn()
-                .map_err(|e| AetherError::InvalidInput(format!("Failed to open URL: {e}")))?;
+            // Fallback: the system default browser (`open`, `rundll32`,
+            // `xdg-open` — never through a shell, so `&` in a query string
+            // is not a command separator).
+            crate::engine::desktop::open_url_with_system(&parsed)?;
         }
         Ok(())
     }

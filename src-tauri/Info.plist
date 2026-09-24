@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged into the bundle's Info.plist by the Tauri CLI. macOS shows these
+  texts in the one-time privacy prompts when AETHER-OS first looks into a
+  protected folder (vault detection in the setup wizard, a vault or project
+  folder that lives there, the file browser, the terminal).
+-->
+<plist version="1.0">
+<dict>
+  <key>NSDocumentsFolderUsageDescription</key>
+  <string>AETHER-OS looks for Markdown vaults and opens the notes and projects you keep in your Documents folder.</string>
+  <key>NSDesktopFolderUsageDescription</key>
+  <string>AETHER-OS opens the notes, projects and files you keep on your Desktop.</string>
+  <key>NSDownloadsFolderUsageDescription</key>
+  <string>AETHER-OS opens files and plugin packages you downloaded when you choose them.</string>
+  <key>NSRemovableVolumesUsageDescription</key>
+  <string>AETHER-OS opens vaults, backups and sync folders on external drives when you choose them.</string>
+  <key>NSNetworkVolumesUsageDescription</key>
+  <string>AETHER-OS opens vaults, backups and sync folders on network drives when you choose them.</string>
+</dict>
+</plist>

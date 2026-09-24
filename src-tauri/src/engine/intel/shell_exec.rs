@@ -320,6 +320,7 @@ async fn run_shell_with(
         ));
     }
     let mut cmd = shell_command(command, login);
+    crate::engine::desktop::hide_console_async(&mut cmd);
     cmd.current_dir(cwd)
         .env_clear()
         .envs(agent_env())

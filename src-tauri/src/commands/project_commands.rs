@@ -3,6 +3,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::commands::ide_commands::workspace;
+use crate::engine::desktop;
+use crate::engine::diagnostics::open_in_file_manager;
 use crate::engine::fs_guard;
 use crate::engine::workspace::Workspace;
 use crate::AppState;
@@ -82,7 +84,9 @@ fn detect_language(path: &Path) -> String {
 fn run_git(path: &Path, args: &[&str]) -> Option<String> {
     // Read-only queries: no fsmonitor hook from the repository's config, no
     // index refresh lock.
-    let output = Command::new("git")
+    let mut git = Command::new("git");
+    desktop::hide_console(&mut git);
+    let output = git
         .args(["-c", "core.fsmonitor=false"])
         .args(args)
         .current_dir(path)
@@ -308,58 +312,28 @@ pub async fn cmd_open_project(
     let requested = editor.unwrap_or_else(|| "devin".to_owned());
     let (app_name, cli) = resolve_editor(&requested)?;
 
-    // Launch via `open -a` so this works even when the editor's CLI shim
-    // (e.g. `code`, `cursor`, `windsurf`, `devin`) has not been installed
-    // into PATH. The canonical target is absolute, so it can never be
-    // mistaken for an option.
-    let open_status = Command::new("open")
-        .arg("-a")
-        .arg(&app_name)
-        .arg(&target)
-        .status();
-
-    if let Ok(status) = open_status {
-        if status.success() {
-            return Ok(());
-        }
-    }
-
-    // Fallback for known editors only: their CLI shim, if installed.
-    let Some(cli) = cli else {
-        return Err(format!("Failed to launch {app_name}"));
-    };
-    let status = Command::new(cli)
-        .arg(&target)
-        .status()
-        .map_err(|e| format!("Failed to launch {app_name}: {e}"))?;
-    if !status.success() {
-        return Err(format!("{cli} exited with status {status}"));
-    }
-    Ok(())
+    // macOS: `open -a` works even when the editor's CLI shim (`code`,
+    // `cursor`, `windsurf`, `devin`) is not installed, with the shim as the
+    // fallback. Windows / Linux: the shim (known editors only). The
+    // canonical target is absolute, so it is never mistaken for an option.
+    desktop::open_in_editor(&app_name, cli, &target)
 }
 
-/// Open a new Terminal window in a project folder.
+/// Open a new terminal window in a project folder (Terminal on macOS,
+/// Windows Terminal / PowerShell on Windows, the desktop's terminal
+/// emulator on Linux).
 #[tauri::command]
 pub async fn cmd_open_in_terminal(state: State<'_, AppState>, path: String) -> Result<(), String> {
     let dir = resolve_folder_in_roots(&allowed_roots(&state), &path)?;
-    Command::new("open")
-        .arg("-a")
-        .arg("Terminal")
-        .arg(&dir)
-        .status()
-        .map_err(|e| format!("Failed to open Terminal: {e}"))?;
-    Ok(())
+    desktop::open_terminal_at(&dir).map_err(|e| e.to_string())
 }
 
-/// Show a project folder in Finder.
+/// Show a project folder in the file manager (Finder, Explorer, the
+/// desktop's default via `xdg-open`).
 #[tauri::command]
 pub async fn cmd_open_in_finder(state: State<'_, AppState>, path: String) -> Result<(), String> {
     let dir = resolve_folder_in_roots(&allowed_roots(&state), &path)?;
-    Command::new("open")
-        .arg(&dir)
-        .status()
-        .map_err(|e| format!("Failed to open Finder: {e}"))?;
-    Ok(())
+    open_in_file_manager(&dir).map_err(|e| format!("Failed to open the folder: {e}"))
 }
 
 #[tauri::command]
@@ -449,13 +423,13 @@ mod tests {
             root.display(),
             outside.path().file_name().unwrap().to_string_lossy()
         );
-        let mut cases = vec![
+        let cases = vec![
             (root.join("app").display().to_string(), true),
             (dotdot, false),
             (outside.path().display().to_string(), false),
+            #[cfg(unix)]
+            (root.join("escape").display().to_string(), false),
         ];
-        #[cfg(unix)]
-        cases.push((root.join("escape").display().to_string(), false));
         for (path, ok) in cases {
             assert_eq!(resolve_in_roots(&roots, &path).is_ok(), ok, "{path}");
         }

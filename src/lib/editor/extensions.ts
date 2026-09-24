@@ -15,9 +15,14 @@ import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableCell } from "@tiptap/extension-table-cell";
 import { TableHeader } from "@tiptap/extension-table-header";
-import { Markdown } from "tiptap-markdown";
 import { LineFlash } from "./lineFlash";
 import { VaultImage } from "./vaultImage";
+import { FaithfulMarkdown, MarkdownSourceAttributes } from "./markdownSerializer";
+import { WikiEmbed, WikiLink } from "./wikilink";
+import { RawBlock, RawInline } from "./rawNodes";
+import { ObsidianDecorations } from "./obsidianDecorations";
+import { WikilinkSuggestion, type WikilinkSuggestionOptions } from "./wikilinkSuggest";
+import { storeWikilinkHost, type WikilinkHost } from "./wikilinkHost";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -92,13 +97,20 @@ const TaskListTightness = Extension.create({
 export interface NoteEditorExtensionOptions {
   /** Empty-canvas hint. */
   placeholder?: string;
+  /** Notes, navigation and note creation for wikilinks (default: the app store and IPC). */
+  wikilinks?: WikilinkHost;
+  /** Popup of the `[[` autocomplete (none: the suggestion logic runs without UI). */
+  wikilinkMenu?: WikilinkSuggestionOptions["render"];
 }
 
 /**
  * Every extension the note canvas uses. StarterKit's own link and underline
  * are disabled because the configured standalone versions replace them.
+ * Markdown goes through {@link FaithfulMarkdown}: Obsidian syntax in, the
+ * text as typed out (see `markdownSerializer.ts` and `obsidianSyntax.ts`).
  */
 export function noteEditorExtensions(options: NoteEditorExtensionOptions = {}): AnyExtension[] {
+  const host = options.wikilinks ?? storeWikilinkHost;
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
@@ -116,10 +128,17 @@ export function noteEditorExtensions(options: NoteEditorExtensionOptions = {}): 
     TextStyle,
     FontSize,
     Color,
-    VaultImage.configure({ allowBase64: true }),
+    VaultImage.configure({ inline: true, allowBase64: true }),
     LinkExtension.configure({ openOnClick: false }),
     Placeholder.configure({ placeholder: options.placeholder ?? "Start writing markdown, thoughts, or ideas…" }),
-    Markdown.configure({
+    WikiLink.configure({ host }),
+    WikiEmbed.configure({ host }),
+    RawInline,
+    RawBlock,
+    MarkdownSourceAttributes,
+    ObsidianDecorations,
+    WikilinkSuggestion.configure({ host, render: options.wikilinkMenu }),
+    FaithfulMarkdown.configure({
       html: true,
       transformCopiedText: false,
       transformPastedText: false,

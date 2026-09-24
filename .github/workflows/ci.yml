@@ -83,18 +83,18 @@ jobs:
         working-directory: src-tauri
         run: cargo fmt --check
 
-      - name: cargo clippy -- -D warnings
+      - name: cargo clippy --all-targets -- -D warnings
         working-directory: src-tauri
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: cargo test
         working-directory: src-tauri
         run: cargo test
 
   linux-build-check:
-    name: Linux build check
+    name: Linux (check · clippy · test build)
     runs-on: ubuntu-22.04
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
@@ -107,6 +107,8 @@ jobs:
             librsvg2-dev patchelf
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -125,6 +127,56 @@ jobs:
       - name: Frontend dist placeholder
         run: mkdir -p dist
 
-      - name: cargo check
+      - name: cargo check --all-targets
         working-directory: src-tauri
         run: cargo check --all-targets
+
+      # Linux-only cfg branches (xdg-open, terminal emulators, WebKitGTK
+      # workaround) must be warning-free too.
+      - name: cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo test --no-run
+        working-directory: src-tauri
+        run: cargo test --no-run
+
+  # The release builds a Windows installer; this keeps the Windows cfg
+  # branches (PATHEXT lookup, rundll32/explorer hand-offs, console flags)
+  # compiling and warning-free on every push.
+  windows-check:
+    name: Windows (check · clippy)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate app icons
+        run: npx tauri icon src-tauri/icons/icon.svg
+
+      - name: Frontend dist placeholder
+        shell: bash
+        run: mkdir -p dist
+
+      - name: cargo check --all-targets
+        working-directory: src-tauri
+        run: cargo check --all-targets
+
+      - name: cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings

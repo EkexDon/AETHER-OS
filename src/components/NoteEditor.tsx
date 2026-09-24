@@ -14,18 +14,14 @@ import { createAutosaveScheduler } from "../lib/autosave";
 import { subscribeNoteReload } from "../lib/noteEditorBus";
 import { noteEditorExtensions } from "../lib/editor/extensions";
 import { frontmatterLineCount, joinFrontmatter, splitFrontmatter } from "../lib/editor/frontmatter";
-import { prefersTightLists, tightenListSpacing } from "../lib/editor/listSpacing";
 import { lineToBlock, locateBlock } from "../lib/editor/lineToBlock";
+import { bodyToSave, EMPTY_BASE, loadBody } from "../lib/editor/noteBody";
+import type { SourceBase } from "../lib/editor/sourceMerge";
+import { createWikilinkMenuRenderer } from "./editor/WikilinkMenu";
 import { BacklinksPanel } from "./BacklinksPanel";
 import { NoteProperties } from "./NoteProperties";
 import { findUnlinkedMentions, linkMentions } from "../lib/mentions";
 import type { Backlink, VaultNote } from "../types";
-
-/** The canvas body as Markdown (tiptap-markdown's serializer). */
-function editorMarkdown(editor: Editor): string {
-  const storage = editor.storage as unknown as { markdown?: { getMarkdown?: () => string } };
-  return storage.markdown?.getMarkdown?.() ?? "";
-}
 
 /**
  * Scroll the canvas to the block showing 0-based `line` of the note file and
@@ -93,8 +89,9 @@ export function NoteEditor() {
   const frontmatterRef = useRef<string | null>(null);
   // The latest body Markdown (the file's own bytes until the canvas changes).
   const bodyRef = useRef("");
-  /** The open file puts lists directly under headings/paragraphs; keep that when saving. */
-  const tightListsRef = useRef(false);
+  // The body as read plus its serialization: saves keep the original bytes
+  // of every region the user did not edit (lib/editor/sourceMerge.ts).
+  const baseRef = useRef<SourceBase>(EMPTY_BASE);
   const [addPropertyRequest, setAddPropertyRequest] = useState(0);
   // The note whose content is in the canvas (drives the pending-line scroll).
   const [loadedPath, setLoadedPath] = useState<string | null>(null);
@@ -103,6 +100,11 @@ export function NoteEditor() {
   const loadSeqRef = useRef(0);
   const currentTabRef = useRef<string | null>(selectedNotePath);
   currentTabRef.current = selectedNotePath;
+  // The note whose text is in the canvas (and in frontmatterRef/bodyRef/baseRef).
+  // It trails the selection until the new note has loaded, so keystrokes typed
+  // in that window are saved into the note they were typed in, never into the
+  // note being opened.
+  const canvasPathRef = useRef<string | null>(null);
   // Bumped by requestNoteReload() when a feature (history restore, sync, an
   // agent action) rewrote the open note on disk and the canvas must re-read it.
   const [reloadToken, setReloadToken] = useState(0);
@@ -152,24 +154,35 @@ export function NoteEditor() {
     () => createAutosaveScheduler({ delayMs: 1200, save: (path, content) => saveRef.current(content, path) }),
     []
   );
+  // The scheduler keeps one pending save: write one for another note first instead of dropping it.
+  const scheduleSave = useCallback(
+    (target: string, md: string) => {
+      void autosave.flushIfNot(target);
+      autosave.schedule(target, md);
+    },
+    [autosave]
+  );
+  const scheduleSaveRef = useRef(scheduleSave);
+  scheduleSaveRef.current = scheduleSave;
 
   // Initialize TipTap WYSIWYG Editor (stable extension instances, so
   // re-renders never reconfigure it).
-  const extensions = useMemo(() => noteEditorExtensions(), []);
+  const extensions = useMemo(() => noteEditorExtensions({ wikilinkMenu: createWikilinkMenuRenderer() }), []);
   const editor = useEditor({
     extensions,
     content: "",
     onUpdate: ({ editor: currentEditor }) => {
-      // No open note (e.g. the canvas was just cleared): nothing to save.
-      const target = currentTabRef.current;
+      // No note in the canvas (e.g. it was just cleared): nothing to save.
+      const target = canvasPathRef.current;
       if (!target) return;
-      setNoteDirty(true);
-      const serialized = editorMarkdown(currentEditor);
-      // Keep the file's own "list right under the heading" style (see listSpacing.ts).
-      bodyRef.current = tightListsRef.current ? tightenListSpacing(serialized) : serialized;
+      // Only the edited lines change; everything else keeps the file's bytes.
+      bodyRef.current = bodyToSave(currentEditor, baseRef.current);
       const md = joinFrontmatter(frontmatterRef.current, bodyRef.current);
-      setNoteContent(md);
-      autosave.schedule(target, md);
+      if (target === currentTabRef.current) {
+        setNoteDirty(true);
+        setNoteContent(md);
+      }
+      scheduleSaveRef.current(target, md);
     },
     editorProps: {
       attributes: {
@@ -209,6 +222,8 @@ export function NoteEditor() {
       setUnlinkedMentions([]);
       frontmatterRef.current = null;
       bodyRef.current = "";
+      baseRef.current = EMPTY_BASE;
+      canvasPathRef.current = null;
       setFrontmatterState(null);
       setLoadedPath(null);
       if (editor && !editor.isDestroyed) {
@@ -233,12 +248,16 @@ export function NoteEditor() {
         const { frontmatter: block, body } = splitFrontmatter(rawContent || "");
         frontmatterRef.current = block;
         bodyRef.current = body;
-        tightListsRef.current = prefersTightLists(body);
         setFrontmatterState(block);
 
         if (editor && !editor.isDestroyed) {
-          editor.commands.setContent(body, { emitUpdate: false });
+          // Nothing the canvas does while its content is replaced is an edit of either note.
+          canvasPathRef.current = null;
+          baseRef.current = loadBody(editor, body);
+        } else {
+          baseRef.current = { source: body, canonical: body };
         }
+        canvasPathRef.current = selectedNotePath;
         setLoadedPath(selectedNotePath);
 
         const noteName = selectedNotePath.split("/").pop()?.replace(/\.md$/i, "") ?? "";
@@ -275,16 +294,18 @@ export function NoteEditor() {
   // Properties panel edits: new front matter + the unchanged body bytes.
   const handleFrontmatterChange = useCallback(
     (next: string | null) => {
-      const target = currentTabRef.current;
+      const target = canvasPathRef.current;
       if (!target) return;
       frontmatterRef.current = next;
       setFrontmatterState(next);
-      setNoteDirty(true);
       const md = joinFrontmatter(next, bodyRef.current);
-      setNoteContent(md);
-      autosave.schedule(target, md);
+      if (target === currentTabRef.current) {
+        setNoteDirty(true);
+        setNoteContent(md);
+      }
+      scheduleSave(target, md);
     },
-    [autosave, setNoteContent, setNoteDirty]
+    [scheduleSave, setNoteContent, setNoteDirty]
   );
 
   // Scan unlinked mentions
@@ -329,8 +350,9 @@ export function NoteEditor() {
   }, [activeNoteName]);
 
   const handleManualSave = useCallback(() => {
-    const target = currentTabRef.current;
+    const target = canvasPathRef.current;
     if (!editor || !target) return;
+    void autosave.flushIfNot(target);
     autosave.cancel();
     void saveCurrentNote(joinFrontmatter(frontmatterRef.current, bodyRef.current), target);
   }, [editor, autosave, saveCurrentNote]);

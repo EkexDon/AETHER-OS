@@ -21,8 +21,10 @@ pub mod cloud_ai;
 pub mod task_board;
 
 // Wave 1 infra: shared helpers.
+pub mod desktop;
 pub mod diagnostics;
 pub mod fs_guard;
+pub mod shell_env;
 pub mod sqlite;
 pub mod updater;
 

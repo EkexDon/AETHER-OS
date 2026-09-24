@@ -1,5 +1,11 @@
 # Draft GitHub release with unsigned desktop bundles for every pushed
-# `v*` tag. See docs/dev/RELEASING.md for the full procedure.
+# `v*` tag. See docs/dev/RELEASING.md for the full procedure and
+# docs/INSTALL.md for what users do with the files.
+#
+#   create-release  version check, draft release with install notes
+#   build           macOS universal (.dmg), Linux x64 (.AppImage .deb .rpm),
+#                   Windows x64 (-setup.exe .msi)
+#   checksums       SHA256SUMS.txt over every uploaded asset
 name: Release
 
 on:
@@ -41,17 +47,45 @@ jobs:
         with:
           script: |
             const tag = context.ref.replace("refs/tags/", "");
+            const version = tag.replace(/^v/, "");
+            const repo = `${context.repo.owner}/${context.repo.repo}`;
+            const body = [
+              `AETHER-OS ${tag} — a local-first desktop app for notes, code, tasks and a local AI agent.`,
+              "",
+              "## Download",
+              "",
+              "| System | File |",
+              "| --- | --- |",
+              `| macOS 12+ (Apple Silicon and Intel) | \`AETHER-OS_${version}_universal.dmg\` |`,
+              `| Windows 10/11 (x64) | \`AETHER-OS_${version}_x64-setup.exe\` (or the \`.msi\`) |`,
+              `| Linux x64, any distribution | \`AETHER-OS_${version}_amd64.AppImage\` |`,
+              `| Debian / Ubuntu 22.04+ | \`AETHER-OS_${version}_amd64.deb\` |`,
+              `| Fedora / openSUSE | \`AETHER-OS-${version}-1.x86_64.rpm\` |`,
+              "",
+              "## First launch",
+              "",
+              "These builds are not signed with a paid Apple or Microsoft certificate, so the system asks once before the first start.",
+              "",
+              "- **macOS:** drag AETHER-OS into Applications. Open it once; when macOS refuses, open **System Settings → Privacy & Security** and click **Open Anyway** (on macOS 14 and older you can also right-click the app → **Open** → **Open**). Terminal alternative: `xattr -cr /Applications/AETHER-OS.app`.",
+              "- **Windows:** run the installer. If SmartScreen shows \"Windows protected your PC\", click **More info → Run anyway**. The `-setup.exe` installs for the current user without admin rights and adds a Start menu entry; the `.msi` installs for all users.",
+              "- **Linux:** `chmod +x AETHER-OS_*.AppImage && ./AETHER-OS_*.AppImage` (Ubuntu 22.04+ needs `libfuse2` / `libfuse2t64` for AppImages), or `sudo apt install ./AETHER-OS_*.deb` / `sudo dnf install ./AETHER-OS-*.rpm`.",
+              "",
+              "Local AI is optional: install [Ollama](https://ollama.com) and the setup wizard downloads a model for you.",
+              "",
+              `Full guide: [docs/INSTALL.md](https://github.com/${repo}/blob/${tag}/docs/INSTALL.md) · Changes: [CHANGELOG.md](https://github.com/${repo}/blob/${tag}/CHANGELOG.md)`,
+              "",
+              "## Verify the download",
+              "",
+              "`SHA256SUMS.txt` lists the SHA-256 of every file. In the download folder, on macOS run `shasum -a 256 -c SHA256SUMS.txt --ignore-missing`, on Linux `sha256sum -c SHA256SUMS.txt --ignore-missing`; the file you downloaded must say `OK`.",
+              "",
+              "Windows (PowerShell): `Get-FileHash .\\AETHER-OS_*_x64-setup.exe` and compare with the line in `SHA256SUMS.txt`.",
+            ].join("\n");
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag_name: tag,
               name: `AETHER-OS ${tag}`,
-              body: [
-                `AETHER-OS ${tag}.`,
-                "",
-                "These builds are **unsigned**: macOS Gatekeeper and Windows SmartScreen will warn on first launch.",
-                "See docs/dev/RELEASING.md for how to open them.",
-              ].join("\n"),
+              body,
               draft: true,
               prerelease: tag.includes("-"),
             });
@@ -64,24 +98,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: macOS (Apple Silicon)
+          # One universal (arm64 + x86_64) app, ad-hoc signed ("-" in
+          # tauri.conf.json) so Apple Silicon Macs start it.
+          - name: macOS (universal)
             platform: macos-latest
-            target: aarch64-apple-darwin
-            args: --target aarch64-apple-darwin
-          - name: macOS (Intel)
-            platform: macos-latest
-            target: x86_64-apple-darwin
-            args: --target x86_64-apple-darwin
-          - name: Linux
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            args: --target universal-apple-darwin
+          # Oldest supported Ubuntu: the bundles need glibc >= 2.35.
+          - name: Linux (x64)
             platform: ubuntu-22.04
-            target: ""
+            rust-targets: ""
             args: ""
-          - name: Windows
+          - name: Windows (x64)
             platform: windows-latest
-            target: ""
+            rust-targets: ""
             args: ""
     runs-on: ${{ matrix.platform }}
-    timeout-minutes: 60
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
@@ -96,12 +129,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.rust-targets }}
 
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          key: ${{ matrix.target }}
+          key: ${{ matrix.platform }}-${{ matrix.rust-targets }}
 
       - uses: actions/setup-node@v4
         with:
@@ -110,6 +143,7 @@ jobs:
 
       - run: npm ci
 
+      # PNG/ICNS/ICO icons are gitignored; derive them from the SVG.
       - name: Generate app icons
         run: npx tauri icon src-tauri/icons/icon.svg
 
@@ -119,3 +153,70 @@ jobs:
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           args: ${{ matrix.args }}
+
+  checksums:
+    name: SHA256SUMS.txt
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download every release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          mkdir assets
+          # Drafts are not reachable by tag, only by id.
+          gh api "repos/$REPO/releases/$RELEASE_ID/assets" --paginate \
+            --jq '.[] | "\(.id)\t\(.name)"' > assets.tsv
+          cat assets.tsv
+          while IFS="$(printf '\t')" read -r id name; do
+            if [ "$name" = "SHA256SUMS.txt" ]; then
+              # Re-run: replace the previous checksum file.
+              gh api --method DELETE "repos/$REPO/releases/assets/$id"
+              continue
+            fi
+            curl -fsSL --retry 3 \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/octet-stream" \
+              -o "assets/$name" \
+              "https://api.github.com/repos/$REPO/releases/assets/$id"
+          done < assets.tsv
+
+      # Consumers (docs, the website) match these patterns, never exact
+      # names — fail loudly when a platform's installer is missing.
+      - name: Check that every platform produced an installer
+        working-directory: assets
+        run: |
+          set -euo pipefail
+          ls -la
+          missing=0
+          for pattern in '_universal\.dmg$' '_x64-setup\.exe$' '_x64_en-US\.msi$' \
+                         '_amd64\.AppImage$' '_amd64\.deb$' '\.x86_64\.rpm$'; do
+            found=0
+            for file in *; do
+              if [[ "$file" =~ $pattern ]]; then found=1; fi
+            done
+            if [ "$found" -eq 0 ]; then
+              echo "::error::No release asset matches $pattern"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
+      - name: Write and upload SHA256SUMS.txt
+        working-directory: assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: |
+          set -euo pipefail
+          sha256sum -- * > ../SHA256SUMS.txt
+          cat ../SHA256SUMS.txt
+          curl -fsSL --retry 3 -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: text/plain" \
+            --data-binary @../SHA256SUMS.txt \
+            "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=SHA256SUMS.txt"

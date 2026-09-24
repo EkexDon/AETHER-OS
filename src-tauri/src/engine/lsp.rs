@@ -52,25 +52,87 @@ pub fn server_candidates(language: &str) -> &'static [&'static [&'static str]] {
 }
 
 /// Resolve a program name against PATH (like `which`). Empty PATH entries
-/// mean "current directory", matching shell behaviour.
+/// mean "current directory", matching shell behaviour. On Windows the
+/// `PATHEXT` extensions are tried as well, so `npx` finds `npx.cmd` and
+/// `code` finds `code.cmd`.
 pub fn find_in_path(program: &str) -> Option<PathBuf> {
-    if program.contains('/') {
-        let p = PathBuf::from(program);
-        return if p.is_file() { Some(p) } else { None };
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    find_program_in(program, &path, &executable_extensions())
+}
+
+/// Extensions tried after the bare name: none on Unix, `PATHEXT` (default
+/// `.COM;.EXE;.BAT;.CMD`) on Windows.
+fn executable_extensions() -> Vec<String> {
+    if cfg!(windows) {
+        let pathext = std::env::var("PATHEXT").unwrap_or_default();
+        parse_pathext(&pathext)
+    } else {
+        Vec::new()
     }
-    let path = std::env::var_os("PATH")?;
-    for dir in std::env::split_paths(&path) {
-        let candidate = if dir.as_os_str().is_empty() {
+}
+
+/// `PATHEXT` → lower-case extensions with a leading dot (blank → defaults).
+pub fn parse_pathext(pathext: &str) -> Vec<String> {
+    let parsed: Vec<String> = pathext
+        .split(';')
+        .map(str::trim)
+        .filter(|e| e.len() > 1 && e.starts_with('.'))
+        .map(str::to_ascii_lowercase)
+        .collect();
+    if parsed.is_empty() {
+        [".com", ".exe", ".bat", ".cmd"].map(str::to_owned).to_vec()
+    } else {
+        parsed
+    }
+}
+
+/// [`find_in_path`] against an explicit `path` list and extension set. A
+/// name with a path separator is checked as given (plus extensions).
+pub fn find_program_in(
+    program: &str,
+    path: &std::ffi::OsStr,
+    extensions: &[String],
+) -> Option<PathBuf> {
+    if program.is_empty() {
+        return None;
+    }
+    // Windows cannot start an extension-less file (npm ships a POSIX `npx`
+    // script next to `npx.cmd`), so a bare name only tries the extensions.
+    let has_extension = Path::new(program).extension().is_some();
+    let names: Vec<String> = (extensions.is_empty() || has_extension)
+        .then(|| program.to_owned())
+        .into_iter()
+        .chain(extensions.iter().map(|ext| format!("{program}{ext}")))
+        .collect();
+    let has_separator = program.contains('/') || (cfg!(windows) && program.contains('\\'));
+    if has_separator {
+        return names.iter().map(PathBuf::from).find(|p| is_program_file(p));
+    }
+    for dir in std::env::split_paths(path) {
+        let dir = if dir.as_os_str().is_empty() {
             PathBuf::from(".")
         } else {
             dir
         };
-        let full = candidate.join(program);
-        if full.is_file() {
-            return Some(full);
+        if let Some(found) = names
+            .iter()
+            .map(|n| dir.join(n))
+            .find(|p| is_program_file(p))
+        {
+            return Some(found);
         }
     }
     None
+}
+
+/// A regular file — or, on Windows, an App Execution Alias (`wt.exe`,
+/// `python.exe` in `WindowsApps`), a reparse point `is_file` cannot follow.
+fn is_program_file(path: &Path) -> bool {
+    path.is_file()
+        || (cfg!(windows)
+            && path
+                .symlink_metadata()
+                .is_ok_and(|m| !m.file_type().is_dir()))
 }
 
 /// Serialize one JSON-RPC body into the stdio framing every LSP server speaks.
@@ -226,7 +288,9 @@ impl LspManager {
             AetherError::InvalidInput(format!("language server not found on PATH: {program}"))
         })?;
 
-        let mut child = Command::new(&program_path)
+        let mut command = Command::new(&program_path);
+        crate::engine::desktop::hide_console(&mut command);
+        let mut child = command
             .args(args)
             .current_dir(cwd)
             .stdin(Stdio::piped())
@@ -527,6 +591,58 @@ mod tests {
         })
         .is_some());
         assert!(find_in_path("definitely-not-a-real-tool-xyz").is_none());
+        assert!(find_in_path("").is_none());
+    }
+
+    #[test]
+    fn pathext_is_parsed_lower_case_with_defaults() {
+        assert_eq!(
+            parse_pathext(".COM;.EXE; .Cmd ;;bad;."),
+            vec![".com", ".exe", ".cmd"]
+        );
+        assert_eq!(parse_pathext(""), vec![".com", ".exe", ".bat", ".cmd"]);
+    }
+
+    /// Windows lookup rules, simulated with an explicit extension list so
+    /// they are checked on every platform.
+    #[test]
+    fn windows_style_lookup_prefers_launchers_over_extensionless_scripts() {
+        let first = tempfile::tempdir().expect("dir");
+        let second = tempfile::tempdir().expect("dir");
+        // npm puts a POSIX `npx` script next to `npx.cmd`.
+        std::fs::write(first.path().join("npx"), "#!/bin/sh").expect("npx");
+        std::fs::write(first.path().join("npx.cmd"), "@echo off").expect("npx.cmd");
+        std::fs::write(second.path().join("tool.exe"), "").expect("tool.exe");
+        std::fs::create_dir(second.path().join("dir.exe")).expect("dir.exe");
+        let path = std::env::join_paths([first.path(), second.path()]).expect("join");
+        let exts = parse_pathext(".COM;.EXE;.BAT;.CMD");
+
+        assert_eq!(
+            find_program_in("npx", &path, &exts),
+            Some(first.path().join("npx.cmd"))
+        );
+        assert_eq!(
+            find_program_in("tool", &path, &exts),
+            Some(second.path().join("tool.exe"))
+        );
+        // An explicit extension is used as given; folders never match.
+        assert_eq!(
+            find_program_in("tool.exe", &path, &exts),
+            Some(second.path().join("tool.exe"))
+        );
+        assert_eq!(find_program_in("dir", &path, &exts), None);
+        // Unix rules (no extensions): only the exact name.
+        assert_eq!(
+            find_program_in("npx", &path, &[]),
+            Some(first.path().join("npx"))
+        );
+        assert_eq!(find_program_in("tool", &path, &[]), None);
+        // A path is checked directly.
+        let direct = first.path().join("npx.cmd");
+        assert_eq!(
+            find_program_in(&direct.to_string_lossy(), &path, &[]),
+            Some(direct)
+        );
     }
 
     #[test]
@@ -585,6 +701,9 @@ mod tests {
         let Some(tls_path) = find_in_path("typescript-language-server") else {
             return;
         };
+        // Only the Unix branch below links the global TypeScript install.
+        #[cfg(not(unix))]
+        let _ = &tls_path;
         // tls needs a TypeScript installation inside the workspace. The
         // npm global layout is <prefix>/bin/tls + <prefix>/lib/node_modules,
         // so a sibling symlink gives the test a realistic project.

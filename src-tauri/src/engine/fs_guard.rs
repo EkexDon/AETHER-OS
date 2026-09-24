@@ -228,6 +228,7 @@ mod tests {
     #[test]
     fn resolve_within_table() {
         let root_dir = tempfile::tempdir().expect("root");
+        #[cfg(unix)]
         let outside = tempfile::tempdir().expect("outside");
         let root = canonical(&root_dir);
         std::fs::create_dir(root.join("sub")).expect("mkdir");

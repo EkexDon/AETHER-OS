@@ -69,6 +69,12 @@ pub struct AppState {
 }
 
 pub fn run() {
+    // First, while the process is still single-threaded: give a Finder /
+    // Dock / desktop-menu launch the user's shell PATH (language servers,
+    // git, npx, terminal, agent commands) and apply the Linux WebKit
+    // workaround. See `engine::shell_env`.
+    engine::shell_env::fix_gui_path();
+    engine::shell_env::apply_webkit_workarounds();
     let builder = tauri::Builder::default();
     // ⌘Q must go through a cancellable exit so running terminals can be
     // confirmed (see `commands::app_commands`).
@@ -84,6 +90,9 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir)?;
             // First, so panics in any later engine start-up are captured.
             let diagnostics = Arc::new(Diagnostics::new(&data_dir)?);
+            if let Some(summary) = engine::shell_env::summary() {
+                diagnostics.log_info("env", summary)?;
+            }
             // One reader for every engine that needs the vault location.
             let vault = Arc::new(VaultReader::new(&data_dir)?);
             let vectors =
