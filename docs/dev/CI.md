@@ -7,8 +7,9 @@ Two GitHub Actions workflows live in `.github/workflows/`.
 | Job | Runner | Steps |
 | --- | --- | --- |
 | `frontend` | `ubuntu-latest`, Node 22 | `npm ci` → `tsc --noEmit` → `vitest run` → `vite build` → assert `dist/` contains no mock backend |
-| `rust` | `macos-latest`, stable Rust | `npm ci` → generate icons → `cargo fmt --check` → `cargo clippy -- -D warnings` → `cargo test` |
-| `linux-build-check` | `ubuntu-22.04`, stable Rust | Tauri 2 system packages (`libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`, `libssl-dev`, `libxdo-dev`, `build-essential`, `pkg-config`) → generate icons → `cargo check --all-targets` |
+| `rust` | `macos-latest`, stable Rust | `npm ci` → generate icons → `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` → `cargo test` |
+| `linux-build-check` | `ubuntu-22.04`, stable Rust | Tauri 2 system packages (`libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `patchelf`, `libssl-dev`, `libxdo-dev`, `build-essential`, `pkg-config`) → generate icons → `cargo check --all-targets` → `cargo clippy --all-targets -- -D warnings` → `cargo test --no-run` |
+| `windows-check` | `windows-latest`, stable Rust | generate icons → `cargo check --all-targets` → `cargo clippy --all-targets -- -D warnings` (keeps the Windows `cfg` branches compiling and warning-free) |
 
 Notes:
 
@@ -24,9 +25,13 @@ Notes:
   registry; `actions/setup-node` caches the npm cache keyed on
   `package-lock.json`.
 - **Concurrency.** A newer push to the same ref cancels the running CI.
-- **`Cargo.lock` is gitignored**, so CI resolves dependencies fresh on each
-  run. For reproducible builds the lock file of this application should be
-  committed (Cargo's recommendation for binaries) — an orchestrator decision.
+- **`Cargo.lock` is committed**, so CI and release builds resolve the same
+  dependency versions as local builds.
+- **Linux and Windows locally.** The Linux jobs can be reproduced in a
+  `rust:bookworm` container with the packages above; the Windows `cfg`
+  branches can be checked from any machine with
+  `rustup target add x86_64-pc-windows-gnu` plus the MinGW-w64 toolchain
+  and `cargo clippy --target x86_64-pc-windows-gnu --all-targets -- -D warnings`.
 
 ## Running the same gates locally
 

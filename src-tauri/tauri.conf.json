@@ -28,12 +28,60 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "EkexDon",
+    "copyright": "Copyright © 2026 EkexDon",
+    "homepage": "https://github.com/EkexDon/AETHER-OS",
+    "category": "Productivity",
+    "shortDescription": "Local-first personal operating system for notes, code and AI",
+    "longDescription": "AETHER-OS combines a Markdown vault, a code editor, terminal, browser, calendar, tasks and a local AI agent in one keyboard-first desktop app. Everything stays on your machine.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "dmg": {
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        },
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        }
+      }
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico"
+      }
+    },
+    "linux": {
+      "deb": {
+        "section": "utils",
+        "depends": ["libssl3 | libssl3t64"]
+      },
+      "rpm": {
+        "depends": ["libssl.so.3()(64bit)", "libcrypto.so.3()(64bit)"]
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
   }
 }

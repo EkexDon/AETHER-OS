@@ -36,12 +36,21 @@ impl TerminalManager {
         }
     }
 
+    /// `$SHELL` / the user's login shell, else zsh → bash → sh (PowerShell
+    /// on Windows). Never assumes zsh exists (most Linux installs lack it).
     fn default_shell() -> String {
-        if cfg!(target_os = "windows") {
-            "powershell.exe".to_string()
-        } else {
-            std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
-        }
+        crate::engine::shell_env::default_terminal_shell()
+    }
+
+    /// Start folder when the UI gives none: the home folder. The process
+    /// working directory is `/` for apps started from Finder or a desktop
+    /// menu (and the repository while developing), so it is only a fallback.
+    fn default_cwd() -> String {
+        crate::engine::shell_env::home_dir()
+            .filter(|home| home.is_dir())
+            .or_else(|| std::env::current_dir().ok())
+            .map(|dir| dir.to_string_lossy().to_string())
+            .unwrap_or_else(|| "/".to_string())
     }
 
     pub fn spawn(
@@ -56,11 +65,11 @@ impl TerminalManager {
         let shell = shell
             .map(|s| s.to_string())
             .unwrap_or_else(Self::default_shell);
-        let cwd = cwd.map(|c| c.to_string()).unwrap_or_else(|| {
-            std::env::current_dir()
-                .map(|d| d.to_string_lossy().to_string())
-                .unwrap_or_else(|_| "/".to_string())
-        });
+        let cwd = cwd
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(Self::default_cwd);
 
         let pty_system = native_pty_system();
         let pair = pty_system
@@ -272,6 +281,22 @@ mod tests {
     use super::*;
     use std::sync::mpsc;
     use std::time::Duration;
+
+    /// A GUI launch has `/` as working directory; new tabs must still open
+    /// in the home folder, with a shell that exists on this machine.
+    #[test]
+    fn defaults_are_the_home_folder_and_an_existing_shell() {
+        if let Some(home) = crate::engine::shell_env::home_dir().filter(|h| h.is_dir()) {
+            assert_eq!(
+                TerminalManager::default_cwd(),
+                home.to_string_lossy().to_string()
+            );
+        }
+        let shell = TerminalManager::default_shell();
+        if cfg!(unix) {
+            assert!(std::path::Path::new(&shell).is_file(), "{shell}");
+        }
+    }
 
     #[test]
     fn spawn_and_write_echo() {

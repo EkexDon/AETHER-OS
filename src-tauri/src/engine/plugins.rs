@@ -2294,6 +2294,9 @@ mod tests {
     fn vault_paths_cannot_escape_the_vault() {
         let (tmp, manager) = manager();
         let (vault, _config, reader) = vault_reader();
+        // Only the Unix symlink case below needs the vault folder itself.
+        #[cfg(not(unix))]
+        let _ = &vault;
         install_enabled(
             &manager,
             tmp.path(),

@@ -9,6 +9,7 @@
     "check": "sh test_runner.sh",
     "app": "tauri dev",
     "app:build": "tauri build",
+    "app:build:universal": "tauri build --target universal-apple-darwin",
     "tauri": "tauri",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",

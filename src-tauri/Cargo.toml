@@ -53,7 +53,6 @@ notify-debouncer-mini = "0.5"
 # @anchor:deps:history
 # @anchor:deps:home
 # @anchor:deps:vaulttasks
-libc = "0.2"
 # @anchor:deps:intel
 # @anchor:deps:plugins
 pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
@@ -67,6 +66,11 @@ rand = "0.8"
 zeroize = "1"
 # @anchor:deps:sync
 # @anchor:deps:onboarding
+
+# Unix-only: process groups for agent commands (`intel/shell_exec.rs`) and
+# the login shell lookup (`shell_env.rs`).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3.8"
